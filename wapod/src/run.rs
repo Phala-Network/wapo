@@ -1,6 +1,8 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use tracing::error;
+use pink_types::js::JsValue;
+use scale::Decode;
+use tracing::{error, info};
 use wapo_host::{OutgoingRequest, WasmEngine, WasmInstanceConfig};
 
 #[derive(Parser, Debug)]
@@ -12,6 +14,9 @@ pub struct Args {
     /// Max memory pages
     #[arg(long, default_value_t = 256)]
     max_memory_pages: u32,
+    /// Decode the Output as JsValue
+    #[arg(long, short = 'j')]
+    decode_js_value: bool,
     /// The WASM program to run
     program: String,
     /// The rest of the arguments are passed to the WASM program
@@ -32,7 +37,10 @@ pub async fn run(mut args: Args) -> Result<Vec<u8>> {
         log_handler: None,
     };
     let engine = WasmEngine::new();
+    let t0 = std::time::Instant::now();
+    info!(target: "wapo", "Compiling wasm module");
     let module = engine.compile(&code)?;
+    info!(target: "wapo", "Compiled wasm module in {:?}", t0.elapsed());
     args.args.insert(0, args.program);
     let vm_args = args
         .args
@@ -85,7 +93,13 @@ pub async fn run(mut args: Args) -> Result<Vec<u8>> {
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
     let args = Args::parse();
+    let decode_output_js = args.decode_js_value;
     let output = run(args).await?;
-    println!("Output: {:?}", output);
+    if decode_output_js {
+        let js_value = JsValue::decode(&mut &output[..]).context("Failed to decode JsValue")?;
+        println!("Output: {:?}", js_value);
+    } else {
+        println!("Output: {:?}", output);
+    }
     Ok(())
 }

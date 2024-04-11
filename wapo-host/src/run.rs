@@ -7,7 +7,7 @@ use std::task::{Context, Poll};
 use wasi_common::sync::WasiCtxBuilder;
 use wasi_common::WasiCtx;
 
-use wasmtime::{Config, Engine, Instance, Linker, Module, Store, TypedFunc};
+use wasmtime::{Config, Engine, Linker, Module, Store, TypedFunc};
 
 use crate::wapo_ctx::{LogHandler, WapoCtx};
 use crate::{async_context, wapo_ctx, VmId};
