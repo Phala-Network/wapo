@@ -112,14 +112,139 @@ impl TcpStream {
 }
 
 #[cfg(feature = "hyper")]
-pub use impl_hyper::{AddrIncoming, AddrStream, HttpConnector};
-#[cfg(feature = "hyper")]
-mod impl_hyper {
+pub mod hyper_v1 {
+    //! Hyper support.
+    //!
+    //! This module provides support for the Hyper HTTP library.
+    use pin_project::pin_project;
+    use std::{
+        pin::Pin,
+        task::{Context, Poll},
+    };
+
+    use futures::Future;
+    use hyper::Uri;
+    use hyper_util::{
+        client::legacy::connect::{Connected, Connection},
+        rt::TokioIo,
+    };
+    use tower_service::Service;
+
+    use super::{TcpConnector, TcpStream};
+    use crate::env::OcallError;
+
+    /// An HTTP/HTTPS Connector for hyper working under wapo.
+    #[derive(Clone, Default, Debug)]
+    pub struct HttpConnector;
+
+    impl HttpConnector {
+        /// Create a new HttpConnector.
+        pub fn new() -> Self {
+            Self
+        }
+    }
+
+    /// A future that resolves to a connected TcpStream.
+    #[pin_project]
+    pub struct HttpConnecting(#[pin] TcpConnector);
+
+    impl Future for HttpConnecting {
+        type Output = Result<WrappedTcpStream, OcallError>;
+
+        fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+            let stream = futures::ready!(self.project().0.poll(cx))?;
+            Poll::Ready(Ok(WrappedTcpStream(TokioIo::new(stream))))
+        }
+    }
+
+    /// A wrapper of TcpStream that implements hyper::rt::Read and hyper::rt::Write.
+    #[pin_project]
+    pub struct WrappedTcpStream(#[pin] TokioIo<TcpStream>);
+
+    impl Connection for WrappedTcpStream {
+        fn connected(&self) -> Connected {
+            Connected::new()
+        }
+    }
+
+    impl hyper::rt::Read for WrappedTcpStream {
+        fn poll_read(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: hyper::rt::ReadBufCursor<'_>,
+        ) -> Poll<Result<(), std::io::Error>> {
+            self.project().0.poll_read(cx, buf)
+        }
+    }
+
+    impl hyper::rt::Write for WrappedTcpStream {
+        fn poll_write(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &[u8],
+        ) -> Poll<Result<usize, std::io::Error>> {
+            self.project().0.poll_write(cx, buf)
+        }
+
+        fn poll_flush(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<Result<(), std::io::Error>> {
+            self.project().0.poll_flush(cx)
+        }
+
+        fn poll_shutdown(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<Result<(), std::io::Error>> {
+            self.project().0.poll_shutdown(cx)
+        }
+
+        fn is_write_vectored(&self) -> bool {
+            self.0.is_write_vectored()
+        }
+
+        fn poll_write_vectored(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            bufs: &[std::io::IoSlice<'_>],
+        ) -> Poll<Result<usize, std::io::Error>> {
+            self.project().0.poll_write_vectored(cx, bufs)
+        }
+    }
+
+    impl Service<Uri> for HttpConnector {
+        type Response = WrappedTcpStream;
+        type Error = OcallError;
+        type Future = HttpConnecting;
+
+        fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+            Poll::Ready(Ok(()))
+        }
+
+        fn call(&mut self, dst: Uri) -> Self::Future {
+            let is_https = dst.scheme_str() == Some("https");
+            let host = dst
+                .host()
+                .unwrap_or("")
+                .trim_matches(|c| c == '[' || c == ']');
+            let port = dst.port_u16().unwrap_or(if is_https { 443 } else { 80 });
+            HttpConnecting(TcpStream::connect(host, port, is_https))
+        }
+    }
+}
+
+#[cfg(feature = "hyper-v0")]
+/// Hyper 0.14 support.
+pub mod hyper_v0 {
     use super::*;
+    use ::hyper_v0::{
+        client::connect::{Connected, Connection},
+        server::accept::Accept,
+        service::Service,
+        Uri,
+    };
     use env::OcallError;
-    use hyper::client::connect::{Connected, Connection};
-    use hyper::server::accept::Accept;
-    use hyper::{service::Service, Uri};
     use std::{io, task};
 
     macro_rules! ready_ok {

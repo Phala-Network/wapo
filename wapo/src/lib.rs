@@ -12,7 +12,7 @@ pub use env::tasks as task;
 pub use env::ocall_funcs_guest as ocall;
 
 pub mod channel;
-pub mod exec;
+pub mod hyper_rt;
 pub mod net;
 pub mod time;
 pub mod logger;

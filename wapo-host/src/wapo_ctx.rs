@@ -4,7 +4,7 @@ use std::{
     fmt, io,
     sync::{Arc, Mutex},
     task::Poll::{Pending, Ready},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use anyhow::Context;
@@ -207,6 +207,18 @@ impl<'a> env::OcallFuncs for WapoCtx {
     fn create_timer(&mut self, timeout: i32) -> Result<i32> {
         let sleep = tokio::time::sleep(Duration::from_millis(timeout as u64));
         self.resources.push(Resource::Sleep(Box::pin(sleep)))
+    }
+
+    fn reset_timer(&mut self, id: i32, timeout: i32) -> Result<()> {
+        let res = self.resources.get_mut(id)?;
+        let Resource::Sleep(sleep) = res else {
+            return Err(OcallError::InvalidParameter);
+        };
+        let deadline = Instant::now()
+            .checked_add(Duration::from_millis(timeout as u64))
+            .ok_or(OcallError::InvalidParameter)?;
+        sleep.as_mut().reset(deadline.into());
+        Ok(())
     }
 
     fn enable_ocall_trace(&mut self, enable: bool) -> Result<()> {

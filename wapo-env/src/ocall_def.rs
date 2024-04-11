@@ -54,6 +54,10 @@ pub trait OcallFuncs {
     #[ocall(id = 201)]
     fn create_timer(timeout: i32) -> Result<i32>;
 
+    /// Reset a timer given a duration of time in milliseconds.
+    #[ocall(id = 203)]
+    fn reset_timer(id: i32, timeout: i32) -> Result<()>;
+
     /// Send data to a oneshot channel.
     #[ocall(id = 202)]
     fn oneshot_send(resource_id: i32, data: &[u8]) -> Result<()>;

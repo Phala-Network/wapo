@@ -6,13 +6,22 @@ use core::pin::Pin;
 use derive_more::{Display, Error};
 use std::future::Future;
 use std::task::{Context, Poll};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::ResourceId;
 
 /// The future to sleep for a given duration.
 pub struct Sleep {
     id: ResourceId,
+}
+
+impl Sleep {
+    /// Reset the sleep duration.
+    pub fn reset(&mut self, duration: Instant) {
+        let now = Instant::now();
+        let duration = duration.checked_duration_since(now).unwrap_or_default();
+        ocall::reset_timer(self.id.0, duration.as_millis() as i32).expect("failed to reset timer");
+    }
 }
 
 /// Sleep for the specified duration.
@@ -25,6 +34,20 @@ pub struct Sleep {
 pub fn sleep(duration: Duration) -> Sleep {
     let id = ocall::create_timer(duration.as_millis() as i32).expect("failed to create timer");
     Sleep { id: ResourceId(id) }
+}
+
+/// Sleep until the specified instant.
+///
+/// # Example
+/// ```ignore
+/// use wapo::time;
+/// use std::time::Instant;
+/// time::sleep_until(Instant::now() + Duration::from_millis(100)).await;
+/// ```
+pub fn sleep_until(instant: Instant) -> Sleep {
+    let now = Instant::now();
+    let duration = instant.checked_duration_since(now).unwrap_or_default();
+    sleep(duration)
 }
 
 impl Future for Sleep {
