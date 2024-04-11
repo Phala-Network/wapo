@@ -382,7 +382,7 @@ async fn tcp_connect(host: &str, port: u16) -> io::Result<TcpStream> {
         // By default, tokio uses the blocking DNS resovler from libc and run them in a thread pool.
         // That would cause problem such as run out of thread-pool in some poor network situation.
         // So, we use trust-dns async resolver here.
-        let resolver = trust_dns_resolver::TokioAsyncResolver::tokio_from_system_conf()
+        let resolver = hickory_resolver::TokioAsyncResolver::tokio_from_system_conf()
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
         let ips = resolver
             .lookup_ip(host)
