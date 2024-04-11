@@ -14,6 +14,7 @@ impl StackedArgs<()> {
 }
 
 impl<A: Nargs> StackedArgs<A> {
+    #[cfg(feature = "host")]
     pub(crate) fn load(mut raw: &[IntPtr]) -> Option<Self> {
         Some(check_args_length(StackedArgs {
             args: Nargs::load(&mut raw)?,
@@ -29,6 +30,7 @@ impl<A: Nargs> StackedArgs<A> {
 }
 
 impl<A, B> StackedArgs<(A, B)> {
+    #[cfg(feature = "host")]
     fn pop(self) -> (A, StackedArgs<B>) {
         let (a, args) = self.args;
         (a, StackedArgs { args })

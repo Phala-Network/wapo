@@ -7,7 +7,7 @@ name = "wapo"
 version = "0.1.0"
 
 [dependencies]
-wapo-env = { version = "0.1.0", path = "../wapo-env", no-default-features = true }
+wapo-env = { version = "0.1.0", path = "../wapo-env", default-features = false }
 wapo-macro = { version = "0.1.0", path = "../wapo-macro" }
 log = "0.4.16"
 derive_more = "0.99"

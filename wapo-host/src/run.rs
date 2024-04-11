@@ -4,6 +4,7 @@ use std::future::Future;
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use tracing::debug;
 use wasi_common::sync::WasiCtxBuilder;
 use wasi_common::WasiCtx;
 
@@ -67,7 +68,7 @@ impl WasmModule {
         wapo_ctx.set_weight(weight);
         wapo_ctx::add_ocalls_to_linker(&mut linker, |c| &mut c.wapo_ctx)?;
 
-        let todo = "set args and env";
+        let todo = "set envs";
         let wasi_ctx = WasiCtxBuilder::new().args(&args)?.inherit_stdio().build();
         let vm_ctx = VmCtx::new(wapo_ctx, wasi_ctx);
         wasi_common::sync::add_to_linker(&mut linker, |c| &mut c.wasi_ctx)?;
@@ -77,12 +78,16 @@ impl WasmModule {
             .instantiate(&mut store, &self.module)
             .context("Failed to create instance")?;
         let wasm_poll_entry = match instance.get_typed_func(&mut store, "wapo_poll") {
-            Ok(entry) => entry,
+            Ok(entry) => {
+                debug!(target: "wapo", "Using entry point wapo_poll in the WASM module");
+                entry
+            }
             Err(_) => {
                 // Fallback to the old name
                 let Ok(entry) = instance.get_typed_func(&mut store, "sidevm_poll") else {
                     bail!("No poll function found in the WASM module");
                 };
+                debug!(target: "wapo", "Using entry point sidevm_poll in the WASM module");
                 entry
             }
         };
