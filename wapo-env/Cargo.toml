@@ -11,7 +11,7 @@ wapo-macro = { version = "0.1.0", path = "../wapo-macro" }
 
 cfg-if = "1.0.0"
 derive_more = "0.99.17"
-num_enum = "0.5.7"
+num_enum = "0.7.2"
 scale = { package = "parity-scale-codec", version = "3.6.5", default-features = false, features = [
     "derive",
     "std",

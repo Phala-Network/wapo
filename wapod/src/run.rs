@@ -6,7 +6,7 @@ use tracing::{error, info};
 use wapo_host::{OutgoingRequest, WasmEngine, WasmInstanceConfig};
 
 #[derive(Parser, Debug)]
-#[clap(about = "sidevm runner", version, author)]
+#[clap(about = "wapo runner", version, author)]
 pub struct Args {
     /// The gas limit for each poll.
     #[arg(long, default_value_t = 50_000_000_000_u64)]
@@ -57,12 +57,12 @@ pub async fn run(mut args: Args) -> Result<Vec<u8>> {
         .collect::<Result<Vec<_>, _>>()?;
     let mut wasm_run = module
         .run(vm_args, config)
-        .context("Failed to start sidevm instance")?;
+        .context("Failed to start the instance")?;
     let mut output = None;
     tokio::select! {
         rv = &mut wasm_run => {
             if let Err(err) = rv {
-                error!(target: "sidevm", ?err, "Js runtime exited with error.");
+                error!(target: "wapo", ?err, "Js runtime exited with error.");
             }
         }
         _ = async {
