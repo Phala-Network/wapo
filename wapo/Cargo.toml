@@ -4,7 +4,7 @@ license = "Apache-2.0"
 homepage = "https://github.com/Phala-Network/wapo"
 edition = "2021"
 name = "wapo"
-version = "0.1.0"
+version = "0.1.1"
 
 [dependencies]
 wapo-env = { version = "0.1.0", path = "../wapo-env", default-features = false }
