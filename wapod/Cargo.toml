@@ -7,6 +7,10 @@ version = "0.1.0"
 name = "wapod"
 path = "src/main.rs"
 
+[[bin]]
+name = "wapo-run"
+path = "src/run.rs"
+
 [dependencies]
 wapo-host = { version = "0.1.0", path = "../wapo-host" }
 tokio = { version = "1.17.0", features = ["full"] }
