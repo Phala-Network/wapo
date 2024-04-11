@@ -16,10 +16,10 @@ use std::str::FromStr;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 
-use sidevm::{Command, CommandSender, Spawner};
+use service::{Command, CommandSender, Spawner};
 use wapo_host::rocket_stream::{connect, RequestInfo, StreamResponse};
 use wapo_host::{
-    service::{self as sidevm, ExitReason},
+    service::{self, ExitReason},
     OutgoingRequest,
 };
 
@@ -97,7 +97,6 @@ impl App {
                 inner.args.max_memory_pages,
                 vmid,
                 inner.args.gas_per_breath,
-                crate::simple_cache(),
                 weight,
                 None,
             )
@@ -163,7 +162,7 @@ async fn push_query(
     Ok(reply)
 }
 
-#[post("/sidevm/<id>/<path..>", data = "<body>")]
+#[post("/vm/<id>/<path..>", data = "<body>")]
 async fn connect_vm_post<'r>(
     app: &State<App>,
     head: RequestInfo,
@@ -174,7 +173,7 @@ async fn connect_vm_post<'r>(
     connect_vm(app, head, id, path, Some(body)).await
 }
 
-#[get("/sidevm/<id>/<path..>")]
+#[get("/vm/<id>/<path..>")]
 async fn connect_vm_get<'r>(
     app: &State<App>,
     head: RequestInfo,
@@ -262,21 +261,12 @@ async fn info(app: &State<App>) -> String {
 
 pub async fn serve(args: Args) -> anyhow::Result<()> {
     let (tx, mut rx) = tokio::sync::mpsc::channel(10);
-    let (run, spawner) = sidevm::service(args.workers, tx);
+    let (run, spawner) = service::service(args.workers, tx);
     tokio::spawn(async move {
         while let Some((id, message)) = rx.recv().await {
             let vmid = ShortId(id);
 
             match message {
-                OutgoingRequest::Query {
-                    contract_id,
-                    payload,
-                    reply_tx,
-                } => {
-                    let dest = ShortId(contract_id);
-                    info!(%vmid, "Outgoing message to {dest} payload: {payload:?}");
-                    _ = reply_tx.send(Vec::new());
-                }
                 OutgoingRequest::Output(output) => {
                     info!(%vmid, "Outgoing message: {output:?}");
                 }

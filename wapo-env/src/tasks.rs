@@ -7,7 +7,7 @@ use futures::{channel::oneshot, pin_mut};
 use super::*;
 
 extern "Rust" {
-    fn sidevm_main_future() -> Pin<Box<dyn Future<Output = ()>>>;
+    fn wapo_main_future() -> Pin<Box<dyn Future<Output = ()>>>;
 }
 
 type TaskFuture = Pin<Box<dyn Future<Output = ()>>>;
@@ -18,17 +18,17 @@ type Tasks = Vec<Option<TaskFuture>>;
 thread_local! {
     /// The id of the current polling task. Would be passed to each ocall.
     static CURRENT_TASK: std::cell::Cell<i32>  = Default::default();
-    /// All async tasks in the sidevm guest.
+    /// All async tasks in the wapo guest.
     static TASKS: RefCell<Tasks> = {
         std::panic::set_hook(Box::new(|info| {
             log::error!("{}", info);
         }));
-        RefCell::new(vec![Some(unsafe { sidevm_main_future() })])
+        RefCell::new(vec![Some(unsafe { wapo_main_future() })])
     };
     /// New spawned tasks are pushed to this queue. Since tasks are always spawned from inside a
     /// running task which borrowing the TASKS, it can not be immediately pushed to the TASKS.
     static SPAWNING_TASKS: RefCell<Vec<TaskFuture>> = RefCell::new(vec![]);
-    /// Wakers might being referenced by the sidevm host runtime.
+    /// Wakers might being referenced by the wapo host runtime.
     ///
     /// When a ocall polling some resource, we can not pass the waker to the host runtime,
     /// because they are in different memory space and in different rust code compilation space.
@@ -202,7 +202,7 @@ where
     f.poll(&mut context)
 }
 
-pub fn sidevm_poll() -> i32 {
+pub fn wapo_poll() -> i32 {
     use task::Poll::*;
 
     fn poll() -> task::Poll<()> {

@@ -19,7 +19,7 @@ pub struct Sleep {
 ///
 /// # Example
 /// ```ignore
-/// use sidevm::time;
+/// use wapo::time;
 /// time::sleep(Duration::from_millis(100)).await;
 /// ```
 pub fn sleep(duration: Duration) -> Sleep {

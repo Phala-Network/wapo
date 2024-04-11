@@ -1,13 +1,16 @@
 use anyhow::{Context as _, Result};
 use phala_scheduler::TaskScheduler;
 use std::future::Future;
+use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use wasi_common::sync::WasiCtxBuilder;
+use wasi_common::WasiCtx;
 
 use wasmtime::{Config, Engine, Instance, Linker, Module, Store, TypedFunc};
 
-use crate::env::{DynCacheOps, LogHandler, VmState};
-use crate::{async_context, env, VmId};
+use crate::wapo_ctx::{LogHandler, WapoCtx};
+use crate::{async_context, wapo_ctx, VmId};
 
 type RuntimeError = anyhow::Error;
 
@@ -51,7 +54,6 @@ impl WasmModule {
             max_memory_pages,
             id,
             gas_per_breath,
-            cache_ops,
             scheduler,
             weight,
             event_tx,
@@ -59,18 +61,32 @@ impl WasmModule {
         } = config;
         let todo = "memory limits";
         let engine = self.engine.inner.clone();
-        let mut linker = Linker::<VmState>::new(&engine);
+        let mut linker = Linker::<VmCtx>::new(&engine);
 
-        let mut state = env::create_env(id, cache_ops, event_tx, log_handler, args);
-        state.set_weight(weight);
-        let mut store = Store::new(&engine, state);
-        env::add_to_linker(&mut linker, |c| c)?;
+        let mut wapo_ctx = wapo_ctx::create_env(id, event_tx, log_handler, args);
+        wapo_ctx.set_weight(weight);
+        wapo_ctx::add_ocalls_to_linker(&mut linker, |c| &mut c.wapo_ctx)?;
 
-        let instance = Instance::new(&mut store, &self.module, &[])?;
-        instance
-            .get_memory(&mut store, "memory")
-            .context("No memory exported")?;
-        let wasm_poll_entry = instance.get_typed_func(&mut store, "sidevm_poll")?;
+        let todo = "set args and env";
+        let wasi_ctx = WasiCtxBuilder::new().inherit_stdio().build();
+        let vm_ctx = VmCtx::new(wapo_ctx, wasi_ctx);
+        wasi_common::sync::add_to_linker(&mut linker, |c| &mut c.wasi_ctx)?;
+
+        let mut store = Store::new(&engine, vm_ctx);
+        let instance = linker
+            .instantiate(&mut store, &self.module)
+            .context("Failed to create instance")?;
+        let wasm_poll_entry = instance.get_typed_func(&mut store, "wapo_poll");
+        let wasm_poll_entry = match wasm_poll_entry {
+            Ok(f) => f,
+            Err(err) => {
+                // Fallback to the old name
+                let Ok(f) = instance.get_typed_func(&mut store, "sidevm_poll") else {
+                    return Err(err);
+                };
+                f
+            }
+        };
         if let Some(scheduler) = &scheduler {
             scheduler.reset(&id);
         }
@@ -87,7 +103,6 @@ pub struct WasmInstanceConfig {
     pub max_memory_pages: u32,
     pub id: crate::VmId,
     pub gas_per_breath: u64,
-    pub cache_ops: DynCacheOps,
     pub scheduler: Option<TaskScheduler<VmId>>,
     pub weight: u32,
     pub event_tx: crate::OutgoingRequestChannel,
@@ -96,9 +111,34 @@ pub struct WasmInstanceConfig {
 
 pub struct WasmRun {
     id: VmId,
-    store: Store<VmState>,
+    store: Store<VmCtx>,
     wasm_poll_entry: TypedFunc<(), i32>,
     scheduler: Option<TaskScheduler<VmId>>,
+}
+
+struct VmCtx {
+    wapo_ctx: WapoCtx,
+    wasi_ctx: WasiCtx,
+}
+
+impl VmCtx {
+    fn new(wapo_ctx: WapoCtx, wasi_ctx: WasiCtx) -> Self {
+        Self { wapo_ctx, wasi_ctx }
+    }
+}
+
+impl Deref for VmCtx {
+    type Target = WapoCtx;
+
+    fn deref(&self) -> &Self::Target {
+        &self.wapo_ctx
+    }
+}
+
+impl DerefMut for VmCtx {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.wapo_ctx
+    }
 }
 
 impl Drop for WasmRun {
@@ -139,7 +179,7 @@ impl Future for WasmRun {
 }
 
 impl WasmRun {
-    pub(crate) fn state_mut(&mut self) -> &mut VmState {
+    pub(crate) fn state_mut(&mut self) -> &mut WapoCtx {
         self.store.data_mut()
     }
 }

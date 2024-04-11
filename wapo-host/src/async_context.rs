@@ -5,7 +5,7 @@ use std::ptr::NonNull;
 use std::sync::{Arc, Weak};
 use std::task::{self, RawWaker, RawWakerVTable, Waker};
 
-use crate::env::TaskSet;
+use crate::wapo_ctx::TaskSet;
 
 thread_local! {
     static TLS_TASK_ENV: RefCell<Option<TaskEnv>> = RefCell::new(None);

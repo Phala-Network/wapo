@@ -53,8 +53,8 @@ pub enum QueryError {
     BadOrigin,
     /// An error occurred during the contract execution.
     RuntimeError(String),
-    /// The contract is not found.
-    SidevmNotFound,
+    /// The instance is not found.
+    InstanceNotFound,
     /// No response received from the contract. Maybe the contract was panicked during execution.
     NoResponse,
     /// The contract is busy and cannot process the request.

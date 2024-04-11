@@ -1,4 +1,4 @@
-//! Tools for writing Sidevm programs.
+//! Tools for writing wapo programs.
 
 // #![warn(missing_docs)]
 
@@ -17,8 +17,8 @@ use tinyvec::TinyVec;
 
 pub use args_stack::RetEncode;
 pub use ocall_def::*;
-pub use wapo_macro::main;
 pub use tasks::spawn;
+pub use wapo_macro::main;
 
 mod args_stack;
 pub mod messages;
@@ -553,16 +553,11 @@ pub trait OcallEnv {
     fn take_return(&mut self) -> Option<Vec<u8>>;
 }
 
+// link to wasm module wapo.
+#[link(wasm_import_module = "wapo")]
 extern "C" {
-    fn sidevm_ocall(
-        task_id: i32,
-        func_id: i32,
-        p0: IntPtr,
-        p1: IntPtr,
-        p2: IntPtr,
-        p3: IntPtr,
-    ) -> IntRet;
-    fn sidevm_ocall_fast_return(
+    fn ocall(task_id: i32, func_id: i32, p0: IntPtr, p1: IntPtr, p2: IntPtr, p3: IntPtr) -> IntRet;
+    fn ocall_fast_return(
         task_id: i32,
         func_id: i32,
         p0: IntPtr,
@@ -573,7 +568,7 @@ extern "C" {
 }
 
 unsafe fn do_ocall(func_id: i32, p0: IntPtr, p1: IntPtr, p2: IntPtr, p3: IntPtr) -> IntRet {
-    sidevm_ocall(tasks::current_task(), func_id, p0, p1, p2, p3)
+    ocall(tasks::current_task(), func_id, p0, p1, p2, p3)
 }
 
 unsafe fn do_ocall_fast_return(
@@ -583,7 +578,7 @@ unsafe fn do_ocall_fast_return(
     p2: IntPtr,
     p3: IntPtr,
 ) -> IntRet {
-    sidevm_ocall_fast_return(tasks::current_task(), func_id, p0, p1, p2, p3)
+    ocall_fast_return(tasks::current_task(), func_id, p0, p1, p2, p3)
 }
 
 #[derive(Default)]

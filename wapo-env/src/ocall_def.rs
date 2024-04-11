@@ -3,7 +3,7 @@ use crate::args_stack::{I32Convertible, RetDecode, StackedArgs};
 use crate::tls::{TlsClientConfig, TlsServerConfig};
 use std::borrow::Cow;
 
-/// All ocall definitions for pink Sidevm.
+/// All ocall definitions for wapo.
 #[wapo_macro::ocall]
 pub trait OcallFuncs {
     /// Close given resource by id.

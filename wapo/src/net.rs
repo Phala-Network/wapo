@@ -160,7 +160,7 @@ mod impl_hyper {
         }
     }
 
-    /// An HTTP/HTTPS Connector for hyper working under sidevm.
+    /// An HTTP/HTTPS Connector for hyper working under wapo.
     #[derive(Clone, Default, Debug)]
     pub struct HttpConnector;
 

@@ -1,10 +1,8 @@
-use crate::env::DynCacheOps;
 use crate::run::{WasmEngine, WasmInstanceConfig};
 use crate::{ShortId, VmId};
 use anyhow::Result;
 use phala_scheduler::TaskScheduler;
 use serde::{Deserialize, Serialize};
-use wapo_env::messages::{AccountId, HttpHead, HttpResponseHead};
 use std::future::Future;
 use tokio::io::DuplexStream;
 use tokio::{
@@ -14,6 +12,7 @@ use tokio::{
     task::JoinHandle,
 };
 use tracing::{debug, error, info, warn, Instrument};
+use wapo_env::messages::{AccountId, HttpHead, HttpResponseHead};
 
 pub type CommandSender = Sender<Command>;
 
@@ -36,11 +35,11 @@ pub enum ExitReason {
     Cancelled,
     /// When a previous running instance restored from a checkpoint.
     Restore,
-    /// The sidevm was deployed without code, so it it waiting to a custom code uploading.
+    /// The instance was deployed without code, so it it waiting to a custom code uploading.
     WaitingForCode,
-    /// The Code of the sidevm is too large.
+    /// The wasm code is too large.
     CodeTooLarge,
-    /// Failed to create the sidevm instance.
+    /// Failed to create the guest instance.
     FailedToStart,
 }
 
@@ -114,7 +113,7 @@ impl ServiceRun {
         loop {
             match self.report_rx.recv().await {
                 None => {
-                    info!(target: "sidevm", "The report channel is closed. Exiting service.");
+                    info!(target: "wapo", "The report channel is closed. Exiting service.");
                     break;
                 }
                 Some(report) => {
@@ -130,7 +129,7 @@ impl ServiceRun {
 }
 
 impl Spawner {
-    #[tracing::instrument(parent=None, name="sidevm", fields(id = %ShortId(id)), skip_all)]
+    #[tracing::instrument(parent=None, name="wapo", fields(id = %ShortId(id)), skip_all)]
     #[allow(clippy::too_many_arguments)]
     pub fn start(
         &self,
@@ -138,7 +137,6 @@ impl Spawner {
         max_memory_pages: u32,
         id: VmId,
         gas_per_breath: u64,
-        cache_ops: DynCacheOps,
         weight: u32,
         prev_stopped: Option<WatchReceiver<bool>>,
     ) -> Result<(CommandSender, JoinHandle<ExitReason>)> {
@@ -149,26 +147,26 @@ impl Spawner {
         let handle = self.spawn(async move {
             macro_rules! push_msg {
                 ($expr: expr, $level: ident, $msg: expr) => {{
-                    $level!(target: "sidevm", msg=%$msg, "Pushing message");
+                    $level!(target: "wapo", msg=%$msg, "Pushing message");
                     if let Err(err) = $expr {
-                        error!(target: "sidevm", msg=%$msg, %err, "Push message failed");
+                        error!(target: "wapo", msg=%$msg, %err, "Push message failed");
                     }
                 }};
             }
             let mut weight = weight;
             if let Some(mut prev_stopped) = prev_stopped {
                 if !*prev_stopped.borrow() {
-                    info!(target: "sidevm", "Waiting for the previous instance to be stopped...");
+                    info!(target: "wapo", "Waiting for the previous instance to be stopped...");
                     tokio::select! {
                         _ = prev_stopped.changed() => {},
                         cmd = cmd_rx.recv() => {
                             match cmd {
                                 None => {
-                                    info!(target: "sidevm", "The command channel is closed. Exiting...");
+                                    info!(target: "wapo", "The command channel is closed. Exiting...");
                                     return ExitReason::InputClosed;
                                 }
                                 Some(Command::Stop) => {
-                                    info!(target: "sidevm", "Received stop command. Exiting...");
+                                    info!(target: "wapo", "Received stop command. Exiting...");
                                     return ExitReason::Stopped;
                                 }
                                 Some(Command::UpdateWeight(w)) => {
@@ -179,7 +177,7 @@ impl Spawner {
                                     Command::HttpRequest(_)
                                 ) => {
                                     info!(
-                                        target: "sidevm",
+                                        target: "wapo",
                                         "Ignored command while waiting for the previous instance to be stopped"
                                     );
                                 }
@@ -188,21 +186,21 @@ impl Spawner {
                     }
                 }
             }
-            info!(target: "sidevm", "Starting sidevm instance...");
+            info!(target: "wapo", "Starting instance...");
+            let t0 = std::time::Instant::now();
             let engine = WasmEngine::new();
             let module = match engine.compile(&wasm_bytes) {
                 Ok(m) => m,
                 Err(err) => {
-                    error!(target: "sidevm", ?err, "Failed to compile wasm module");
+                    error!(target: "wapo", ?err, "Failed to compile wasm module");
                     return ExitReason::FailedToStart;
                 }
             };
-            info!(target: "sidevm", "Wasm module compiled");
+            info!(target: "wapo", "Wasm module compiled, elapsed={:.2?}", t0.elapsed());
             let config = WasmInstanceConfig {
                 max_memory_pages,
                 id,
                 gas_per_breath,
-                cache_ops,
                 scheduler: Some(scheduler),
                 weight,
                 event_tx,
@@ -211,7 +209,7 @@ impl Spawner {
             let mut wasm_run = match module.run(vec![], config) {
                 Ok(i) => i,
                 Err(err) => {
-                    error!(target: "sidevm", "Failed to create sidevm instance: {err:?}");
+                    error!(target: "wapo", "Failed to create instance: {err:?}");
                     return ExitReason::FailedToStart;
                 }
             };
@@ -220,11 +218,11 @@ impl Spawner {
                     cmd = cmd_rx.recv() => {
                         match cmd {
                             None => {
-                                info!(target: "sidevm", "The command channel is closed. Exiting...");
+                                info!(target: "wapo", "The command channel is closed. Exiting...");
                                 break ExitReason::InputClosed;
                             }
                             Some(Command::Stop) => {
-                                info!(target: "sidevm", "Received stop command. Exiting...");
+                                info!(target: "wapo", "Received stop command. Exiting...");
                                 break ExitReason::Stopped;
                             }
                             Some(Command::PushQuery{ origin, payload, reply_tx }) => {
@@ -241,11 +239,11 @@ impl Spawner {
                     rv = &mut wasm_run => {
                         match rv {
                             Ok(ret) => {
-                                info!(target: "sidevm", ret, "The sidevm instance exited normally.");
+                                info!(target: "wapo", ret, "The instance exited normally.");
                                 break ExitReason::Exited(ret);
                             }
                             Err(err) => {
-                                info!(target: "sidevm", ?err, "The sidevm instance exited.");
+                                info!(target: "wapo", ?err, "The instance exited.");
                                 break ExitReason::Panicked;
                             }
                         }
@@ -258,7 +256,7 @@ impl Spawner {
             let reason = match handle.await {
                 Ok(r) => r,
                 Err(err) => {
-                    warn!(target: "sidevm", ?err, "The sidevm instance exited with error");
+                    warn!(target: "wapo", ?err, "The instance exited with error");
                     if err.is_cancelled() {
                         ExitReason::Cancelled
                     } else {
@@ -267,7 +265,7 @@ impl Spawner {
                 }
             };
             if let Err(err) = report_tx.send(Report::VmTerminated { id, reason }).await {
-                warn!(target: "sidevm", ?err, "Failed to send report to sidevm service");
+                warn!(target: "wapo", ?err, "Failed to send report to service");
             }
             reason
         });

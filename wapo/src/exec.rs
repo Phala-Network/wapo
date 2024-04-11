@@ -1,6 +1,6 @@
-//! Executors to bridge frameworks to sidevm.
+//! Executors to bridge frameworks to wapo.
 
-/// A hyper executor that executes futures with sidevm::spawn.
+/// A hyper executor that executes futures with wapo::spawn.
 #[cfg(feature = "hyper")]
 #[derive(Clone, Copy, Debug)]
 pub struct HyperExecutor;

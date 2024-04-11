@@ -47,11 +47,11 @@ impl IoHandler for StreamResponse {
             tokio::io::copy(&mut server_reader, &mut client_writer),
         };
         if let Err(err) = res_c2s {
-            error!(target: "sidevm", "Failed to copy from client to server: {err}");
+            error!(target: "wapo", "Failed to copy from client to server: {err}");
             return Err(err);
         }
         if let Err(err) = res_s2c {
-            error!(target: "sidevm", "Failed to copy from server to client: {err}");
+            error!(target: "wapo", "Failed to copy from server to client: {err}");
             return Err(err);
         }
         Ok(())
@@ -187,7 +187,7 @@ pub async fn connect(
             }
             .await;
             if let Err(err) = result {
-                error!(target: "sidevm", "Failed to pipe the body: {err:?}");
+                error!(target: "wapo", "Failed to pipe the body: {err:?}");
             }
         }
     }

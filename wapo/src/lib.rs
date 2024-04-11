@@ -1,5 +1,5 @@
-//! This crate provides some instrumentation to write sidevm programs. It is built on top of the
-//! Sidevm ocalls.
+//! This crate provides some instrumentation to write wapo programs. It is built on top of the
+//! wapo ocalls.
 
 #![deny(missing_docs)]
 

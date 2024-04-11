@@ -1,10 +1,10 @@
-//! Logger for sidevm programs.
+//! Logger for wapo programs.
 
 pub use log::LevelFilter;
 use log::{Log, Metadata, Record};
 use wapo_env::ocall_funcs_guest as ocall;
 
-/// A logger working inside a Sidevm.
+/// A logger working inside a wapo guest.
 pub struct Logger {
     max_level: LevelFilter,
 }

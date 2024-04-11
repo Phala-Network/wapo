@@ -48,12 +48,11 @@ fn _sizeof_i32_must_eq_to_intptr() {
 
 pub fn create_env(
     id: VmId,
-    cache_ops: DynCacheOps,
     out_tx: OutgoingRequestChannel,
     log_handler: Option<LogHandler>,
     args: Vec<String>,
-) -> VmState {
-    VmState::new(id, cache_ops, out_tx, log_handler, args)
+) -> WapoCtx {
+    WapoCtx::new(id, out_tx, log_handler, args)
 }
 
 pub(crate) struct TaskSet {
@@ -92,29 +91,16 @@ impl TaskSet {
     }
 }
 
-pub trait CacheOps {
-    fn get(&self, contract: &[u8], key: &[u8]) -> Result<Option<Vec<u8>>>;
-    fn set(&self, contract: &[u8], key: &[u8], value: &[u8]) -> Result<()>;
-    fn set_expiration(&self, contract: &[u8], key: &[u8], expire_after_secs: u64) -> Result<()>;
-    fn remove(&self, contract: &[u8], key: &[u8]) -> Result<Option<Vec<u8>>>;
-}
-
-pub type DynCacheOps = &'static (dyn CacheOps + Send + Sync);
 pub type LogHandler = Box<dyn Fn(VmId, u8, &str) + Send + Sync>;
 
 pub type OutgoingRequestChannel = Sender<(VmId, OutgoingRequest)>;
 
 pub enum OutgoingRequest {
-    Query {
-        contract_id: [u8; 32],
-        payload: Vec<u8>,
-        reply_tx: OneshotSender<Vec<u8>>,
-    },
     // Used by Js Engine to send js eval result
     Output(Vec<u8>),
 }
 
-pub(crate) struct VmState {
+pub(crate) struct WapoCtx {
     id: VmId,
     gas_per_breath: u64,
     resources: ResourceTable,
@@ -123,7 +109,6 @@ pub(crate) struct VmState {
     query_tx: Option<Sender<Vec<u8>>>,
     http_connect_tx: Option<Sender<Vec<u8>>>,
     awake_tasks: Arc<TaskSet>,
-    cache_ops: DynCacheOps,
     weight: u32,
     outgoing_query_guard: Arc<Semaphore>,
     outgoing_request_tx: OutgoingRequestChannel,
@@ -132,10 +117,9 @@ pub(crate) struct VmState {
     args: Vec<String>,
 }
 
-impl VmState {
+impl WapoCtx {
     fn new(
         id: VmId,
-        cache_ops: DynCacheOps,
         outgoing_request_tx: OutgoingRequestChannel,
         log_handler: Option<LogHandler>,
         args: Vec<String>,
@@ -149,7 +133,6 @@ impl VmState {
             query_tx: None,
             http_connect_tx: None,
             awake_tasks: Arc::new(TaskSet::with_task0()),
-            cache_ops,
             weight: 1,
             outgoing_query_guard: Arc::new(Semaphore::new(1)),
             outgoing_request_tx,
@@ -174,7 +157,7 @@ impl VmState {
     }
 }
 
-impl<'a> env::OcallEnv for VmState {
+impl<'a> env::OcallEnv for WapoCtx {
     fn put_return(&mut self, rv: Vec<u8>) -> usize {
         let len = rv.len();
         self.temp_return_value = Some(rv);
@@ -186,7 +169,7 @@ impl<'a> env::OcallEnv for VmState {
     }
 }
 
-impl<'a> env::OcallFuncs for VmState {
+impl<'a> env::OcallFuncs for WapoCtx {
     fn close(&mut self, resource_id: i32) -> Result<()> {
         self.close(resource_id)
     }
@@ -306,7 +289,7 @@ impl<'a> env::OcallFuncs for VmState {
     }
 
     fn log(&mut self, level: log::Level, message: &str) -> Result<()> {
-        log::log!(target: "sidevm", level, "{message}");
+        log::log!(target: "wapo", level, "{message}");
         if let Some(log_handler) = &self.log_handler {
             log_handler(self.id, level as u8, message);
         }
@@ -426,9 +409,58 @@ async fn tcp_connect(host: &str, port: u16) -> io::Result<TcpStream> {
     }
 }
 
-pub fn add_to_linker<State>(
+pub fn add_ocalls_to_linker<State>(
     linker: &mut wasmtime::Linker<State>,
-    get_cx: impl Fn(&mut State) -> &mut VmState + Send + Sync + Copy + 'static,
+    get_cx: impl Fn(&mut State) -> &mut WapoCtx + Send + Sync + Copy + 'static,
+) -> anyhow::Result<()> {
+    add_wapo_ocalls_to_linker(linker, get_cx)?;
+    // To be compatible with the old version, we also add the sidevm ocalls.
+    add_sidevm_ocalls_to_linker(linker, get_cx)
+}
+
+fn add_wapo_ocalls_to_linker<State>(
+    linker: &mut wasmtime::Linker<State>,
+    get_cx: impl Fn(&mut State) -> &mut WapoCtx + Send + Sync + Copy + 'static,
+) -> anyhow::Result<()> {
+    linker
+        .func_wrap(
+            "wapo",
+            "ocall_fast_return",
+            move |caller: Caller<'_, State>,
+                  task_id: i32,
+                  func_id: i32,
+                  p0: IntPtr,
+                  p1: IntPtr,
+                  p2: IntPtr,
+                  p3: IntPtr|
+                  -> anyhow::Result<IntRet> {
+                do_ocall(caller, task_id, func_id, p0, p1, p2, p3, true, get_cx).map_err(Into::into)
+            },
+        )
+        .context("Failed to add wapo.ocall_fast_return to linker")?;
+    linker
+        .func_wrap(
+            "wapo",
+            "ocall",
+            move |caller: Caller<'_, State>,
+                  task_id: i32,
+                  func_id: i32,
+                  p0: IntPtr,
+                  p1: IntPtr,
+                  p2: IntPtr,
+                  p3: IntPtr|
+                  -> anyhow::Result<IntRet> {
+                do_ocall(caller, task_id, func_id, p0, p1, p2, p3, false, get_cx)
+                    .map_err(Into::into)
+            },
+        )
+        .context("Failed to add wapo.ocall to linker")?;
+    Ok(())
+}
+
+fn add_sidevm_ocalls_to_linker<State>(
+    linker: &mut wasmtime::Linker<State>,
+    get_cx: impl Fn(&mut State) -> &mut WapoCtx + Send + Sync + Copy + 'static,
 ) -> anyhow::Result<()> {
     linker
         .func_wrap(
@@ -445,7 +477,7 @@ pub fn add_to_linker<State>(
                 do_ocall(caller, task_id, func_id, p0, p1, p2, p3, true, get_cx).map_err(Into::into)
             },
         )
-        .context("Failed to add sidevm_ocall_fast_return to linker")?;
+        .context("Failed to add env.sidevm_ocall_fast_return to linker")?;
     linker
         .func_wrap(
             "env",
@@ -462,7 +494,7 @@ pub fn add_to_linker<State>(
                     .map_err(Into::into)
             },
         )
-        .context("Failed to add sidevm_ocall to linker")?;
+        .context("Failed to add env.sidevm_ocall to linker")?;
     Ok(())
 }
 
@@ -477,7 +509,7 @@ fn do_ocall<State>(
     p2: IntPtr,
     p3: IntPtr,
     fast_return: bool,
-    get_cx: impl Fn(&mut State) -> &mut VmState + Send + Sync + Copy + 'static,
+    get_cx: impl Fn(&mut State) -> &mut WapoCtx + Send + Sync + Copy + 'static,
 ) -> Result<IntRet, OcallError> {
     let export = caller.get_export("memory");
     let (mem, state) = match &export {
@@ -499,7 +531,7 @@ fn do_ocall<State>(
 
     if state.ocall_trace_enabled {
         let func_name = env::ocall_id2name(func_id);
-        tracing::trace!(target: "sidevm", "{func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}");
+        tracing::trace!(target: "wapo", "{func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}");
     }
     Ok(result.encode_ret())
 }
@@ -532,8 +564,8 @@ mod vm_counter {
     }
 }
 
-impl VmState {
-    /// Push a contract query to the Sidevm instance.
+impl WapoCtx {
+    /// Push a contract query to the wapo guest.
     pub fn push_query(
         &mut self,
         origin: Option<AccountId>,
@@ -541,7 +573,7 @@ impl VmState {
         reply_tx: OneshotSender<Vec<u8>>,
     ) -> anyhow::Result<()> {
         let Some(tx) = self.query_tx.clone() else {
-            debug!(target: "sidevm", "Query dropped: no query channel");
+            debug!(target: "wapo", "Query dropped: no query channel");
             return Ok(());
         };
         let reply_tx = self.resources.push(Resource::OneshotTx(Some(reply_tx)));
@@ -568,7 +600,7 @@ impl VmState {
             response_tx,
         } = request;
         let Some(connect_tx) = self.http_connect_tx.clone() else {
-            debug!(target: "sidevm", "Http request dropped: no http connect channel");
+            debug!(target: "wapo", "Http request dropped: no http connect channel");
             return Ok(());
         };
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -583,7 +615,7 @@ impl VmState {
                         Ok(response)
                     });
                 if response_tx.send(reply).is_err() {
-                    info!(target: "sidevm", "Failed to send http response");
+                    info!(target: "wapo", "Failed to send http response");
                 }
             }
             .instrument(Span::current()),
