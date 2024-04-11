@@ -1,4 +1,4 @@
-use anyhow::{Context as _, Result};
+use anyhow::{bail, Context as _, Result};
 use phala_scheduler::TaskScheduler;
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
@@ -63,12 +63,12 @@ impl WasmModule {
         let engine = self.engine.inner.clone();
         let mut linker = Linker::<VmCtx>::new(&engine);
 
-        let mut wapo_ctx = wapo_ctx::create_env(id, event_tx, log_handler, args);
+        let mut wapo_ctx = wapo_ctx::create_env(id, event_tx, log_handler);
         wapo_ctx.set_weight(weight);
         wapo_ctx::add_ocalls_to_linker(&mut linker, |c| &mut c.wapo_ctx)?;
 
         let todo = "set args and env";
-        let wasi_ctx = WasiCtxBuilder::new().inherit_stdio().build();
+        let wasi_ctx = WasiCtxBuilder::new().args(&args)?.inherit_stdio().build();
         let vm_ctx = VmCtx::new(wapo_ctx, wasi_ctx);
         wasi_common::sync::add_to_linker(&mut linker, |c| &mut c.wasi_ctx)?;
 
@@ -76,15 +76,14 @@ impl WasmModule {
         let instance = linker
             .instantiate(&mut store, &self.module)
             .context("Failed to create instance")?;
-        let wasm_poll_entry = instance.get_typed_func(&mut store, "wapo_poll");
-        let wasm_poll_entry = match wasm_poll_entry {
-            Ok(f) => f,
-            Err(err) => {
+        let wasm_poll_entry = match instance.get_typed_func(&mut store, "wapo_poll") {
+            Ok(entry) => entry,
+            Err(_) => {
                 // Fallback to the old name
-                let Ok(f) = instance.get_typed_func(&mut store, "sidevm_poll") else {
-                    return Err(err);
+                let Ok(entry) = instance.get_typed_func(&mut store, "sidevm_poll") else {
+                    bail!("No poll function found in the WASM module");
                 };
-                f
+                entry
             }
         };
         if let Some(scheduler) = &scheduler {

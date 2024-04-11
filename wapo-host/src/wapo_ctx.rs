@@ -50,9 +50,8 @@ pub fn create_env(
     id: VmId,
     out_tx: OutgoingRequestChannel,
     log_handler: Option<LogHandler>,
-    args: Vec<String>,
 ) -> WapoCtx {
-    WapoCtx::new(id, out_tx, log_handler, args)
+    WapoCtx::new(id, out_tx, log_handler)
 }
 
 pub(crate) struct TaskSet {
@@ -114,7 +113,6 @@ pub(crate) struct WapoCtx {
     outgoing_request_tx: OutgoingRequestChannel,
     log_handler: Option<LogHandler>,
     _counter: vm_counter::Counter,
-    args: Vec<String>,
 }
 
 impl WapoCtx {
@@ -122,7 +120,6 @@ impl WapoCtx {
         id: VmId,
         outgoing_request_tx: OutgoingRequestChannel,
         log_handler: Option<LogHandler>,
-        args: Vec<String>,
     ) -> Self {
         Self {
             id,
@@ -138,7 +135,6 @@ impl WapoCtx {
             outgoing_request_tx,
             log_handler,
             _counter: Default::default(),
-            args,
         }
     }
     pub(crate) fn close(&mut self, resource_id: i32) -> Result<()> {
