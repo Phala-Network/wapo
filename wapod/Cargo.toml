@@ -1,0 +1,21 @@
+[package]
+edition = "2021"
+name = "wapod"
+version = "0.1.0"
+
+[[bin]]
+name = "wapod"
+path = "src/main.rs"
+
+[dependencies]
+wapo-host = { version = "0.1.0", path = "../wapo-host" }
+tokio = { version = "1.17.0", features = ["full"] }
+tracing-subscriber = "0.3"
+anyhow = "1.0.69"
+clap = { version = "4.0.32", features = ["derive"] }
+once_cell = "1"
+rocket = "0.5.0"
+scale = { package = "parity-scale-codec", version = "3.6.5" }
+sp-core = "21"
+serde_json = "1.0"
+tracing = "0.1"
