@@ -28,15 +28,12 @@ pub struct WasmEngine {
 
 impl Default for WasmEngine {
     fn default() -> Self {
-        Self::new()
+        Self::new(&Config::new())
     }
 }
 
 impl WasmEngine {
-    pub fn new() -> Self {
-        let mut config = Config::new();
-        config.async_support(false);
-
+    pub fn new(config: &Config) -> Self {
         let engine = Engine::new(&config).expect("Failed to create Wasm engine");
         Self { inner: engine }
     }

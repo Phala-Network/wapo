@@ -1,9 +1,27 @@
 use anyhow::{Context, Result};
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use pink_types::js::JsValue;
 use scale::Decode;
 use tracing::{error, info};
-use wapo_host::{OutgoingRequest, WasmEngine, WasmInstanceConfig};
+use wapo_host::{wasmtime::Config, OutgoingRequest, WasmEngine, WasmInstanceConfig};
+
+/// The compiler backend to use
+#[derive(ValueEnum, Clone, Debug)]
+enum Compiler {
+    Auto,
+    Cranelift,
+    Winch,
+}
+
+impl From<Compiler> for wapo_host::wasmtime::Strategy {
+    fn from(compiler: Compiler) -> Self {
+        match compiler {
+            Compiler::Auto => Self::Auto,
+            Compiler::Cranelift => Self::Cranelift,
+            Compiler::Winch => Self::Winch,
+        }
+    }
+}
 
 #[derive(Parser, Debug)]
 #[clap(about = "wapo runner", version, author)]
@@ -14,10 +32,13 @@ pub struct Args {
     /// Decode the Output as JsValue
     #[arg(long, short = 'j')]
     decode_js_value: bool,
+    /// The compiler to use
+    #[arg(long, short = 'c', default_value = "winch")]
+    compiler: Compiler,
     /// The WASM program to run
     program: String,
     /// The rest of the arguments are passed to the WASM program
-    #[arg(trailing_var_arg = true, allow_hyphen_values = true, hide = true)]
+    #[arg(last = true, trailing_var_arg = true, allow_hyphen_values = true, hide = true)]
     args: Vec<String>,
 }
 
@@ -32,7 +53,9 @@ pub async fn run(mut args: Args) -> Result<Vec<u8>> {
         event_tx,
         log_handler: None,
     };
-    let engine = WasmEngine::new();
+    let mut engine_config = Config::new();
+    engine_config.strategy(args.compiler.into());
+    let engine = WasmEngine::new(&engine_config);
     let t0 = std::time::Instant::now();
     info!(target: "wapo", "Compiling wasm module");
     let module = engine.compile(&code)?;

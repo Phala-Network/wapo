@@ -187,7 +187,7 @@ impl Spawner {
             }
             info!(target: "wapo", "Starting instance...");
             let t0 = std::time::Instant::now();
-            let engine = WasmEngine::new();
+            let engine = WasmEngine::default();
             let module = match engine.compile(&wasm_bytes) {
                 Ok(m) => m,
                 Err(err) => {
