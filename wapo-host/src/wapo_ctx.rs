@@ -279,11 +279,11 @@ impl<'a> env::OcallFuncs for WapoCtx {
         if host.len() > 253 {
             return Err(OcallError::InvalidParameter);
         }
-        let TlsClientConfig::V0 = config;
         let domain = host
-            .as_str()
+            .clone()
             .try_into()
             .or(Err(OcallError::InvalidParameter))?;
+        let TlsClientConfig::V0 = config;
         let fut = async move {
             tcp_connect(&host, port)
                 .await

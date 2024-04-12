@@ -7,16 +7,20 @@ use std::task::{Context, Poll};
 use futures::ready;
 use once_cell::sync::Lazy;
 use rustls_pemfile::Item;
-use wapo_env::tls::TlsServerConfig;
-use wapo_env::OcallError;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::TcpStream;
 use tokio_rustls::{
     client::TlsStream as ClientTlsStream,
-    rustls::{self, ClientConfig, ServerConfig, ServerName},
+    rustls::{
+        self,
+        pki_types::{CertificateDer, PrivateKeyDer, ServerName},
+        ClientConfig, ServerConfig,
+    },
     server::TlsStream as ServerTlsStream,
     Accept, Connect, TlsAcceptor, TlsConnector,
 };
+use wapo_env::tls::TlsServerConfig;
+use wapo_env::OcallError;
 
 pub enum TlsStream {
     ServerHandshaking(Accept<TcpStream>),
@@ -40,17 +44,9 @@ impl From<ServerTlsStream<TcpStream>> for TlsStream {
 
 fn default_client_config() -> Arc<ClientConfig> {
     static CLIENT_CONFIG: Lazy<Arc<ClientConfig>> = Lazy::new(|| {
-        let mut root_store = rustls::RootCertStore::empty();
-        root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
-            rustls::OwnedTrustAnchor::from_subject_spki_name_constraints(
-                ta.subject,
-                ta.spki,
-                ta.name_constraints,
-            )
-        }));
-
+        let root_store =
+            rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
         let config = ClientConfig::builder()
-            .with_safe_defaults()
             .with_root_certificates(root_store)
             .with_no_client_auth();
         Arc::new(config)
@@ -64,7 +60,7 @@ impl TlsStream {
         TlsStream::ServerHandshaking(accept)
     }
 
-    pub(crate) fn connect(domain: ServerName, stream: TcpStream) -> TlsStream {
+    pub(crate) fn connect(domain: ServerName<'static>, stream: TcpStream) -> TlsStream {
         let client_config = default_client_config();
         let connector = TlsConnector::from(client_config);
         TlsStream::ClientHandshaking(connector.connect(domain, stream))
@@ -220,24 +216,27 @@ pub(crate) fn load_tls_config(config: TlsServerConfig) -> Result<ServerConfig, O
     let key = load_private_key(key_pem)?;
 
     tokio_rustls::rustls::ServerConfig::builder()
-        .with_safe_defaults()
         .with_no_client_auth()
         .with_single_cert(certs, key)
         .or(Err(OcallError::InvalidParameter))
 }
 
-fn load_certs(pem_str: &str) -> Result<Vec<rustls::Certificate>, OcallError> {
-    let certs =
-        rustls_pemfile::certs(&mut pem_str.as_bytes()).or(Err(OcallError::InvalidParameter))?;
-    Ok(certs.into_iter().map(rustls::Certificate).collect())
+fn load_certs(pem_str: &str) -> Result<Vec<CertificateDer<'static>>, OcallError> {
+    rustls_pemfile::certs(&mut pem_str.as_bytes())
+        .collect::<Result<Vec<_>, _>>()
+        .or(Err(OcallError::InvalidParameter))
 }
 
-fn load_private_key(pem_str: &str) -> Result<rustls::PrivateKey, OcallError> {
-    let keys =
-        rustls_pemfile::read_all(&mut pem_str.as_bytes()).or(Err(OcallError::InvalidParameter))?;
-    let key = match &keys[..] {
-        [Item::RSAKey(key) | Item::PKCS8Key(key) | Item::ECKey(key)] => key,
+fn load_private_key(pem_str: &str) -> Result<PrivateKeyDer<'static>, OcallError> {
+    let key = rustls_pemfile::read_all(&mut pem_str.as_bytes())
+        .next()
+        .ok_or(OcallError::InvalidParameter)?
+        .or(Err(OcallError::InvalidParameter))?;
+    let key = match key {
+        Item::Pkcs1Key(key) => PrivateKeyDer::Pkcs1(key),
+        Item::Pkcs8Key(key) => PrivateKeyDer::Pkcs8(key),
+        Item::Sec1Key(key) => PrivateKeyDer::Sec1(key),
         _ => return Err(OcallError::InvalidParameter),
     };
-    Ok(rustls::PrivateKey(key.clone()))
+    Ok(key)
 }
