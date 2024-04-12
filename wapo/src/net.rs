@@ -149,72 +149,22 @@ pub mod hyper_v1 {
     pub struct HttpConnecting(#[pin] TcpConnector);
 
     impl Future for HttpConnecting {
-        type Output = Result<WrappedTcpStream, OcallError>;
+        type Output = Result<TokioIo<TcpStream>, OcallError>;
 
         fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
             let stream = futures::ready!(self.project().0.poll(cx))?;
-            Poll::Ready(Ok(WrappedTcpStream(TokioIo::new(stream))))
+            Poll::Ready(Ok(TokioIo::new(stream)))
         }
     }
 
-    /// A wrapper of TcpStream that implements hyper::rt::Read and hyper::rt::Write.
-    #[pin_project]
-    pub struct WrappedTcpStream(#[pin] TokioIo<TcpStream>);
-
-    impl Connection for WrappedTcpStream {
+    impl Connection for TcpStream {
         fn connected(&self) -> Connected {
             Connected::new()
         }
     }
 
-    impl hyper::rt::Read for WrappedTcpStream {
-        fn poll_read(
-            self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-            buf: hyper::rt::ReadBufCursor<'_>,
-        ) -> Poll<Result<(), std::io::Error>> {
-            self.project().0.poll_read(cx, buf)
-        }
-    }
-
-    impl hyper::rt::Write for WrappedTcpStream {
-        fn poll_write(
-            self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-            buf: &[u8],
-        ) -> Poll<Result<usize, std::io::Error>> {
-            self.project().0.poll_write(cx, buf)
-        }
-
-        fn poll_flush(
-            self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-        ) -> Poll<Result<(), std::io::Error>> {
-            self.project().0.poll_flush(cx)
-        }
-
-        fn poll_shutdown(
-            self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-        ) -> Poll<Result<(), std::io::Error>> {
-            self.project().0.poll_shutdown(cx)
-        }
-
-        fn is_write_vectored(&self) -> bool {
-            self.0.is_write_vectored()
-        }
-
-        fn poll_write_vectored(
-            self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-            bufs: &[std::io::IoSlice<'_>],
-        ) -> Poll<Result<usize, std::io::Error>> {
-            self.project().0.poll_write_vectored(cx, bufs)
-        }
-    }
-
     impl Service<Uri> for HttpConnector {
-        type Response = WrappedTcpStream;
+        type Response = TokioIo<TcpStream>;
         type Error = OcallError;
         type Future = HttpConnecting;
 

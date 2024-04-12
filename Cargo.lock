@@ -1771,8 +1771,7 @@ dependencies = [
 [[package]]
 name = "hyper-util"
 version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca38ef113da30126bbff9cd1705f9273e15d45498615d138b0c20279ac7a76aa"
+source = "git+https://github.com/kvinwang/hyper-util?branch=connection-tokioio#b9e0c856e93437d7998c35d0e77507343203d7de"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -3888,7 +3887,6 @@ dependencies = [
  "tokio",
  "tower-layer",
  "tower-service",
- "tracing",
 ]
 
 [[package]]
