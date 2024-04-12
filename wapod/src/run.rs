@@ -8,9 +8,6 @@ use wapo_host::{OutgoingRequest, WasmEngine, WasmInstanceConfig};
 #[derive(Parser, Debug)]
 #[clap(about = "wapo runner", version, author)]
 pub struct Args {
-    /// The gas limit for each poll.
-    #[arg(long, default_value_t = 50_000_000_000_u64)]
-    vital_capacity: u64,
     /// Max memory pages
     #[arg(long, default_value_t = 256)]
     max_memory_pages: u32,
@@ -29,7 +26,6 @@ pub async fn run(mut args: Args) -> Result<Vec<u8>> {
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(1);
     let config = WasmInstanceConfig {
         max_memory_pages: args.max_memory_pages,
-        gas_per_breath: args.vital_capacity,
         scheduler: None,
         weight: 0,
         id: Default::default(),

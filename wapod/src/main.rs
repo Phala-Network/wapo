@@ -5,9 +5,6 @@ mod web_api;
 #[derive(Parser)]
 #[clap(about = "wapo - a WASM runtime", version, author)]
 pub struct Args {
-    /// The gas limit for each poll.
-    #[arg(long, default_value_t = 50_000_000_000_u64)]
-    gas_per_breath: u64,
     #[arg(long, default_value_t = 1)]
     workers: usize,
     /// The WASM program to run

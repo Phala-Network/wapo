@@ -92,14 +92,7 @@ impl App {
         println!("VM {id} running...");
         let (sender, handle) = inner
             .spawner
-            .start(
-                &wasm_bytes,
-                inner.args.max_memory_pages,
-                vmid,
-                inner.args.gas_per_breath,
-                weight,
-                None,
-            )
+            .start(&wasm_bytes, inner.args.max_memory_pages, vmid, weight, None)
             .unwrap();
         inner.instances.insert(id, VmHandle { sender, handle });
         Ok(id)

@@ -10,8 +10,8 @@ use std::{
 use anyhow::Context;
 use tokio::{
     net::{TcpListener, TcpStream},
+    sync::oneshot::Sender as OneshotSender,
     sync::{mpsc::Sender, oneshot},
-    sync::{oneshot::Sender as OneshotSender, Semaphore},
 };
 use tracing::{debug, info, warn, Instrument, Span};
 
@@ -101,7 +101,6 @@ pub enum OutgoingRequest {
 
 pub(crate) struct WapoCtx {
     id: VmId,
-    gas_per_breath: u64,
     resources: ResourceTable,
     temp_return_value: Option<Vec<u8>>,
     ocall_trace_enabled: bool,
@@ -109,7 +108,6 @@ pub(crate) struct WapoCtx {
     http_connect_tx: Option<Sender<Vec<u8>>>,
     awake_tasks: Arc<TaskSet>,
     weight: u32,
-    outgoing_query_guard: Arc<Semaphore>,
     outgoing_request_tx: OutgoingRequestChannel,
     log_handler: Option<LogHandler>,
     _counter: vm_counter::Counter,
@@ -123,7 +121,6 @@ impl WapoCtx {
     ) -> Self {
         Self {
             id,
-            gas_per_breath: 0,
             resources: Default::default(),
             temp_return_value: Default::default(),
             ocall_trace_enabled: false,
@@ -131,7 +128,6 @@ impl WapoCtx {
             http_connect_tx: None,
             awake_tasks: Arc::new(TaskSet::with_task0()),
             weight: 1,
-            outgoing_query_guard: Arc::new(Semaphore::new(1)),
             outgoing_request_tx,
             log_handler,
             _counter: Default::default(),

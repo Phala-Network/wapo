@@ -136,7 +136,6 @@ impl Spawner {
         wasm_bytes: &[u8],
         max_memory_pages: u32,
         id: VmId,
-        gas_per_breath: u64,
         weight: u32,
         prev_stopped: Option<WatchReceiver<bool>>,
     ) -> Result<(CommandSender, JoinHandle<ExitReason>)> {
@@ -200,7 +199,6 @@ impl Spawner {
             let config = WasmInstanceConfig {
                 max_memory_pages,
                 id,
-                gas_per_breath,
                 scheduler: Some(scheduler),
                 weight,
                 event_tx,

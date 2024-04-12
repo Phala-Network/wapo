@@ -54,7 +54,6 @@ impl WasmModule {
         let WasmInstanceConfig {
             max_memory_pages,
             id,
-            gas_per_breath,
             scheduler,
             weight,
             event_tx,
@@ -106,7 +105,6 @@ impl WasmModule {
 pub struct WasmInstanceConfig {
     pub max_memory_pages: u32,
     pub id: crate::VmId,
-    pub gas_per_breath: u64,
     pub scheduler: Option<TaskScheduler<VmId>>,
     pub weight: u32,
     pub event_tx: crate::OutgoingRequestChannel,
