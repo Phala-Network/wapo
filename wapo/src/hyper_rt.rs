@@ -16,9 +16,9 @@ mod hyper_v0 {
     }
 }
 
-#[cfg(feature = "hyper")]
+#[cfg(feature = "hyper-v1")]
 pub use hyper_v1::HyperTimer;
-#[cfg(feature = "hyper")]
+#[cfg(feature = "hyper-v1")]
 mod hyper_v1 {
     //! IO integration for hyper
     use std::{

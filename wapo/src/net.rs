@@ -1,7 +1,6 @@
 //! Networking support.
 
 use std::future::Future;
-use std::io::Error;
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -109,9 +108,22 @@ impl TcpStream {
         let res = res.map(ResourceId);
         TcpConnector { res }
     }
+
+    #[allow(dead_code)]
+    fn connect_with_components(
+        scheme: Option<&str>,
+        host: Option<&str>,
+        port: Option<u16>,
+    ) -> TcpConnector {
+        let is_https = scheme == Some("https");
+        let default_port = if is_https { 443 } else { 80 };
+        let host = host.unwrap_or("").trim_matches(|c| c == '[' || c == ']');
+        let port = port.unwrap_or(default_port);
+        Self::connect(host, port, is_https)
+    }
 }
 
-#[cfg(feature = "hyper")]
+#[cfg(feature = "hyper-v1")]
 pub mod hyper_v1 {
     //! Hyper support.
     //!
@@ -123,12 +135,12 @@ pub mod hyper_v1 {
     };
 
     use futures::Future;
+    use hyper::service::Service;
     use hyper::Uri;
     use hyper_util::{
         client::legacy::connect::{Connected, Connection},
         rt::TokioIo,
     };
-    use tower_service::Service;
 
     use super::{TcpConnector, TcpStream};
     use crate::env::OcallError;
@@ -163,7 +175,8 @@ pub mod hyper_v1 {
         }
     }
 
-    impl Service<Uri> for HttpConnector {
+    #[cfg(feature = "tower")]
+    impl tower_service::Service<Uri> for HttpConnector {
         type Response = TokioIo<TcpStream>;
         type Error = OcallError;
         type Future = HttpConnecting;
@@ -173,13 +186,21 @@ pub mod hyper_v1 {
         }
 
         fn call(&mut self, dst: Uri) -> Self::Future {
-            let is_https = dst.scheme_str() == Some("https");
-            let host = dst
-                .host()
-                .unwrap_or("")
-                .trim_matches(|c| c == '[' || c == ']');
-            let port = dst.port_u16().unwrap_or(if is_https { 443 } else { 80 });
-            HttpConnecting(TcpStream::connect(host, port, is_https))
+            Service::call(self, dst)
+        }
+    }
+
+    impl Service<Uri> for HttpConnector {
+        type Response = TokioIo<TcpStream>;
+        type Error = OcallError;
+        type Future = HttpConnecting;
+
+        fn call(&self, dst: Uri) -> Self::Future {
+            HttpConnecting(TcpStream::connect_with_components(
+                dst.scheme_str(),
+                dst.host(),
+                dst.port_u16(),
+            ))
         }
     }
 }
@@ -256,13 +277,7 @@ pub mod hyper_v0 {
         }
 
         fn call(&mut self, dst: Uri) -> Self::Future {
-            let is_https = dst.scheme_str() == Some("https");
-            let host = dst
-                .host()
-                .unwrap_or("")
-                .trim_matches(|c| c == '[' || c == ']');
-            let port = dst.port_u16().unwrap_or(if is_https { 443 } else { 80 });
-            TcpStream::connect(host, port, is_https)
+            TcpStream::connect_with_components(dst.scheme_str(), dst.host(), dst.port_u16())
         }
     }
 
@@ -377,6 +392,7 @@ pub mod hyper_v0 {
 mod impl_tokio {
     use super::*;
     use tokio::io::{AsyncRead, AsyncWrite};
+    use std::io::Error;
 
     impl AsyncRead for TcpStream {
         fn poll_read(

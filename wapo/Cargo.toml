@@ -27,5 +27,7 @@ pin-project = "1"
 lazy_static = "1"
 
 [features]
-default = ["hyper", "hyper-v0", "tokio"]
-hyper = ["dep:hyper", "dep:hyper-util", "dep:tower-service", "tokio"]
+default = ["full"]
+full = ["hyper-v0", "hyper-v1", "tokio", "tower"]
+hyper-v1 = ["dep:hyper", "dep:hyper-util", "tokio"]
+tower = ["dep:tower-service", "hyper-v1"]
