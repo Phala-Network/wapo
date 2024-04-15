@@ -47,8 +47,8 @@ impl WasmEngine {
 }
 
 impl WasmModule {
-    pub fn run(&self, args: Vec<String>, config: WasmInstanceConfig) -> Result<WasmRun> {
-        let WasmInstanceConfig {
+    pub fn run(&self, args: Vec<String>, config: InstanceConfig) -> Result<WasmRun> {
+        let InstanceConfig {
             max_memory_pages,
             id,
             scheduler,
@@ -99,13 +99,18 @@ impl WasmModule {
     }
 }
 
-pub struct WasmInstanceConfig {
-    pub max_memory_pages: u32,
-    pub id: crate::VmId,
-    pub scheduler: Option<TaskScheduler<VmId>>,
-    pub weight: u32,
-    pub event_tx: crate::OutgoingRequestChannel,
-    pub log_handler: Option<LogHandler>,
+#[derive(typed_builder::TypedBuilder)]
+pub struct InstanceConfig {
+    #[builder(default)]
+    id: crate::VmId,
+    max_memory_pages: u32,
+    #[builder(default = None, setter(strip_option))]
+    scheduler: Option<TaskScheduler<VmId>>,
+    #[builder(default = 1)]
+    weight: u32,
+    event_tx: crate::OutgoingRequestChannel,
+    #[builder(default = None, setter(strip_option))]
+    log_handler: Option<LogHandler>,
 }
 
 pub struct WasmRun {

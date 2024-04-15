@@ -1,4 +1,4 @@
-use crate::run::{WasmEngine, WasmInstanceConfig};
+use crate::run::{InstanceConfig, WasmEngine};
 use crate::{ShortId, VmId};
 use anyhow::Result;
 use phala_scheduler::TaskScheduler;
@@ -130,7 +130,6 @@ impl ServiceRun {
 
 impl Spawner {
     #[tracing::instrument(parent=None, name="wapo", fields(id = %ShortId(id)), skip_all)]
-    #[allow(clippy::too_many_arguments)]
     pub fn start(
         &self,
         wasm_bytes: &[u8],
@@ -196,14 +195,13 @@ impl Spawner {
                 }
             };
             info!(target: "wapo", "Wasm module compiled, elapsed={:.2?}", t0.elapsed());
-            let config = WasmInstanceConfig {
-                max_memory_pages,
-                id,
-                scheduler: Some(scheduler),
-                weight,
-                event_tx,
-                log_handler: None,
-            };
+            let config = InstanceConfig::builder()
+                .id(id)
+                .max_memory_pages(max_memory_pages)
+                .scheduler(scheduler)
+                .weight(weight)
+                .event_tx(event_tx)
+                .build();
             let mut wasm_run = match module.run(vec![], config) {
                 Ok(i) => i,
                 Err(err) => {

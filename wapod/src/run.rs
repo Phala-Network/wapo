@@ -3,7 +3,7 @@ use clap::{Parser, ValueEnum};
 use pink_types::js::JsValue;
 use scale::Decode;
 use tracing::{error, info};
-use wapo_host::{wasmtime::Config, OutgoingRequest, WasmEngine, WasmInstanceConfig};
+use wapo_host::{wasmtime::Config, InstanceConfig, OutgoingRequest, WasmEngine};
 
 /// The compiler backend to use
 #[derive(ValueEnum, Clone, Debug)]
@@ -38,21 +38,22 @@ pub struct Args {
     /// The WASM program to run
     program: String,
     /// The rest of the arguments are passed to the WASM program
-    #[arg(last = true, trailing_var_arg = true, allow_hyphen_values = true, hide = true)]
+    #[arg(
+        last = true,
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        hide = true
+    )]
     args: Vec<String>,
 }
 
 pub async fn run(mut args: Args) -> Result<Vec<u8>> {
     let code = tokio::fs::read(&args.program).await?;
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(1);
-    let config = WasmInstanceConfig {
-        max_memory_pages: args.max_memory_pages,
-        scheduler: None,
-        weight: 0,
-        id: Default::default(),
-        event_tx,
-        log_handler: None,
-    };
+    let config = InstanceConfig::builder()
+        .max_memory_pages(args.max_memory_pages)
+        .event_tx(event_tx)
+        .build();
     let mut engine_config = Config::new();
     engine_config.strategy(args.compiler.into());
     let engine = WasmEngine::new(&engine_config);
