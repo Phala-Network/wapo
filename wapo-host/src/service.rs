@@ -202,7 +202,7 @@ impl Spawner {
                 .weight(weight)
                 .event_tx(event_tx)
                 .build();
-            let mut wasm_run = match module.run(vec![], config) {
+            let mut wasm_run = match module.run(config) {
                 Ok(i) => i,
                 Err(err) => {
                     error!(target: "wapo", "Failed to create instance: {err:?}");

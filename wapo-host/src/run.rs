@@ -50,7 +50,7 @@ impl WasmEngine {
 }
 
 impl WasmModule {
-    pub fn run(&self, args: Vec<String>, config: InstanceConfig) -> Result<WasmRun> {
+    pub fn run(&self, config: InstanceConfig) -> Result<WasmRun> {
         let InstanceConfig {
             max_memory_pages,
             id,
@@ -58,6 +58,8 @@ impl WasmModule {
             weight,
             event_tx,
             log_handler,
+            args,
+            envs,
         } = config;
         let engine = self.engine.inner.clone();
         let mut linker = Linker::<VmCtx>::new(&engine);
@@ -66,8 +68,12 @@ impl WasmModule {
         wapo_ctx.set_weight(weight);
         wapo_ctx::add_ocalls_to_linker(&mut linker, |c| &mut c.wapo_ctx)?;
 
-        let todo = "set envs";
-        let wasi_ctx = WasiCtxBuilder::new().args(&args)?.inherit_stdio().build();
+        let wasi_ctx = WasiCtxBuilder::new()
+            .args(&args)
+            .context("Failed to set args")?
+            .envs(&envs)
+            .context("Failed to set envs")?
+            .build();
         wasi_common::sync::add_to_linker(&mut linker, |c| &mut c.wasi_ctx)?;
 
         let memory_size = (max_memory_pages as usize)
@@ -127,6 +133,10 @@ pub struct InstanceConfig {
     event_tx: crate::OutgoingRequestChannel,
     #[builder(default = None, setter(strip_option))]
     log_handler: Option<LogHandler>,
+    #[builder(default)]
+    envs: Vec<(String, String)>,
+    #[builder(default)]
+    args: Vec<String>,
 }
 
 pub struct WasmRun {

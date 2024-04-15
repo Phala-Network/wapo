@@ -35,6 +35,9 @@ pub struct Args {
     /// The compiler to use
     #[arg(long, short = 'c', default_value = "winch")]
     compiler: Compiler,
+    /// Max memory pages
+    #[arg(long = "env", short = 'E')]
+    envs: Vec<String>,
     /// The WASM program to run
     program: String,
     /// The rest of the arguments are passed to the WASM program
@@ -50,10 +53,6 @@ pub struct Args {
 pub async fn run(mut args: Args) -> Result<Vec<u8>> {
     let code = tokio::fs::read(&args.program).await?;
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(1);
-    let config = InstanceConfig::builder()
-        .max_memory_pages(args.max_memory_pages)
-        .event_tx(event_tx)
-        .build();
     let mut engine_config = Config::new();
     engine_config.strategy(args.compiler.into());
     let engine = WasmEngine::new(engine_config);
@@ -62,6 +61,16 @@ pub async fn run(mut args: Args) -> Result<Vec<u8>> {
     let module = engine.compile(&code)?;
     info!(target: "wapo", "Compiled wasm module in {:?}", t0.elapsed());
     args.args.insert(0, args.program);
+    let vm_envs = args
+        .envs
+        .into_iter()
+        .map(|s| -> Result<(String, String)> {
+            let mut parts = s.splitn(2, '=');
+            let key = parts.next().context("Invalid env")?;
+            let value = parts.next().unwrap_or_default();
+            Ok((key.to_string(), value.to_string()))
+        })
+        .collect::<Result<Vec<_>>>()?;
     let vm_args = args
         .args
         .into_iter()
@@ -75,9 +84,13 @@ pub async fn run(mut args: Args) -> Result<Vec<u8>> {
             }
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let mut wasm_run = module
-        .run(vm_args, config)
-        .context("Failed to start the instance")?;
+    let config = InstanceConfig::builder()
+        .max_memory_pages(args.max_memory_pages)
+        .event_tx(event_tx)
+        .args(vm_args)
+        .envs(vm_envs)
+        .build();
+    let mut wasm_run = module.run(config).context("Failed to start the instance")?;
     let mut output = None;
     tokio::select! {
         rv = &mut wasm_run => {
