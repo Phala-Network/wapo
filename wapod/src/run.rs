@@ -27,7 +27,7 @@ impl From<Compiler> for wapo_host::wasmtime::Strategy {
 #[clap(about = "wapo runner", version, author)]
 pub struct Args {
     /// Max memory pages
-    #[arg(long, default_value_t = 256)]
+    #[arg(long, short = 'M', default_value_t = 256)]
     max_memory_pages: u32,
     /// Decode the Output as JsValue
     #[arg(long, short = 'j')]
