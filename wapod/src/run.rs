@@ -56,7 +56,7 @@ pub async fn run(mut args: Args) -> Result<Vec<u8>> {
         .build();
     let mut engine_config = Config::new();
     engine_config.strategy(args.compiler.into());
-    let engine = WasmEngine::new(&engine_config);
+    let engine = WasmEngine::new(engine_config);
     let t0 = std::time::Instant::now();
     info!(target: "wapo", "Compiling wasm module");
     let module = engine.compile(&code)?;

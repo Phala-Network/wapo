@@ -8,7 +8,7 @@ use tracing::debug;
 use wasi_common::sync::WasiCtxBuilder;
 use wasi_common::WasiCtx;
 
-use wasmtime::{Config, Engine, Linker, Module, Store, TypedFunc};
+use wasmtime::{Config, Engine, Linker, Module, Store, StoreLimits, TypedFunc};
 
 use crate::wapo_ctx::{LogHandler, WapoCtx};
 use crate::{async_context, wapo_ctx, VmId};
@@ -28,12 +28,15 @@ pub struct WasmEngine {
 
 impl Default for WasmEngine {
     fn default() -> Self {
-        Self::new(&Config::new())
+        Self::new(Config::new())
     }
 }
 
 impl WasmEngine {
-    pub fn new(config: &Config) -> Self {
+    pub fn new(mut config: Config) -> Self {
+        config
+            .static_memory_maximum_size(0)
+            .guard_before_linear_memory(false);
         let engine = Engine::new(&config).expect("Failed to create Wasm engine");
         Self { inner: engine }
     }
@@ -56,7 +59,6 @@ impl WasmModule {
             event_tx,
             log_handler,
         } = config;
-        let todo = "memory limits";
         let engine = self.engine.inner.clone();
         let mut linker = Linker::<VmCtx>::new(&engine);
 
@@ -66,10 +68,24 @@ impl WasmModule {
 
         let todo = "set envs";
         let wasi_ctx = WasiCtxBuilder::new().args(&args)?.inherit_stdio().build();
-        let vm_ctx = VmCtx::new(wapo_ctx, wasi_ctx);
         wasi_common::sync::add_to_linker(&mut linker, |c| &mut c.wasi_ctx)?;
 
+        let memory_size = (max_memory_pages as usize)
+            .checked_mul(64 * 1024)
+            .ok_or_else(|| anyhow::anyhow!("Memory size too large: {} pages", max_memory_pages))?;
+
+        let limits = wasmtime::StoreLimitsBuilder::new()
+            .memory_size(memory_size)
+            .build();
+
+        let vm_ctx = VmCtx {
+            wapo_ctx,
+            wasi_ctx,
+            limits,
+        };
         let mut store = Store::new(&engine, vm_ctx);
+        store.limiter(move |ctx| &mut ctx.limits);
+
         let instance = linker
             .instantiate(&mut store, &self.module)
             .context("Failed to create instance")?;
@@ -123,12 +139,7 @@ pub struct WasmRun {
 struct VmCtx {
     wapo_ctx: WapoCtx,
     wasi_ctx: WasiCtx,
-}
-
-impl VmCtx {
-    fn new(wapo_ctx: WapoCtx, wasi_ctx: WasiCtx) -> Self {
-        Self { wapo_ctx, wasi_ctx }
-    }
+    limits: StoreLimits,
 }
 
 impl Deref for VmCtx {
