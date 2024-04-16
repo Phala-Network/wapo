@@ -4,7 +4,10 @@ mod run;
 mod runtime;
 pub mod service;
 
-pub use runtime::vm_context::{vm_count, OutgoingRequest, OutgoingRequestChannel, ShortId};
+pub use runtime::vm_context::{
+    crate_outgoing_request_channel, vm_count, OutgoingRequest, OutgoingRequestReceiver,
+    OutgoingRequestSender, ShortId,
+};
 
 pub type VmId = [u8; 32];
 pub use run::{InstanceConfig, InstanceConfigBuilder, WasmEngine, WasmModule, WasmRun};

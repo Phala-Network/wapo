@@ -11,7 +11,10 @@ use anyhow::Context;
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::oneshot::Sender as OneshotSender,
-    sync::{mpsc::Sender, oneshot},
+    sync::{
+        mpsc::{Receiver, Sender},
+        oneshot,
+    },
 };
 use tracing::{debug, info, warn, Instrument, Span};
 
@@ -48,7 +51,7 @@ fn _sizeof_i32_must_eq_to_intptr() {
 
 pub fn create_env(
     id: VmId,
-    out_tx: OutgoingRequestChannel,
+    out_tx: OutgoingRequestSender,
     log_handler: Option<LogHandler>,
 ) -> WapoCtx {
     WapoCtx::new(id, out_tx, log_handler)
@@ -92,7 +95,11 @@ impl TaskSet {
 
 pub type LogHandler = Box<dyn Fn(VmId, u8, &str) + Send + Sync>;
 
-pub type OutgoingRequestChannel = Sender<(VmId, OutgoingRequest)>;
+pub type OutgoingRequestSender = Sender<(VmId, OutgoingRequest)>;
+pub type OutgoingRequestReceiver = Receiver<(VmId, OutgoingRequest)>;
+pub fn crate_outgoing_request_channel() -> (OutgoingRequestSender, OutgoingRequestReceiver) {
+    tokio::sync::mpsc::channel(20)
+}
 
 pub enum OutgoingRequest {
     // Used by Js Engine to send js eval result
@@ -108,7 +115,7 @@ pub(crate) struct WapoCtx {
     http_connect_tx: Option<Sender<Vec<u8>>>,
     awake_tasks: Arc<TaskSet>,
     weight: u32,
-    outgoing_request_tx: OutgoingRequestChannel,
+    outgoing_request_tx: OutgoingRequestSender,
     log_handler: Option<LogHandler>,
     _counter: vm_counter::Counter,
 }
@@ -116,7 +123,7 @@ pub(crate) struct WapoCtx {
 impl WapoCtx {
     fn new(
         id: VmId,
-        outgoing_request_tx: OutgoingRequestChannel,
+        outgoing_request_tx: OutgoingRequestSender,
         log_handler: Option<LogHandler>,
     ) -> Self {
         Self {

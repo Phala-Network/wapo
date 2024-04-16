@@ -14,7 +14,7 @@ use crate::runtime::{
     async_context,
     vm_context::{self as wapo_ctx, LogHandler, WapoCtx},
 };
-use crate::VmId;
+use crate::{OutgoingRequestSender, VmId};
 
 type RuntimeError = anyhow::Error;
 
@@ -127,13 +127,13 @@ impl WasmModule {
 #[derive(typed_builder::TypedBuilder)]
 pub struct InstanceConfig {
     #[builder(default)]
-    id: crate::VmId,
+    id: VmId,
     max_memory_pages: u32,
     #[builder(default = None, setter(strip_option))]
     scheduler: Option<TaskScheduler<VmId>>,
     #[builder(default = 1)]
     weight: u32,
-    event_tx: crate::OutgoingRequestChannel,
+    event_tx: OutgoingRequestSender,
     #[builder(default = None, setter(strip_option))]
     log_handler: Option<LogHandler>,
     #[builder(default)]

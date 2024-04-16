@@ -3,7 +3,9 @@ use clap::{Parser, ValueEnum};
 use pink_types::js::JsValue;
 use scale::Decode;
 use tracing::{error, info};
-use wapo_host::{wasmtime::Config, InstanceConfig, OutgoingRequest, WasmEngine};
+use wapo_host::{
+    crate_outgoing_request_channel, wasmtime::Config, InstanceConfig, OutgoingRequest, WasmEngine,
+};
 
 /// The compiler backend to use
 #[derive(ValueEnum, Clone, Debug)]
@@ -52,7 +54,7 @@ pub struct Args {
 
 pub async fn run(mut args: Args) -> Result<Vec<u8>> {
     let code = tokio::fs::read(&args.program).await?;
-    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(1);
+    let (event_tx, mut event_rx) = crate_outgoing_request_channel();
     let mut engine_config = Config::new();
     engine_config.strategy(args.compiler.into());
     let engine = WasmEngine::new(engine_config);

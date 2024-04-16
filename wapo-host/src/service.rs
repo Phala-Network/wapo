@@ -73,13 +73,13 @@ pub struct ServiceRun {
 pub struct Spawner {
     runtime_handle: tokio::runtime::Handle,
     report_tx: Sender<Report>,
-    out_tx: crate::OutgoingRequestChannel,
+    out_tx: crate::OutgoingRequestSender,
     scheduler: TaskScheduler<VmId>,
 }
 
 pub fn service(
     worker_threads: usize,
-    out_tx: crate::OutgoingRequestChannel,
+    out_tx: crate::OutgoingRequestSender,
 ) -> (ServiceRun, Spawner) {
     let worker_threads = worker_threads.max(1);
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -275,7 +275,7 @@ impl Spawner {
         self.runtime_handle.spawn(fut.in_current_span())
     }
 
-    pub fn event_tx(&self) -> crate::OutgoingRequestChannel {
+    pub fn event_tx(&self) -> crate::OutgoingRequestSender {
         self.out_tx.clone()
     }
 }

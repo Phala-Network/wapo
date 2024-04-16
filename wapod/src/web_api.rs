@@ -7,7 +7,7 @@ use tracing::{info, warn};
 
 use sp_core::crypto::AccountId32;
 use tokio::task::JoinHandle;
-use wapo_host::ShortId;
+use wapo_host::{crate_outgoing_request_channel, ShortId};
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -253,7 +253,7 @@ async fn info(app: &State<App>) -> String {
 }
 
 pub async fn serve(args: Args) -> anyhow::Result<()> {
-    let (tx, mut rx) = tokio::sync::mpsc::channel(10);
+    let (tx, mut rx) = crate_outgoing_request_channel();
     let (run, spawner) = service::service(args.workers, tx);
     tokio::spawn(async move {
         while let Some((id, message)) = rx.recv().await {
