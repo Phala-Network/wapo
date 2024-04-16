@@ -25,12 +25,12 @@ use wapo_env as env;
 
 use wasmtime::Caller;
 
-use crate::{
+use super::{
     async_context::{get_task_cx, set_task_env, GuestWaker},
     resource::{Resource, ResourceTable, TcpListenerResource},
     tls::{load_tls_config, TlsStream},
-    IncomingHttpRequest, VmId,
 };
+use crate::{IncomingHttpRequest, VmId};
 
 pub struct ShortId<T>(pub T);
 

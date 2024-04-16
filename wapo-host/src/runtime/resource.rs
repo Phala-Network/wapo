@@ -1,4 +1,3 @@
-use wapo_env::{OcallError, Result};
 use std::future::Future;
 use std::io::ErrorKind;
 use std::pin::Pin;
@@ -10,10 +9,11 @@ use tokio::sync::mpsc::Receiver;
 use tokio::sync::oneshot::Sender;
 use tokio::time::Sleep;
 use tokio_rustls::rustls::ServerConfig;
+use wapo_env::{OcallError, Result};
 use Resource::*;
 
-use crate::async_context::{get_task_cx, GuestWaker};
-use crate::tls::TlsStream;
+use super::async_context::{get_task_cx, poll_in_task_cx, GuestWaker};
+use super::tls::TlsStream;
 
 pub struct TcpListenerResource {
     pub listener: TcpListener,
@@ -34,7 +34,6 @@ pub enum Resource {
 
 impl Resource {
     pub(crate) fn poll(&mut self, waker_id: i32) -> Result<Vec<u8>> {
-        use crate::async_context::poll_in_task_cx;
         let waker = GuestWaker::from_id(waker_id);
 
         match self {
@@ -52,7 +51,6 @@ impl Resource {
     }
 
     pub(crate) fn poll_res(&mut self, waker_id: i32) -> Result<Resource> {
-        use crate::async_context::poll_in_task_cx;
         let waker = GuestWaker::from_id(waker_id);
         match self {
             TcpConnect(fut) => {
@@ -82,7 +80,6 @@ impl Resource {
     }
 
     pub(crate) fn poll_read(&mut self, waker_id: i32, buf: &mut [u8]) -> Result<u32> {
-        use crate::async_context::poll_in_task_cx;
         let waker = GuestWaker::from_id(waker_id);
 
         fn stream_poll_read(

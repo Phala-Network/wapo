@@ -10,8 +10,11 @@ use wasi_common::WasiCtx;
 
 use wasmtime::{Config, Engine, Linker, Module, Store, StoreLimits, TypedFunc};
 
-use crate::wapo_ctx::{LogHandler, WapoCtx};
-use crate::{async_context, wapo_ctx, VmId};
+use crate::runtime::{
+    async_context,
+    vm_context::{self as wapo_ctx, LogHandler, WapoCtx},
+};
+use crate::VmId;
 
 type RuntimeError = anyhow::Error;
 
