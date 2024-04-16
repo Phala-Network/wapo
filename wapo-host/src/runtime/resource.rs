@@ -15,6 +15,10 @@ use Resource::*;
 use super::async_context::{get_task_cx, poll_in_task_cx, GuestWaker};
 use super::tls::TlsStream;
 
+pub struct PollContext {
+    pub waker: GuestWaker,
+}
+
 pub struct TcpListenerResource {
     pub listener: TcpListener,
     pub tls_config: Option<Arc<ServerConfig>>,
@@ -33,8 +37,8 @@ pub enum Resource {
 }
 
 impl Resource {
-    pub(crate) fn poll(&mut self, waker_id: i32) -> Result<Vec<u8>> {
-        let waker = GuestWaker::from_id(waker_id);
+    pub(crate) fn poll(&mut self, ctx: PollContext) -> Result<Vec<u8>> {
+        let waker = ctx.waker;
 
         match self {
             ChannelRx(rx) => {
@@ -50,8 +54,8 @@ impl Resource {
         }
     }
 
-    pub(crate) fn poll_res(&mut self, waker_id: i32) -> Result<Resource> {
-        let waker = GuestWaker::from_id(waker_id);
+    pub(crate) fn poll_res(&mut self, ctx: PollContext) -> Result<Resource> {
+        let waker = ctx.waker;
         match self {
             TcpConnect(fut) => {
                 let rv = poll_in_task_cx(waker, fut.as_mut());
@@ -79,8 +83,8 @@ impl Resource {
         }
     }
 
-    pub(crate) fn poll_read(&mut self, waker_id: i32, buf: &mut [u8]) -> Result<u32> {
-        let waker = GuestWaker::from_id(waker_id);
+    pub(crate) fn poll_read(&mut self, ctx: PollContext, buf: &mut [u8]) -> Result<u32> {
+        let waker = ctx.waker;
 
         fn stream_poll_read(
             stream: &mut (impl AsyncRead + Unpin),
@@ -122,8 +126,8 @@ impl Resource {
         }
     }
 
-    pub(crate) fn poll_write(&mut self, waker_id: i32, buf: &[u8]) -> Result<u32> {
-        let waker = GuestWaker::from_id(waker_id);
+    pub(crate) fn poll_write(&mut self, ctx: PollContext, buf: &[u8]) -> Result<u32> {
+        let waker = ctx.waker;
 
         fn stream_poll_write(
             stream: &mut (impl AsyncWrite + Unpin),
@@ -160,8 +164,8 @@ impl Resource {
         }
     }
 
-    pub(crate) fn poll_shutdown(&mut self, waker_id: i32) -> Result<()> {
-        let waker = GuestWaker::from_id(waker_id);
+    pub(crate) fn poll_shutdown(&mut self, ctx: PollContext) -> Result<()> {
+        let waker = ctx.waker;
 
         fn stream_poll_shutdown(
             stream: &mut (impl AsyncWrite + Unpin),

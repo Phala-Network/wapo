@@ -30,7 +30,7 @@ use wasmtime::Caller;
 
 use super::{
     async_context::{get_task_cx, set_task_env, GuestWaker},
-    resource::{Resource, ResourceTable, TcpListenerResource},
+    resource::{PollContext, Resource, ResourceTable, TcpListenerResource},
     tls::{load_tls_config, TlsStream},
 };
 use crate::{IncomingHttpRequest, VmId};
@@ -154,6 +154,13 @@ impl WapoCtx {
     pub fn weight(&self) -> u32 {
         self.weight
     }
+
+    fn make_poll_context(&self, waker_id: i32) -> PollContext {
+        PollContext {
+            waker: GuestWaker::from_id(waker_id),
+            meter: self.meter.clone(),
+        }
+    }
 }
 
 impl<'a> env::OcallEnv for WapoCtx {
@@ -174,27 +181,28 @@ impl<'a> env::OcallFuncs for WapoCtx {
     }
 
     fn poll(&mut self, waker_id: i32, resource_id: i32) -> Result<Vec<u8>> {
-        self.resources.get_mut(resource_id)?.poll(waker_id)
+        let ctx = self.make_poll_context(waker_id);
+        self.resources.get_mut(resource_id)?.poll(ctx)
     }
 
     fn poll_read(&mut self, waker_id: i32, resource_id: i32, data: &mut [u8]) -> Result<u32> {
-        self.resources
-            .get_mut(resource_id)?
-            .poll_read(waker_id, data)
+        let ctx = self.make_poll_context(waker_id);
+        self.resources.get_mut(resource_id)?.poll_read(ctx, data)
     }
 
     fn poll_write(&mut self, waker_id: i32, resource_id: i32, data: &[u8]) -> Result<u32> {
-        self.resources
-            .get_mut(resource_id)?
-            .poll_write(waker_id, data)
+        let ctx = self.make_poll_context(waker_id);
+        self.resources.get_mut(resource_id)?.poll_write(ctx, data)
     }
 
     fn poll_shutdown(&mut self, waker_id: i32, resource_id: i32) -> Result<()> {
-        self.resources.get_mut(resource_id)?.poll_shutdown(waker_id)
+        let ctx = self.make_poll_context(waker_id);
+        self.resources.get_mut(resource_id)?.poll_shutdown(ctx)
     }
 
     fn poll_res(&mut self, waker_id: i32, resource_id: i32) -> Result<i32> {
-        let res = self.resources.get_mut(resource_id)?.poll_res(waker_id)?;
+        let ctx = self.make_poll_context(waker_id);
+        let res = self.resources.get_mut(resource_id)?.poll_res(ctx)?;
         self.resources.push(res)
     }
 
@@ -244,7 +252,8 @@ impl<'a> env::OcallFuncs for WapoCtx {
     }
 
     fn tcp_accept(&mut self, waker_id: i32, tcp_res_id: i32) -> Result<(i32, String)> {
-        let waker = GuestWaker::from_id(waker_id);
+        let ctx = self.make_poll_context(waker_id);
+        let waker = ctx.waker;
         let (res, remote_addr) = {
             let res = self.resources.get_mut(tcp_res_id)?;
             let res = match res {
