@@ -140,7 +140,7 @@ impl WapoCtx {
         }
     }
 
-    pub fn has_more_ready(&self) -> bool {
+    pub fn has_more_ready_tasks(&self) -> bool {
         !self.awake_tasks.is_empty()
     }
 

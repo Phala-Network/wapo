@@ -190,7 +190,7 @@ impl Future for WasmRun {
         match async_context::set_task_cx(cx, || run.wasm_poll_entry.call(&mut run.store, ())) {
             Ok(rv) => {
                 if rv == 0 {
-                    if run.store.data().has_more_ready() {
+                    if run.store.data().has_more_ready_tasks() {
                         cx.waker().wake_by_ref();
                     }
                     Poll::Pending
