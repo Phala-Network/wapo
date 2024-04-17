@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 #[derive(Default, Debug)]
 pub struct Meter {
@@ -7,9 +7,15 @@ pub struct Meter {
     pub net_ingress: AtomicU64,
     pub storage_read: AtomicU64,
     pub storage_written: AtomicU64,
+    /// Whether the metering is stopped. Used to signal the epoch checker to stop the VM.
+    pub stopped: AtomicBool,
 }
 
 impl Meter {
+    pub fn set_gas_comsumed(&self, gas: u64) {
+        self.gas_comsumed.store(gas, Ordering::Relaxed);
+    }
+
     pub fn record_gas(&self, gas: u64) {
         self.gas_comsumed.fetch_add(gas, Ordering::Relaxed);
     }
@@ -44,5 +50,11 @@ impl Meter {
     }
     pub fn record_tcp_shutdown(&self) {
         self.record_net_egress(128);
+    }
+    pub fn stop(&self) {
+        self.stopped.store(true, Ordering::Relaxed)
+    }
+    pub fn stopped(&self) -> bool {
+        self.stopped.load(Ordering::Relaxed)
     }
 }

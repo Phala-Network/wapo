@@ -5,11 +5,13 @@ use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use tracing::debug;
+use tracing::{debug, info};
 use wasi_common::sync::WasiCtxBuilder;
 use wasi_common::WasiCtx;
 
-use wasmtime::{Config, Engine, Linker, Module, Store, StoreLimits, TypedFunc};
+use wasmtime::{
+    AsContext, Config, Engine, Linker, Module, Store, StoreLimits, TypedFunc, UpdateDeadline,
+};
 
 use crate::runtime::{
     async_context,
@@ -32,16 +34,28 @@ pub struct WasmEngine {
 
 impl Default for WasmEngine {
     fn default() -> Self {
-        Self::new(Config::new())
+        Self::new(Config::new(), 0)
     }
 }
 
 impl WasmEngine {
-    pub fn new(mut config: Config) -> Self {
+    pub fn new(mut config: Config, tick_time_ms: u64) -> Self {
         config
+            .consume_fuel(true)
+            .epoch_interruption(true)
             .static_memory_maximum_size(0)
             .guard_before_linear_memory(false);
         let engine = Engine::new(&config).expect("Failed to create Wasm engine");
+        if tick_time_ms > 0 {
+            let engine = engine.clone();
+            std::thread::Builder::new()
+                .name("wapo ticking".into())
+                .spawn(move || loop {
+                    std::thread::sleep(std::time::Duration::from_millis(tick_time_ms));
+                    engine.increment_epoch();
+                })
+                .expect("Failed to start epoch ticking service");
+        }
         Self { inner: engine }
     }
 
@@ -64,6 +78,7 @@ impl WasmModule {
             log_handler,
             args,
             envs,
+            epoch_deadline,
         } = config;
         let engine = self.engine.inner.clone();
         let mut linker = Linker::<VmCtx>::new(&engine);
@@ -95,6 +110,18 @@ impl WasmModule {
         };
         let mut store = Store::new(&engine, vm_ctx);
         store.limiter(move |ctx| &mut ctx.limits);
+        store.set_fuel(u64::MAX).expect("Failed to set fuel");
+
+        store.set_epoch_deadline(epoch_deadline);
+        store.epoch_deadline_callback(move |ctx| {
+            if ctx.data().meter().stopped() {
+                info!(target: "wapo", "Instance stopped by meter");
+                anyhow::bail!("stopped by meter")
+            }
+            debug!(target: "wapo", "Epoch update");
+            sync_gas(&ctx);
+            Ok(UpdateDeadline::Continue(epoch_deadline))
+        });
 
         let instance = linker
             .instantiate(&mut store, &self.module)
@@ -135,6 +162,8 @@ pub struct InstanceConfig {
     #[builder(default = 1)]
     weight: u32,
     event_tx: OutgoingRequestSender,
+    #[builder(default = 10)]
+    epoch_deadline: u64,
     #[builder(default = None, setter(strip_option))]
     log_handler: Option<LogHandler>,
     #[builder(default)]
@@ -191,19 +220,22 @@ impl Future for WasmRun {
             None => None,
         };
         let run = self.get_mut();
-        match async_context::set_task_cx(cx, || run.wasm_poll_entry.call(&mut run.store, ())) {
-            Ok(rv) => {
-                if rv == 0 {
-                    if run.store.data().has_more_ready_tasks() {
-                        cx.waker().wake_by_ref();
+        let result =
+            match async_context::set_task_cx(cx, || run.wasm_poll_entry.call(&mut run.store, ())) {
+                Ok(rv) => {
+                    if rv == 0 {
+                        if run.store.data().has_more_ready_tasks() {
+                            cx.waker().wake_by_ref();
+                        }
+                        Poll::Pending
+                    } else {
+                        Poll::Ready(Ok(rv))
                     }
-                    Poll::Pending
-                } else {
-                    Poll::Ready(Ok(rv))
                 }
-            }
-            Err(err) => Poll::Ready(Err(err)),
-        }
+                Err(err) => Poll::Ready(Err(err)),
+            };
+        run.sync_gas();
+        result
     }
 }
 
@@ -215,4 +247,15 @@ impl WasmRun {
     pub fn meter(&self) -> Arc<crate::Meter> {
         self.store.data().meter()
     }
+
+    pub fn sync_gas(&self) {
+        sync_gas(&self.store);
+    }
+}
+
+fn sync_gas(ctx: &impl AsContext<Data = VmCtx>) {
+    let store = ctx.as_context();
+    let rest_fuel = store.get_fuel().unwrap_or_default();
+    let consumed = u64::MAX - rest_fuel;
+    store.data().meter().set_gas_comsumed(consumed);
 }

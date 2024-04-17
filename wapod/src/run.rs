@@ -37,8 +37,17 @@ pub struct Args {
     /// Decode the Output as JsValue
     #[arg(long, short = 'j')]
     decode_js_value: bool,
+    /// The epoch timeout
+    #[arg(long, short = 'T')]
+    kill_timeout: Option<u64>,
+    /// The time of a single epoch tick
+    #[arg(long, default_value_t = 10)]
+    tick_time_ms: u64,
+    /// The number of ticks of epoch deadline
+    #[arg(long, default_value_t = 20)]
+    epoch_deadline: u64,
     /// The compiler to use
-    #[arg(long, short = 'c', default_value = "winch")]
+    #[arg(long, short = 'c', default_value = "auto")]
     compiler: Compiler,
     /// Max memory pages
     #[arg(long = "env", short = 'E')]
@@ -60,7 +69,7 @@ pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
     let (event_tx, mut event_rx) = crate_outgoing_request_channel();
     let mut engine_config = Config::new();
     engine_config.strategy(args.compiler.into());
-    let engine = WasmEngine::new(engine_config);
+    let engine = WasmEngine::new(engine_config, args.tick_time_ms);
     let t0 = std::time::Instant::now();
     info!(target: "wapo", "Compiling wasm module");
     let module = engine.compile(&code)?;
@@ -90,12 +99,21 @@ pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
         })
         .collect::<Result<Vec<_>, _>>()?;
     let config = InstanceConfig::builder()
+        .epoch_deadline(args.epoch_deadline)
         .max_memory_pages(args.max_memory_pages)
         .event_tx(event_tx)
         .args(vm_args)
         .envs(vm_envs)
         .build();
     let mut wasm_run = module.run(config).context("Failed to start the instance")?;
+    if let Some(kill_timeout) = args.kill_timeout {
+        let meter = wasm_run.meter().clone();
+        info!(target: "wapo", "Setting kill timeout to {}s", kill_timeout);
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_secs(kill_timeout));
+            meter.stop();
+        });
+    }
     let mut output = None;
     tokio::select! {
         rv = &mut wasm_run => {
