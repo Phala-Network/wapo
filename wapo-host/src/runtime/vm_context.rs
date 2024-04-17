@@ -30,6 +30,7 @@ use wasmtime::Caller;
 
 use super::{
     async_context::{get_task_cx, set_task_env, GuestWaker},
+    metering::Meter,
     resource::{PollContext, Resource, ResourceTable, TcpListenerResource},
     tls::{load_tls_config, TlsStream},
 };
@@ -118,6 +119,7 @@ pub(crate) struct WapoCtx {
     outgoing_request_tx: OutgoingRequestSender,
     log_handler: Option<LogHandler>,
     _counter: vm_counter::Counter,
+    meter: Arc<Meter>,
 }
 
 impl WapoCtx {
@@ -138,6 +140,7 @@ impl WapoCtx {
             outgoing_request_tx,
             log_handler,
             _counter: Default::default(),
+            meter: Default::default(),
         }
     }
     pub(crate) fn close(&mut self, resource_id: i32) -> Result<()> {
@@ -264,6 +267,8 @@ impl<'a> env::OcallFuncs for WapoCtx {
                 Pending => return Err(OcallError::Pending),
                 Ready(result) => result.or(Err(OcallError::IoError))?,
             };
+            // A typical tcp connect consumes hundreds of bytes.
+            ctx.meter.record_net_ingress(128);
             let res = match &res.tls_config {
                 Some(tls_config) => {
                     Resource::TlsStream(Box::new(TlsStream::accept(stream, tls_config.clone())))
@@ -288,6 +293,7 @@ impl<'a> env::OcallFuncs for WapoCtx {
         }
         let host = host.to_owned();
         let fut = async move { tcp_connect(&host, port).await };
+        self.meter.record_tcp_connect_start();
         self.resources.push(Resource::TcpConnect(Box::pin(fut)))
     }
 
@@ -305,6 +311,7 @@ impl<'a> env::OcallFuncs for WapoCtx {
                 .await
                 .map(move |stream| TlsStream::connect(domain, stream))
         };
+        self.meter.record_tls_connect_start();
         self.resources.push(Resource::TlsConnect(Box::pin(fut)))
     }
 
