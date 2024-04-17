@@ -164,6 +164,10 @@ impl WapoCtx {
             meter: self.meter.clone(),
         }
     }
+
+    pub fn meter(&self) -> Arc<Meter> {
+        self.meter.clone()
+    }
 }
 
 impl<'a> env::OcallEnv for WapoCtx {

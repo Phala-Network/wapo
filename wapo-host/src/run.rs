@@ -3,6 +3,7 @@ use phala_scheduler::TaskScheduler;
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 use tracing::debug;
 use wasi_common::sync::WasiCtxBuilder;
@@ -209,5 +210,9 @@ impl Future for WasmRun {
 impl WasmRun {
     pub(crate) fn state_mut(&mut self) -> &mut WapoCtx {
         self.store.data_mut()
+    }
+
+    pub fn meter(&self) -> Arc<crate::Meter> {
+        self.store.data().meter()
     }
 }

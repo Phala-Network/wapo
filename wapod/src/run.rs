@@ -1,10 +1,13 @@
+use std::sync::Arc;
+
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 use pink_types::js::JsValue;
 use scale::Decode;
 use tracing::{error, info};
 use wapo_host::{
-    crate_outgoing_request_channel, wasmtime::Config, InstanceConfig, OutgoingRequest, WasmEngine,
+    crate_outgoing_request_channel, wasmtime::Config, InstanceConfig, Meter, OutgoingRequest,
+    WasmEngine,
 };
 
 /// The compiler backend to use
@@ -52,7 +55,7 @@ pub struct Args {
     args: Vec<String>,
 }
 
-pub async fn run(mut args: Args) -> Result<Vec<u8>> {
+pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
     let code = tokio::fs::read(&args.program).await?;
     let (event_tx, mut event_rx) = crate_outgoing_request_channel();
     let mut engine_config = Config::new();
@@ -121,7 +124,7 @@ pub async fn run(mut args: Args) -> Result<Vec<u8>> {
             }
         }
     }
-    Ok(output.unwrap_or_default())
+    Ok((output.unwrap_or_default(), wasm_run.meter()))
 }
 
 #[tokio::main]
@@ -129,12 +132,13 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
     let args = Args::parse();
     let decode_output_js = args.decode_js_value;
-    let output = run(args).await?;
+    let (output, meter) = run(args).await?;
     if decode_output_js {
         let js_value = JsValue::decode(&mut &output[..]).context("Failed to decode JsValue")?;
         println!("Output: {:?}", js_value);
     } else {
         println!("Output: {:?}", output);
     }
+    println!("Meter: {:#?}", meter);
     Ok(())
 }
