@@ -13,6 +13,7 @@ path = "src/run.rs"
 
 [dependencies]
 wapo-host = { version = "0.1.0", path = "../wapo-host" }
+wapod-rpc = { version = "0.1.0", path = "../wapod-rpc" }
 tokio = { version = "1.17.0", features = ["full"] }
 tracing-subscriber = "0.3"
 anyhow = "1.0.69"
@@ -24,3 +25,5 @@ sp-core = "32.0.0"
 serde_json = "1.0"
 tracing = "0.1"
 pink-types = "0.1.2"
+phala-rocket-middleware = "0.1.0"
+rocket_cors = "0.6.0"

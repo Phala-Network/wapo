@@ -2665,6 +2665,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "phala-rocket-middleware"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c54a21928fda0af37c9fb8692b606a0424a75c98557f79f9389d1f0147fcc496"
+dependencies = [
+ "log",
+ "rocket",
+]
+
+[[package]]
 name = "phala-scheduler"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2986,8 +2996,6 @@ dependencies = [
 [[package]]
 name = "prpc"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f934b3bd93eec21151302556073ef6f70c4c911255c8290b0cf90cf969292934"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3004,8 +3012,6 @@ dependencies = [
 [[package]]
 name = "prpc-build"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ddc96c0cdd90dc3b0a6285c678c664e92e216a510b604cc4ba5cf81089d5303d"
 dependencies = [
  "either",
  "heck 0.5.0",
@@ -3024,8 +3030,6 @@ dependencies = [
 [[package]]
 name = "prpc-serde-bytes"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6fac0855066edbf6bdcb42beb02cd9063d12d8d6d44b9a0c2f15a30e6ddd11f5"
 dependencies = [
  "proc-macro2",
  "syn 2.0.59",
@@ -3290,6 +3294,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "rocket_cors"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cfac3a1df83f8d4fc96aa41dba3b86c786417b7fc0f52ec76295df2ba781aa69"
+dependencies = [
+ "http 0.2.12",
+ "log",
+ "regex",
+ "rocket",
+ "serde",
+ "serde_derive",
+ "unicase",
+ "unicase_serde",
+ "url",
+]
+
+[[package]]
 name = "rocket_http"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3345,12 +3366,11 @@ dependencies = [
 
 [[package]]
 name = "rustfmt-snippet"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a2fd8acf7a891bc1b27210fb9b5f1cc85b605103b9e91b1f60658b23d92f927"
+checksum = "65aa3ee8d959a80092c6074903ffc162b2d8fde03a529c07eab57e69f2e11c71"
 dependencies = [
  "proc-macro2",
- "tempfile",
 ]
 
 [[package]]
@@ -4420,6 +4440,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "unicase"
+version = "2.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7d2d4dafb69621809a81864c9c1b864479e1235c0dd4e199924b9742439ed89"
+dependencies = [
+ "version_check",
+]
+
+[[package]]
+name = "unicase_serde"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ef53697679d874d69f3160af80bc28de12730a985d57bdf2b47456ccb8b11f1"
+dependencies = [
+ "serde",
+ "unicase",
+]
+
+[[package]]
 name = "unicode-bidi"
 version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4607,14 +4646,17 @@ dependencies = [
  "clap",
  "once_cell",
  "parity-scale-codec",
+ "phala-rocket-middleware",
  "pink-types",
  "rocket",
+ "rocket_cors",
  "serde_json",
  "sp-core",
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.18",
  "wapo-host",
+ "wapod-rpc",
 ]
 
 [[package]]

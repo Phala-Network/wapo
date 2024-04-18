@@ -1,0 +1,16 @@
+---
+source: wapo-macro/src/tests.rs
+assertion_line: 32
+expression: "rustfmt_snippet::rustfmt_token_stream(&stream).unwrap()"
+---
+#[no_mangle]
+extern "C" fn wapo_poll() -> i32 {
+    wapo::env::tasks::wapo_poll()
+}
+#[no_mangle]
+fn wapo_main_future() -> std::pin::Pin<std::boxed::Box<dyn std::future::Future<Output = ()>>> {
+    async fn the_main() {
+        sleep(1).await
+    }
+    Box::pin(the_main())
+}

@@ -12,6 +12,9 @@ pub struct Args {
     /// Max memory pages
     #[arg(long, default_value_t = 256)]
     max_memory_pages: u32,
+    /// Max number of instances to run
+    #[arg(long, default_value_t = 8)]
+    max_instances: u32,
 }
 
 #[tokio::main]

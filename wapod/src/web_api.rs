@@ -1,108 +1,66 @@
-use rocket::data::ToByteUnit;
-use rocket::http::Status;
+use phala_rocket_middleware::{RequestTracer, ResponseSigner, TimeMeter, TraceId};
+use rocket::data::{ByteUnit, Limits, ToByteUnit};
+use rocket::http::{ContentType, Method, Status};
 use rocket::response::status::Custom;
 use rocket::{get, post, routes};
 use rocket::{Data, State};
-use tracing::{info, warn};
+use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
+use tracing::{info, instrument, warn};
 
 use sp_core::crypto::AccountId32;
-use tokio::task::JoinHandle;
-use wapo_host::{crate_outgoing_request_channel, ShortId};
 
-use std::collections::HashMap;
+use wapo_host::{crate_outgoing_request_channel, ShortId};
+use wapod_rpc::prpc::{
+    admin_server::{supported_methods as admin_methods, AdminServer},
+    service_server::supported_methods as service_methods,
+};
+
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use tokio::sync::mpsc::Sender;
-use tokio::sync::Mutex;
-
-use service::{Command, CommandSender, Spawner};
+use service::Command;
 use wapo_host::rocket_stream::{connect, RequestInfo, StreamResponse};
 use wapo_host::{
-    service::{self, ExitReason},
+    service::{self},
     OutgoingRequest,
 };
 
+use crate::web_api::prpc_service::handle_prpc;
 use crate::Args;
-struct VmHandle {
-    sender: CommandSender,
-    handle: JoinHandle<ExitReason>,
-}
-struct AppInner {
-    next_id: u32,
-    instances: HashMap<u32, VmHandle>,
-    args: Args,
-    spawner: Spawner,
+
+use app::App;
+
+mod app;
+mod prpc_service;
+
+enum ReadDataError {
+    IoError,
+    PayloadTooLarge,
 }
 
-struct App {
-    inner: Mutex<AppInner>,
-}
-
-impl App {
-    fn new(spawner: Spawner, args: Args) -> Self {
-        Self {
-            inner: Mutex::new(AppInner {
-                instances: HashMap::new(),
-                next_id: 0,
-                spawner,
-                args,
-            }),
+impl From<ReadDataError> for Custom<&'static str> {
+    fn from(value: ReadDataError) -> Self {
+        match value {
+            ReadDataError::IoError => Custom(Status::ServiceUnavailable, "Read body failed"),
+            ReadDataError::PayloadTooLarge => Custom(Status::PayloadTooLarge, "Entity too large"),
         }
     }
+}
 
-    async fn send(&self, vmid: u32, message: Command) -> Result<(), (u16, &'static str)> {
-        self.sender_for(vmid)
-            .await
-            .ok_or((404, "Instance not found"))?
-            .send(message)
-            .await
-            .or(Err((500, "Failed to send message")))?;
-        Ok(())
-    }
-
-    async fn sender_for(&self, vmid: u32) -> Option<Sender<Command>> {
-        Some(self.inner.lock().await.instances.get(&vmid)?.sender.clone())
-    }
-
-    async fn take_handle(&self, vmid: u32) -> Option<VmHandle> {
-        self.inner.lock().await.instances.remove(&vmid)
-    }
-
-    async fn run_wasm(
-        &self,
-        wasm_bytes: Vec<u8>,
-        weight: u32,
-        id: Option<u32>,
-    ) -> Result<u32, &'static str> {
-        let mut inner = self.inner.lock().await;
-        let id = match id {
-            Some(id) => id,
-            None => inner.next_id,
-        };
-        inner.next_id = id
-            .checked_add(1)
-            .ok_or("Too many instances")?
-            .max(inner.next_id);
-
-        let mut vmid = [0u8; 32];
-
-        vmid[0..4].copy_from_slice(&id.to_be_bytes());
-
-        println!("VM {id} running...");
-        let (sender, handle) = inner
-            .spawner
-            .start(&wasm_bytes, inner.args.max_memory_pages, vmid, weight, None)
-            .unwrap();
-        inner.instances.insert(id, VmHandle { sender, handle });
-        Ok(id)
+impl From<ReadDataError> for Custom<Vec<u8>> {
+    fn from(value: ReadDataError) -> Self {
+        let custom = Custom::<&'static str>::from(value);
+        Custom(custom.0, custom.1.as_bytes().to_vec())
     }
 }
 
-async fn read_data(data: Data<'_>) -> Option<Vec<u8>> {
-    let stream = data.open(10000.mebibytes());
-    let data = stream.into_bytes().await.ok()?;
-    Some(data.into_inner())
+async fn read_data(data: Data<'_>, limit: ByteUnit) -> Result<Vec<u8>, ReadDataError> {
+    let stream = data.open(limit);
+    let data = stream.into_bytes().await.or(Err(ReadDataError::IoError))?;
+    if !data.is_complete() {
+        return Err(ReadDataError::PayloadTooLarge);
+    }
+    Ok(data.into_inner())
 }
 
 #[post("/push/query/<id>", data = "<data>")]
@@ -121,9 +79,7 @@ async fn push_query(
     origin: Option<&str>,
     data: Data<'_>,
 ) -> Result<Vec<u8>, Custom<&'static str>> {
-    let payload = read_data(data)
-        .await
-        .ok_or(Custom(Status::BadRequest, "No message payload"))?;
+    let payload = read_data(data, 100.mebibytes()).await?;
 
     let (reply_tx, rx) = tokio::sync::oneshot::channel();
     let origin = match origin {
@@ -215,9 +171,7 @@ async fn run(
             }
         };
     }
-    let code = read_data(data)
-        .await
-        .ok_or(Custom(Status::BadRequest, "No message payload"))?;
+    let code = read_data(data, 100.mebibytes()).await?;
     let id = app
         .run_wasm(code, weight.unwrap_or(1), id)
         .await
@@ -243,13 +197,62 @@ async fn stop(app: &State<App>, id: u32) -> Result<(), Custom<&'static str>> {
 
 #[get("/info")]
 async fn info(app: &State<App>) -> String {
-    let inner = app.inner.lock().await;
+    let info = app.info().await;
     serde_json::json!({
         "running": wapo_host::vm_count(),
-        "deployed": inner.instances.len(),
-        "ids": inner.instances.keys().cloned().collect::<Vec<_>>(),
+        "deployed": info.running_instances,
     })
     .to_string()
+}
+
+#[instrument(target="prpc", name="prpc", fields(%id), skip_all)]
+#[post("/<method>?<json>", data = "<data>")]
+async fn prpc_post(
+    app: &State<App>,
+    id: TraceId,
+    method: String,
+    data: Data<'_>,
+    limits: &Limits,
+    content_type: Option<&ContentType>,
+    json: bool,
+) -> Result<Vec<u8>, Custom<Vec<u8>>> {
+    let _ = id;
+    handle_prpc::<AdminServer<_>>(app, method, Some(data), limits, content_type, json).await
+}
+
+#[instrument(target="prpc", name="prpc", fields(%id), skip_all)]
+#[get("/<method>")]
+async fn prpc_get(
+    app: &State<App>,
+    id: TraceId,
+    method: String,
+    limits: &Limits,
+    content_type: Option<&ContentType>,
+) -> Result<Vec<u8>, Custom<Vec<u8>>> {
+    let _ = id;
+    handle_prpc::<AdminServer<_>>(app, method, None, limits, content_type, true).await
+}
+
+fn cors_options() -> CorsOptions {
+    let allowed_origins = AllowedOrigins::all();
+    let allowed_methods: AllowedMethods = vec![Method::Get, Method::Post]
+        .into_iter()
+        .map(From::from)
+        .collect();
+
+    // You can also deserialize this
+    CorsOptions {
+        allowed_origins,
+        allowed_methods,
+        allowed_headers: AllowedHeaders::all(),
+        allow_credentials: true,
+        ..Default::default()
+    }
+}
+
+fn sign_http_response(_data: &[u8]) -> Option<String> {
+    let _todo = "sign_http_response";
+    None
 }
 
 pub async fn serve(args: Args) -> anyhow::Result<()> {
@@ -279,7 +282,15 @@ pub async fn serve(args: Args) -> anyhow::Result<()> {
             .await
             .map_err(|reason| anyhow::anyhow!("Failed to run wasm: {}", reason))?;
     }
+
+    let signer = ResponseSigner::new(1024 * 1024 * 10, sign_http_response);
     let _rocket = rocket::build()
+        .mount("/", rocket_cors::catch_all_options_routes()) // mount the catch all routes
+        .attach(cors_options().to_cors().expect("To not fail"))
+        .manage(cors_options().to_cors().expect("To not fail"))
+        .attach(signer)
+        .attach(RequestTracer)
+        .attach(TimeMeter)
         .manage(app)
         .mount(
             "/",
@@ -293,7 +304,17 @@ pub async fn serve(args: Args) -> anyhow::Result<()> {
                 info,
             ],
         )
+        .mount("/prpc", routes![prpc_post, prpc_get])
         .launch()
         .await?;
+    print_rpc_methods("/prpc", service_methods());
+    print_rpc_methods("/prpc", admin_methods());
     Ok(())
+}
+
+fn print_rpc_methods(prefix: &str, methods: &[&str]) {
+    info!("Methods under {}:", prefix);
+    for method in methods {
+        info!("    {}", format!("{prefix}/{method}"));
+    }
 }
