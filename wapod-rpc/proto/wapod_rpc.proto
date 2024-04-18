@@ -1,0 +1,28 @@
+
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+package wapod;
+
+// The wapod public RPC.
+service Service {
+  // Get basic information about the worker state.
+  rpc Info (google.protobuf.Empty) returns (NodeInfo) {}
+}
+
+// The wapod admin RPC.
+service Admin {
+  // Get basic information about the worker state.
+  rpc Info (google.protobuf.Empty) returns (NodeInfo) {}
+}
+
+// Basic information about a worker.
+message NodeInfo {
+  // The number of running instances.
+  uint32 running_instances = 1;
+  // The number of maximum instances.
+  uint32 max_instances = 2;
+  // The size limit of memory of each instance.
+  uint32 instance_memory_size = 3;
+}

@@ -1,7 +1,7 @@
 
 [workspace]
 resolver = "2"
-members = ["wapo", "wapod", "wapo-host", "wapo-macro", "wapo-env"]
+members = ["wapo", "wapod", "wapo-host", "wapo-macro", "wapo-env", "wapod-rpc"]
 
 [patch.crates-io]
 hyper-util = { git = "https://github.com/kvinwang/hyper-util", branch = "connection-tokioio" }
