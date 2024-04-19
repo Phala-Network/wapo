@@ -3,6 +3,7 @@ use clap::Parser;
 use tracing::info;
 use web_api::crate_app;
 
+mod logger;
 mod web_api;
 
 #[derive(Parser)]
@@ -20,7 +21,10 @@ pub struct Args {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt::init();
+    logger::init();
+
+    info!("Starting wapod server...");
+
     let app = crate_app(Args::parse());
     let admin_service = web_api::serve_admin(app.clone());
     let user_service = async move {
