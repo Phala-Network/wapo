@@ -3,14 +3,6 @@ edition = "2021"
 name = "wapod"
 version = "0.1.0"
 
-[[bin]]
-name = "wapod"
-path = "src/main.rs"
-
-[[bin]]
-name = "wapo-run"
-path = "src/run.rs"
-
 [dependencies]
 wapo-host = { version = "0.1.0", path = "../wapo-host" }
 wapod-rpc = { version = "0.1.0", path = "../wapod-rpc" }
@@ -18,13 +10,9 @@ tokio = { version = "1.17.0", features = ["full"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "registry"] }
 anyhow = "1.0.69"
 clap = { version = "4.0.32", features = ["derive"] }
-once_cell = "1"
 rocket = "0.5.0"
-scale = { package = "parity-scale-codec", version = "3.6.5" }
 sp-core = "32.0.0"
 serde_json = "1.0"
 tracing = "0.1"
-pink-types = "0.1.2"
 phala-rocket-middleware = "0.1.0"
 rocket_cors = "0.6.0"
-serde = { version = "1.0", features = ["derive"] }

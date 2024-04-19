@@ -2526,16 +2526,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 
 [[package]]
-name = "page_size"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30d5b2194ed13191c1999ae0704b7839fb18384fa22e49b57eeaa97d79ce40da"
-dependencies = [
- "libc",
- "winapi",
-]
-
-[[package]]
 name = "parity-bip39"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4582,7 +4572,6 @@ dependencies = [
 name = "wapo-env"
 version = "0.1.0"
 dependencies = [
- "cfg-if",
  "derive_more",
  "futures",
  "log",
@@ -4603,10 +4592,8 @@ dependencies = [
  "futures",
  "hex_fmt",
  "hickory-resolver",
- "libc",
  "log",
  "once_cell",
- "page_size",
  "parity-scale-codec",
  "phala-scheduler",
  "phala-tokio-proxy",
@@ -4614,7 +4601,6 @@ dependencies = [
  "rocket",
  "rustls-pemfile",
  "serde",
- "thiserror",
  "tokio",
  "tokio-rustls",
  "tracing",
@@ -4658,13 +4644,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "once_cell",
- "parity-scale-codec",
  "phala-rocket-middleware",
- "pink-types",
  "rocket",
  "rocket_cors",
- "serde",
  "serde_json",
  "sp-core",
  "tokio",
