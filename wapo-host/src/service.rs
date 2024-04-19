@@ -86,7 +86,7 @@ pub fn service(
         .max_blocking_threads(16)
         // Reason for the additional 2 threads:
         // One for the blocking reactor thread, another one for receiving channel messages
-        // from the pink system
+        // from the external system
         .worker_threads(worker_threads + 2)
         .enable_all()
         .build()

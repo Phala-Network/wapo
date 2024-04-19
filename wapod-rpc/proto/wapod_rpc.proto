@@ -6,7 +6,7 @@ import "google/protobuf/empty.proto";
 package wapod;
 
 // The wapod public RPC.
-service Service {
+service User {
   // Get basic information about the worker state.
   rpc Info (google.protobuf.Empty) returns (NodeInfo) {}
 }

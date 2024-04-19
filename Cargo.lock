@@ -4650,6 +4650,7 @@ dependencies = [
  "pink-types",
  "rocket",
  "rocket_cors",
+ "serde",
  "serde_json",
  "sp-core",
  "tokio",

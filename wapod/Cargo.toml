@@ -27,3 +27,4 @@ tracing = "0.1"
 pink-types = "0.1.2"
 phala-rocket-middleware = "0.1.0"
 rocket_cors = "0.6.0"
+serde = { version = "1.0", features = ["derive"] }

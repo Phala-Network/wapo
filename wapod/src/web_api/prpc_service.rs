@@ -8,7 +8,7 @@ use rpc::prpc::{
     self,
     admin_server::Admin,
     server::{Error as RpcError, Service as PrpcService},
-    service_server::Service,
+    user_server::User,
     NodeInfo,
 };
 use tracing::{error, info};
@@ -24,7 +24,7 @@ impl Admin for App {
     }
 }
 
-impl Service for App {
+impl User for App {
     async fn info(&self, _request: ()) -> Result<NodeInfo> {
         Admin::info(self, _request).await
     }

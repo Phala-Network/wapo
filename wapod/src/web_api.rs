@@ -1,9 +1,12 @@
 use phala_rocket_middleware::{RequestTracer, ResponseSigner, TimeMeter, TraceId};
 use rocket::data::{ByteUnit, Limits, ToByteUnit};
+use rocket::figment::{
+    providers::{Env, Format, Toml},
+    Figment,
+};
 use rocket::http::{ContentType, Method, Status};
 use rocket::response::status::Custom;
-use rocket::{get, post, routes};
-use rocket::{Data, State};
+use rocket::{get, post, routes, Data, State};
 use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
 use tracing::{info, instrument, warn};
 
@@ -12,7 +15,7 @@ use sp_core::crypto::AccountId32;
 use wapo_host::{crate_outgoing_request_channel, ShortId};
 use wapod_rpc::prpc::{
     admin_server::{supported_methods as admin_methods, AdminServer},
-    service_server::supported_methods as service_methods,
+    user_server::{supported_methods as service_methods, UserServer},
 };
 
 use std::path::PathBuf;
@@ -217,12 +220,40 @@ async fn prpc_post(
     json: bool,
 ) -> Result<Vec<u8>, Custom<Vec<u8>>> {
     let _ = id;
-    handle_prpc::<AdminServer<_>>(app, method, Some(data), limits, content_type, json).await
+    handle_prpc::<UserServer<_>>(app, method, Some(data), limits, content_type, json).await
 }
 
 #[instrument(target="prpc", name="prpc", fields(%id), skip_all)]
 #[get("/<method>")]
 async fn prpc_get(
+    app: &State<App>,
+    id: TraceId,
+    method: String,
+    limits: &Limits,
+    content_type: Option<&ContentType>,
+) -> Result<Vec<u8>, Custom<Vec<u8>>> {
+    let _ = id;
+    handle_prpc::<UserServer<_>>(app, method, None, limits, content_type, true).await
+}
+
+#[instrument(target="prpc", name="prpc-admin", fields(%id), skip_all)]
+#[post("/<method>?<json>", data = "<data>")]
+async fn prpc_admin_post(
+    app: &State<App>,
+    id: TraceId,
+    method: String,
+    data: Data<'_>,
+    limits: &Limits,
+    content_type: Option<&ContentType>,
+    json: bool,
+) -> Result<Vec<u8>, Custom<Vec<u8>>> {
+    let _ = id;
+    handle_prpc::<AdminServer<_>>(app, method, Some(data), limits, content_type, json).await
+}
+
+#[instrument(target="prpc", name="prpc-admin", fields(%id), skip_all)]
+#[get("/<method>")]
+async fn prpc_admin_get(
     app: &State<App>,
     id: TraceId,
     method: String,
@@ -251,17 +282,16 @@ fn cors_options() -> CorsOptions {
 }
 
 fn sign_http_response(_data: &[u8]) -> Option<String> {
-    let _todo = "sign_http_response";
+    let todo = "sign_http_response";
     None
 }
 
-pub async fn serve(args: Args) -> anyhow::Result<()> {
+pub fn crate_app(args: Args) -> App {
     let (tx, mut rx) = crate_outgoing_request_channel();
     let (run, spawner) = service::service(args.workers, tx);
     tokio::spawn(async move {
         while let Some((id, message)) = rx.recv().await {
             let vmid = ShortId(id);
-
             match message {
                 OutgoingRequest::Output(output) => {
                     info!(%vmid, "Outgoing message: {output:?}");
@@ -274,17 +304,17 @@ pub async fn serve(args: Args) -> anyhow::Result<()> {
             println!("event: {:?}", evt);
         });
     });
-    let program = args.program.clone();
-    let app = App::new(spawner, args);
-    if let Some(program) = program {
-        let wasm_codes = std::fs::read(&program)?;
-        app.run_wasm(wasm_codes, 1, None)
-            .await
-            .map_err(|reason| anyhow::anyhow!("Failed to run wasm: {}", reason))?;
-    }
+    App::new(spawner, args)
+}
 
+pub async fn serve_user(app: App) -> anyhow::Result<()> {
+    print_rpc_methods("/prpc", service_methods());
+    let figment = Figment::from(rocket::Config::default())
+        .merge(Toml::file("Wapod.toml").nested())
+        .merge(Env::prefixed("WAPOD_USER_").global())
+        .select("user");
     let signer = ResponseSigner::new(1024 * 1024 * 10, sign_http_response);
-    let _rocket = rocket::build()
+    let _rocket = rocket::custom(figment)
         .mount("/", rocket_cors::catch_all_options_routes()) // mount the catch all routes
         .attach(cors_options().to_cors().expect("To not fail"))
         .manage(cors_options().to_cors().expect("To not fail"))
@@ -292,23 +322,33 @@ pub async fn serve(args: Args) -> anyhow::Result<()> {
         .attach(RequestTracer)
         .attach(TimeMeter)
         .manage(app)
-        .mount(
-            "/",
-            routes![
-                push_query,
-                push_query_no_origin,
-                run,
-                stop,
-                connect_vm_get,
-                connect_vm_post,
-                info,
-            ],
-        )
+        .mount("/", routes![connect_vm_get, connect_vm_post])
         .mount("/prpc", routes![prpc_post, prpc_get])
         .launch()
         .await?;
-    print_rpc_methods("/prpc", service_methods());
+    Ok(())
+}
+
+pub async fn serve_admin(app: App) -> anyhow::Result<()> {
     print_rpc_methods("/prpc", admin_methods());
+    let figment = Figment::from(rocket::Config::default())
+        .merge(Toml::file("Wapod.toml").nested())
+        .merge(Env::prefixed("WAPOD_ADMIN_").global())
+        .select("admin");
+    let _rocket = rocket::custom(figment)
+        .mount("/", rocket_cors::catch_all_options_routes()) // mount the catch all routes
+        .attach(cors_options().to_cors().expect("To not fail"))
+        .manage(cors_options().to_cors().expect("To not fail"))
+        .attach(RequestTracer)
+        .attach(TimeMeter)
+        .manage(app)
+        .mount(
+            "/",
+            routes![push_query, push_query_no_origin, run, stop, info],
+        )
+        .mount("/prpc", routes![prpc_admin_post, prpc_admin_get])
+        .launch()
+        .await?;
     Ok(())
 }
 
