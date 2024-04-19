@@ -1,0 +1,14 @@
+[package]
+edition = "2021"
+name = "wapo-run"
+version = "0.1.0"
+
+[dependencies]
+wapo-host = { version = "0.1.0", path = "../wapo-host" }
+tokio = { version = "1.17.0", features = ["full"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "registry"] }
+anyhow = "1.0.69"
+clap = { version = "4.0.32", features = ["derive"] }
+scale = { package = "parity-scale-codec", version = "3.6.5" }
+tracing = "0.1"
+pink-types = "0.1.2"

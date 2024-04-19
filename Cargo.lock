@@ -4639,6 +4639,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "wapo-run"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "parity-scale-codec",
+ "pink-types",
+ "tokio",
+ "tracing",
+ "tracing-subscriber 0.3.18",
+ "wapo-host",
+]
+
+[[package]]
 name = "wapod"
 version = "0.1.0"
 dependencies = [
