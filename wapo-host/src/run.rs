@@ -2,6 +2,7 @@ use anyhow::{bail, Context as _, Result};
 use phala_scheduler::TaskScheduler;
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -79,11 +80,12 @@ impl WasmModule {
             args,
             envs,
             epoch_deadline,
+            objects_path,
         } = config;
         let engine = self.engine.inner.clone();
         let mut linker = Linker::<VmCtx>::new(&engine);
 
-        let mut wapo_ctx = wapo_ctx::create_env(id, event_tx, log_handler);
+        let mut wapo_ctx = wapo_ctx::create_env(id, event_tx, log_handler, objects_path);
         wapo_ctx.set_weight(weight);
         wapo_ctx::add_ocalls_to_linker(&mut linker, |c| &mut c.wapo_ctx)?;
 
@@ -170,6 +172,7 @@ pub struct InstanceConfig {
     envs: Vec<(String, String)>,
     #[builder(default)]
     args: Vec<String>,
+    objects_path: PathBuf,
 }
 
 pub struct WasmRun {

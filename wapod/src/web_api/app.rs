@@ -82,10 +82,14 @@ impl App {
         vmid[0..4].copy_from_slice(&id.to_be_bytes());
 
         println!("VM {id} running...");
-        let (sender, handle) = inner
-            .spawner
-            .start(&wasm_bytes, inner.args.max_memory_pages, vmid, weight, None)
-            .unwrap();
+        let objects_path = inner.args.objects_path.clone();
+        let config = service::InstanceStartConfig::builder()
+            .max_memory_pages(inner.args.max_memory_pages)
+            .id(vmid)
+            .weight(weight)
+            .objects_path(objects_path.into())
+            .build();
+        let (sender, handle) = inner.spawner.start(&wasm_bytes, None, config).unwrap();
         inner.instances.insert(id, VmHandle { sender, handle });
         Ok(id)
     }

@@ -100,6 +100,10 @@ pub trait OcallFuncs {
     /// Emit program output.
     #[ocall(id = 243)]
     fn emit_program_output(output: &[u8]) -> Result<()>;
+
+    /// Reverse lookup hash object.
+    #[ocall(id = 244, encode_output)]
+    fn object_get(hash: &[u8], hash_algrithm: &str) -> Result<Vec<u8>>;
 }
 
 #[repr(u8)]

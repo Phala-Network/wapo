@@ -63,8 +63,8 @@ pub enum OcallError {
     Stifled = 14,
     /// The create resource is already exists.
     AlreadyExists = 15,
-    /// Reserved for future use
-    Reserved16 = 16,
+    /// There is a data corruption occurred.
+    DataCorruption = 16,
     /// Reserved for future use
     Reserved17 = 17,
     /// Reserved for future use

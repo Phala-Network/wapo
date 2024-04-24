@@ -4,6 +4,7 @@ use anyhow::Result;
 use phala_scheduler::TaskScheduler;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
+use std::path::PathBuf;
 use tokio::io::DuplexStream;
 use tokio::{
     sync::mpsc::{channel, Receiver, Sender},
@@ -128,16 +129,28 @@ impl ServiceRun {
     }
 }
 
+#[derive(typed_builder::TypedBuilder)]
+pub struct InstanceStartConfig {
+    max_memory_pages: u32,
+    id: VmId,
+    weight: u32,
+    objects_path: PathBuf,
+}
+
 impl Spawner {
-    #[tracing::instrument(parent=None, name="wapo", fields(id = %ShortId(id)), skip_all)]
+    #[tracing::instrument(parent=None, name="wapo", fields(id = %ShortId(config.id)), skip_all)]
     pub fn start(
         &self,
         wasm_bytes: &[u8],
-        max_memory_pages: u32,
-        id: VmId,
-        weight: u32,
         prev_stopped: Option<WatchReceiver<bool>>,
+        config: InstanceStartConfig,
     ) -> Result<(CommandSender, JoinHandle<ExitReason>)> {
+        let InstanceStartConfig {
+            max_memory_pages,
+            id,
+            weight,
+            objects_path,
+        } = config;
         let event_tx = self.out_tx.clone();
         let (cmd_tx, mut cmd_rx) = channel(128);
         let scheduler = self.scheduler.clone();
@@ -201,6 +214,7 @@ impl Spawner {
                 .scheduler(scheduler)
                 .weight(weight)
                 .event_tx(event_tx)
+                .objects_path(objects_path)
                 .build();
             let mut wasm_run = match module.run(config) {
                 Ok(i) => i,

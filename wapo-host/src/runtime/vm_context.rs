@@ -2,12 +2,14 @@ use std::{
     borrow::Cow,
     collections::VecDeque,
     fmt, io,
+    path::PathBuf,
     sync::{Arc, Mutex},
     task::Poll::{Pending, Ready},
     time::{Duration, Instant},
 };
 
 use anyhow::Context;
+use sha2::{Digest, Sha256};
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::oneshot::Sender as OneshotSender,
@@ -54,8 +56,9 @@ pub fn create_env(
     id: VmId,
     out_tx: OutgoingRequestSender,
     log_handler: Option<LogHandler>,
+    objects_path: PathBuf,
 ) -> WapoCtx {
-    WapoCtx::new(id, out_tx, log_handler)
+    WapoCtx::new(id, out_tx, log_handler, objects_path)
 }
 
 pub(crate) struct TaskSet {
@@ -120,6 +123,7 @@ pub(crate) struct WapoCtx {
     log_handler: Option<LogHandler>,
     _counter: vm_counter::Counter,
     meter: Arc<Meter>,
+    objects_path: PathBuf,
 }
 
 impl WapoCtx {
@@ -127,6 +131,7 @@ impl WapoCtx {
         id: VmId,
         outgoing_request_tx: OutgoingRequestSender,
         log_handler: Option<LogHandler>,
+        objects_path: PathBuf,
     ) -> Self {
         Self {
             id,
@@ -141,6 +146,7 @@ impl WapoCtx {
             log_handler,
             _counter: Default::default(),
             meter: Default::default(),
+            objects_path,
         }
     }
     pub(crate) fn close(&mut self, resource_id: i32) -> Result<()> {
@@ -385,6 +391,21 @@ impl<'a> env::OcallFuncs for WapoCtx {
         self.outgoing_request_tx
             .try_send((from, request))
             .or(Err(OcallError::IoError))
+    }
+
+    fn object_get(&mut self, hash: &[u8], hash_algrithm: &str) -> Result<Vec<u8>> {
+        let path = self.objects_path.join(&hex::encode(hash));
+        let data = std::fs::read(&path).or(Err(OcallError::IoError))?;
+        match hash_algrithm {
+            "sha256" => {
+                let actual_hash = Sha256::digest(&data);
+                if actual_hash.as_slice() != hash {
+                    return Err(OcallError::DataCorruption);
+                }
+            }
+            _ => return Err(OcallError::InvalidParameter),
+        }
+        Ok(data)
     }
 }
 
