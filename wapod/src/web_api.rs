@@ -4,6 +4,7 @@ use rocket::figment::{
     providers::{Env, Format, Toml},
     Figment,
 };
+use rocket::fs::NamedFile;
 use rocket::http::{ContentType, Method, Status};
 use rocket::response::status::Custom;
 use rocket::{get, post, routes, Data, State};
@@ -264,6 +265,43 @@ async fn prpc_admin_get(
     handle_prpc::<AdminServer<_>>(app, method, None, limits, content_type, true).await
 }
 
+#[post("/object/<id>", data = "<data>")]
+async fn object_post(
+    app: &State<App>,
+    limits: &Limits,
+    id: &str,
+    data: Data<'_>,
+) -> Result<(), Custom<&'static str>> {
+    let path = app.objects_path().await;
+    std::fs::create_dir_all(&path).or(Err(Custom(
+        Status::InternalServerError,
+        "Failed to create object directory",
+    )))?;
+    let path = path.join(id);
+    let mut file = tokio::fs::File::create(&path).await.or(Err(Custom(
+        Status::InternalServerError,
+        "Failed to create object file",
+    )))?;
+    let limit = limits.get("hash_object").unwrap_or(100.mebibytes());
+    let mut stream = data.open(limit);
+    tokio::io::copy(&mut stream, &mut file)
+        .await
+        .or(Err(Custom(
+            Status::InternalServerError,
+            "Failed to write object file",
+        )))?;
+    Ok(())
+}
+
+#[get("/object/<id>")]
+async fn object_get(app: &State<App>, id: &str) -> Result<NamedFile, Custom<&'static str>> {
+    let path = app.objects_path().await;
+    let path = path.join(id);
+    NamedFile::open(&path)
+        .await
+        .map_err(|_| Custom(Status::NotFound, "Object not found"))
+}
+
 fn cors_options() -> CorsOptions {
     let allowed_origins = AllowedOrigins::all();
     let allowed_methods: AllowedMethods = vec![Method::Get, Method::Post]
@@ -344,7 +382,15 @@ pub async fn serve_admin(app: App) -> anyhow::Result<()> {
         .manage(app)
         .mount(
             "/",
-            routes![push_query, push_query_no_origin, run, stop, info],
+            routes![
+                push_query,
+                push_query_no_origin,
+                run,
+                stop,
+                info,
+                object_post,
+                object_get,
+            ],
         )
         .mount("/prpc", routes![prpc_admin_post, prpc_admin_get])
         .launch()

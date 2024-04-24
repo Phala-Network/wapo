@@ -2,7 +2,7 @@ use tokio::task::JoinHandle;
 
 use wapod_rpc::prpc::NodeInfo;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use std::sync::Arc;
 
@@ -100,5 +100,9 @@ impl App {
             max_instances,
             instance_memory_size,
         }
+    }
+
+    pub async fn objects_path(&self) -> PathBuf {
+        self.inner.lock().await.args.objects_path.clone().into()
     }
 }
