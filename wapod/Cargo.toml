@@ -21,3 +21,4 @@ uuid = { version = "1.8.0", features = ["v4"] }
 sha2 = "0.10.8"
 scopeguard = "1.2.0"
 hex_fmt = "0.3.0"
+scale = { package = "parity-scale-codec", version = "3" }

@@ -9,7 +9,6 @@ use std::{
 };
 
 use anyhow::Context;
-use sha2::{Digest, Sha256, Sha512};
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::oneshot::Sender as OneshotSender,
@@ -38,6 +37,7 @@ use super::{
 };
 use crate::{IncomingHttpRequest, VmId};
 
+#[derive(Clone, Copy)]
 pub struct ShortId<T>(pub T);
 
 impl<T: AsRef<[u8]>> fmt::Display for ShortId<T> {
@@ -394,24 +394,12 @@ impl<'a> env::OcallFuncs for WapoCtx {
     }
 
     fn object_get(&mut self, hash: &[u8], hash_algrithm: &str) -> Result<Vec<u8>> {
+        use super::objects::get_object;
         let path = self.objects_path.join(&hex::encode(hash));
-        let data = std::fs::read(&path).or(Err(OcallError::IoError))?;
-        match hash_algrithm {
-            "sha256" => {
-                let actual_hash = Sha256::digest(&data);
-                if actual_hash.as_slice() != hash {
-                    return Err(OcallError::DataCorruption);
-                }
-            }
-            "sha512" => {
-                let actual_hash = Sha512::digest(&data);
-                if actual_hash.as_slice() != hash {
-                    return Err(OcallError::DataCorruption);
-                }
-            }
-            _ => return Err(OcallError::InvalidParameter),
-        }
-        Ok(data)
+        let obj = get_object(&path, hash, hash_algrithm)
+            .or(Err(OcallError::IoError))?
+            .ok_or(OcallError::NotFound)?;
+        Ok(obj)
     }
 }
 

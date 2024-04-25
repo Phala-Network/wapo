@@ -14,8 +14,11 @@ use rpc::prpc::{
 use tracing::{error, info, warn};
 use wapod_rpc as rpc;
 
-pub(crate) use objects::put_object;
-mod objects;
+use wapo_host::{
+    objects::{get_object, put_object},
+    service::Command,
+    ShortId,
+};
 
 type Result<T, E = RpcError> = std::result::Result<T, E>;
 
@@ -38,6 +41,36 @@ impl Admin for App {
         .map_err(|err| {
             warn!("Failed to put object: {err}");
             RpcError::AppError(format!("Failed to put object: {err}"))
+        })
+    }
+
+    async fn upload_manifest(&self, request: pb::Manifest) -> Result<pb::Address> {
+        let objects_path = self.objects_path().await;
+        let wasm_blob = get_object(&objects_path, &request.code_hash, &request.hash_algorithm)
+            .map_err(|err| {
+                warn!("Failed to get wasm object: {err}");
+                RpcError::AppError(format!("Failed to get wasm object: {err}"))
+            })?
+            .ok_or(RpcError::AppError("Wasm object not found".to_string()))?;
+        let address = sp_core::blake2_256(&scale::Encode::encode(&request));
+        let vmid = ShortId(address);
+        let fixme = "Race condition here";
+        if let Some(handle) = self.take_handle(address).await {
+            info!("Stopping VM {vmid}...");
+            if let Err(err) = handle.sender.send(Command::Stop).await {
+                warn!("Failed to send stop command to the VM: {err:?}");
+            }
+            match handle.handle.await {
+                Ok(reason) => info!("VM exited: {reason:?}"),
+                Err(err) => warn!("Failed to wait VM exit: {err:?}"),
+            }
+        };
+        self.run_wasm(wasm_blob, 0, address).await.map_err(|err| {
+            warn!("Failed to run wasm: {err}");
+            RpcError::AppError(format!("Failed to run wasm: {err}"))
+        })?;
+        Ok(pb::Address {
+            address: address.to_vec(),
         })
     }
 }

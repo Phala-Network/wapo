@@ -1,11 +1,12 @@
 use std::{path::Path, str::FromStr};
 
 use anyhow::{bail, Context, Error, Result};
+use scale::{Decode, Encode};
 use sha2::Digest;
 use tokio::io::{AsyncRead, AsyncReadExt};
 
-#[derive(Debug)]
-enum HashAlgo {
+#[derive(Debug, Encode, Decode)]
+pub enum HashAlgo {
     Sha256,
     Sha512,
 }
@@ -40,6 +41,15 @@ impl Hasher {
             Self::Sha512(h) => h.finalize().as_slice().to_vec(),
         }
     }
+
+    fn hash(data: &[u8], hash_algo: HashAlgo) -> Vec<u8> {
+        let mut hasher = match hash_algo {
+            HashAlgo::Sha256 => Hasher::Sha256(sha2::Sha256::new()),
+            HashAlgo::Sha512 => Hasher::Sha512(sha2::Sha512::new()),
+        };
+        hasher.update(data);
+        hasher.finalize()
+    }
 }
 
 async fn hash_file(path: impl AsRef<Path>, hash_algo: HashAlgo) -> Result<Vec<u8>> {
@@ -66,7 +76,7 @@ async fn hash_file(path: impl AsRef<Path>, hash_algo: HashAlgo) -> Result<Vec<u8
     Ok(hasher.finalize())
 }
 
-pub(crate) async fn put_object<'a, R>(
+pub async fn put_object<'a, R>(
     path: impl AsRef<Path>,
     hash: &[u8],
     data: &'a mut R,
@@ -110,4 +120,26 @@ where
         .context("Failed to move object file to objects directory")?;
     drop(_guard);
     Ok(())
+}
+
+pub fn get_object(
+    objects_path: impl AsRef<Path>,
+    hash: &[u8],
+    hash_algo: &str,
+) -> Result<Option<Vec<u8>>> {
+    let hash_algo = HashAlgo::from_str(hash_algo).map_err(Error::msg)?;
+    let result = std::fs::read(objects_path.as_ref().join(hex::encode(hash)));
+    let data = match result {
+        Ok(data) => data,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(err) => return Err(err).context("Failed to read object file"),
+    };
+    let actual_hash = Hasher::hash(&data, hash_algo);
+    if actual_hash != hash {
+        bail!(
+            "Object file hash mismatch, actual hash is {}",
+            hex_fmt::HexFmt(actual_hash)
+        );
+    }
+    Ok(Some(data))
 }

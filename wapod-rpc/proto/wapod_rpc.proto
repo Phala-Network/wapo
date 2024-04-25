@@ -17,6 +17,8 @@ service Admin {
   rpc Info(google.protobuf.Empty) returns (NodeInfo) {}
   // Put an object to the worker's object storage.
   rpc PutObject(Object) returns (google.protobuf.Empty) {}
+  // Upload manifest
+  rpc UploadManifest(Manifest) returns (Address) {}
 }
 
 // Basic information about a worker.
@@ -38,3 +40,32 @@ message Object {
   // The value of the object.
   bytes body = 3;
 }
+
+// Manifest of an app.
+message Manifest {
+  // Name of the required runtime to run the app.
+  string runtime = 1;
+  // The hash of the app's code.
+  bytes code_hash = 2;
+  // The hash algorithm used to generate the code hash.
+  string hash_algorithm = 3;
+  // The arguments of the app.
+  repeated string args = 4;
+  // The environment variables of the app.
+  repeated StringPair env_vars = 5;
+  // The start mode of the app.
+  int32 start_mode = 6;
+  // The salt used to derive the app's address.
+  bytes salt = 7;
+}
+
+// Environment variable of an app.
+message StringPair {
+  // The key of the environment variable.
+  string key = 1;
+  // The value of the environment variable.
+  string value = 2;
+}
+
+// Address of an app.
+message Address { bytes address = 1; }

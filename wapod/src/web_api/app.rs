@@ -1,5 +1,6 @@
 use tokio::task::JoinHandle;
 
+use wapo_host::ShortId;
 use wapod_rpc::prpc::NodeInfo;
 
 use std::{collections::HashMap, path::PathBuf};
@@ -15,13 +16,15 @@ use wapo_host::service::{self, ExitReason};
 
 use crate::Args;
 
+type Address = [u8; 32];
+
 pub struct VmHandle {
     pub sender: CommandSender,
     pub handle: JoinHandle<ExitReason>,
 }
+
 struct AppInner {
-    next_id: u32,
-    instances: HashMap<u32, VmHandle>,
+    instances: HashMap<Address, VmHandle>,
     args: Args,
     spawner: Spawner,
 }
@@ -36,14 +39,13 @@ impl App {
         Self {
             inner: Arc::new(Mutex::new(AppInner {
                 instances: HashMap::new(),
-                next_id: 0,
                 spawner,
                 args,
             })),
         }
     }
 
-    pub async fn send(&self, vmid: u32, message: Command) -> Result<(), (u16, &'static str)> {
+    pub async fn send(&self, vmid: Address, message: Command) -> Result<(), (u16, &'static str)> {
         self.sender_for(vmid)
             .await
             .ok_or((404, "Instance not found"))?
@@ -53,11 +55,11 @@ impl App {
         Ok(())
     }
 
-    pub async fn sender_for(&self, vmid: u32) -> Option<Sender<Command>> {
+    pub async fn sender_for(&self, vmid: Address) -> Option<Sender<Command>> {
         Some(self.inner.lock().await.instances.get(&vmid)?.sender.clone())
     }
 
-    pub async fn take_handle(&self, vmid: u32) -> Option<VmHandle> {
+    pub async fn take_handle(&self, vmid: Address) -> Option<VmHandle> {
         self.inner.lock().await.instances.remove(&vmid)
     }
 
@@ -65,33 +67,21 @@ impl App {
         &self,
         wasm_bytes: Vec<u8>,
         weight: u32,
-        id: Option<u32>,
-    ) -> Result<u32, &'static str> {
+        address: Address,
+    ) -> anyhow::Result<()> {
         let mut inner = self.inner.lock().await;
-        let id = match id {
-            Some(id) => id,
-            None => inner.next_id,
-        };
-        inner.next_id = id
-            .checked_add(1)
-            .ok_or("Too many instances")?
-            .max(inner.next_id);
-
-        let mut vmid = [0u8; 32];
-
-        vmid[0..4].copy_from_slice(&id.to_be_bytes());
-
-        println!("VM {id} running...");
+        let vmid = ShortId(address);
+        println!("VM {vmid} running...");
         let objects_path = inner.args.objects_path.clone();
         let config = service::InstanceStartConfig::builder()
             .max_memory_pages(inner.args.max_memory_pages)
-            .id(vmid)
+            .id(address)
             .weight(weight)
             .objects_path(objects_path.into())
             .build();
-        let (sender, handle) = inner.spawner.start(&wasm_bytes, None, config).unwrap();
-        inner.instances.insert(id, VmHandle { sender, handle });
-        Ok(id)
+        let (sender, handle) = inner.spawner.start(&wasm_bytes, None, config)?;
+        inner.instances.insert(address, VmHandle { sender, handle });
+        Ok(())
     }
 
     pub async fn info(&self) -> NodeInfo {

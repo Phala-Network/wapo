@@ -4,3 +4,4 @@ pub(crate) mod metering;
 
 mod resource;
 mod tls;
+pub mod objects;

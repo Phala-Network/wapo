@@ -9,6 +9,7 @@ pub use runtime::vm_context::{
     OutgoingRequestSender, ShortId,
 };
 pub use runtime::metering::Meter;
+pub use runtime::objects;
 
 pub type VmId = [u8; 32];
 pub use run::{InstanceConfig, InstanceConfigBuilder, WasmEngine, WasmModule, WasmRun};

@@ -24,18 +24,16 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use service::Command;
-use wapo_host::rocket_stream::{connect, RequestInfo, StreamResponse};
 use wapo_host::{
-    service::{self},
-    OutgoingRequest,
+    objects::put_object,
+    rocket_stream::{connect, RequestInfo, StreamResponse},
+    service, OutgoingRequest,
 };
 
 use crate::web_api::prpc_service::handle_prpc;
 use crate::Args;
 
 use app::App;
-
-use self::prpc_service::put_object;
 
 mod app;
 mod prpc_service;
@@ -85,7 +83,7 @@ async fn read_data(data: Data<'_>, limit: ByteUnit) -> Result<Vec<u8>, ReadDataE
 #[post("/push/query/<id>", data = "<data>")]
 async fn push_query_no_origin(
     app: &State<App>,
-    id: u32,
+    id: HexBytes,
     data: Data<'_>,
 ) -> Result<Vec<u8>, Custom<&'static str>> {
     push_query(app, id, None, data).await
@@ -94,11 +92,14 @@ async fn push_query_no_origin(
 #[post("/push/query/<id>/<origin>", data = "<data>")]
 async fn push_query(
     app: &State<App>,
-    id: u32,
+    id: HexBytes,
     origin: Option<&str>,
     data: Data<'_>,
 ) -> Result<Vec<u8>, Custom<&'static str>> {
     let payload = read_data(data, 100.mebibytes()).await?;
+    let address =
+        id.0.try_into()
+            .map_err(|_| Custom(Status::BadRequest, "Invalid address"))?;
 
     let (reply_tx, rx) = tokio::sync::oneshot::channel();
     let origin = match origin {
@@ -114,7 +115,7 @@ async fn push_query(
     };
 
     app.send(
-        id,
+        address,
         Command::PushQuery {
             origin,
             payload,
@@ -134,7 +135,7 @@ async fn push_query(
 async fn connect_vm_post<'r>(
     app: &State<App>,
     head: RequestInfo,
-    id: u32,
+    id: HexBytes,
     path: PathBuf,
     body: Data<'r>,
 ) -> Result<StreamResponse, (Status, String)> {
@@ -145,7 +146,7 @@ async fn connect_vm_post<'r>(
 async fn connect_vm_get<'r>(
     app: &State<App>,
     head: RequestInfo,
-    id: u32,
+    id: HexBytes,
     path: PathBuf,
 ) -> Result<StreamResponse, (Status, String)> {
     connect_vm(app, head, id, path, None).await
@@ -154,11 +155,14 @@ async fn connect_vm_get<'r>(
 async fn connect_vm<'r>(
     app: &State<App>,
     head: RequestInfo,
-    id: u32,
+    id: HexBytes,
     path: PathBuf,
     body: Option<Data<'r>>,
 ) -> Result<StreamResponse, (Status, String)> {
-    let Some(command_tx) = app.sender_for(id).await else {
+    let address =
+        id.0.try_into()
+            .map_err(|_| (Status::BadRequest, "Invalid address".to_string()))?;
+    let Some(command_tx) = app.sender_for(address).await else {
         return Err((Status::NotFound, Default::default()));
     };
     let path = path
@@ -171,39 +175,16 @@ async fn connect_vm<'r>(
     }
 }
 
-#[post("/run?<weight>&<id>", data = "<data>")]
-async fn run(
-    app: &State<App>,
-    weight: Option<u32>,
-    id: Option<u32>,
-    data: Data<'_>,
-) -> Result<String, Custom<&'static str>> {
-    if let Some(id) = id {
-        if let Some(handle) = app.take_handle(id).await {
-            info!("Stopping VM {id}...");
-            if let Err(err) = handle.sender.send(Command::Stop).await {
-                warn!("Failed to send stop command to the VM: {err:?}");
-            }
-            match handle.handle.await {
-                Ok(reason) => info!("VM exited: {reason:?}"),
-                Err(err) => warn!("Failed to wait VM exit: {err:?}"),
-            }
-        };
-    }
-    let code = read_data(data, 100.mebibytes()).await?;
-    let id = app
-        .run_wasm(code, weight.unwrap_or(1), id)
-        .await
-        .map_err(|reason| Custom(Status::InternalServerError, reason))?;
-    Ok(id.to_string())
-}
-
-#[post("/stop?<id>")]
-async fn stop(app: &State<App>, id: u32) -> Result<(), Custom<&'static str>> {
-    let Some(handle) = app.take_handle(id).await else {
+#[post("/stop/<id>")]
+async fn stop(app: &State<App>, id: HexBytes) -> Result<(), Custom<&'static str>> {
+    let address =
+        id.0.try_into()
+            .map_err(|_| Custom(Status::BadRequest, "Invalid address"))?;
+    let Some(handle) = app.take_handle(address).await else {
         return Err(Custom(Status::NotFound, "Instance not found"));
     };
-    info!("Stopping VM {id}...");
+    let vmid = ShortId(address);
+    info!("Stopping VM {vmid}...");
     if let Err(err) = handle.sender.send(Command::Stop).await {
         warn!("Failed to send stop command to the VM: {err:?}");
     }
@@ -392,7 +373,6 @@ pub async fn serve_admin(app: App) -> anyhow::Result<()> {
             routes![
                 push_query,
                 push_query_no_origin,
-                run,
                 stop,
                 info,
                 object_post,

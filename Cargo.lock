@@ -4619,12 +4619,14 @@ dependencies = [
  "rand",
  "rocket",
  "rustls-pemfile",
+ "scopeguard",
  "serde",
  "sha2 0.10.8",
  "tokio",
  "tokio-rustls",
  "tracing",
  "typed-builder",
+ "uuid",
  "wapo-env",
  "wasi-common",
  "wasmtime",
@@ -4666,6 +4668,7 @@ dependencies = [
  "clap",
  "hex",
  "hex_fmt",
+ "parity-scale-codec",
  "phala-rocket-middleware",
  "rocket",
  "rocket_cors",
@@ -4685,6 +4688,7 @@ dependencies = [
 name = "wapod-rpc"
 version = "0.1.0"
 dependencies = [
+ "parity-scale-codec",
  "prost 0.12.4",
  "prpc",
  "prpc-build",
