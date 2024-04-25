@@ -5,14 +5,17 @@ use rocket::{
     Data, State,
 };
 use rpc::prpc::{
-    self,
+    self as pb,
     admin_server::Admin,
     server::{Error as RpcError, Service as PrpcService},
     user_server::User,
     NodeInfo,
 };
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use wapod_rpc as rpc;
+
+pub(crate) use objects::put_object;
+mod objects;
 
 type Result<T, E = RpcError> = std::result::Result<T, E>;
 
@@ -21,6 +24,21 @@ use super::{read_data, App};
 impl Admin for App {
     async fn info(&self, _request: ()) -> Result<NodeInfo> {
         Ok(App::info(self).await)
+    }
+
+    async fn put_object(&self, request: pb::Object) -> Result<()> {
+        let objects_path = self.objects_path().await;
+        put_object(
+            &objects_path,
+            &request.hash,
+            &mut &request.body[..],
+            &request.hash_algrithm,
+        )
+        .await
+        .map_err(|err| {
+            warn!("Failed to put object: {err}");
+            RpcError::AppError(format!("Failed to put object: {err}"))
+        })
     }
 }
 
@@ -100,7 +118,7 @@ async fn dispatch_prpc(
                     .into_bytes();
                 (code, body)
             } else {
-                (code, prpc::codec::encode_message_to_vec(&err))
+                (code, pb::codec::encode_message_to_vec(&err))
             }
         }
     };

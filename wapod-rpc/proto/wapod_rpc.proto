@@ -8,13 +8,15 @@ package wapod;
 // The wapod public RPC.
 service User {
   // Get basic information about the worker state.
-  rpc Info (google.protobuf.Empty) returns (NodeInfo) {}
+  rpc Info(google.protobuf.Empty) returns (NodeInfo) {}
 }
 
 // The wapod admin RPC.
 service Admin {
   // Get basic information about the worker state.
-  rpc Info (google.protobuf.Empty) returns (NodeInfo) {}
+  rpc Info(google.protobuf.Empty) returns (NodeInfo) {}
+  // Put an object to the worker's object storage.
+  rpc PutObject(Object) returns (google.protobuf.Empty) {}
 }
 
 // Basic information about a worker.
@@ -25,4 +27,14 @@ message NodeInfo {
   uint32 max_instances = 2;
   // The size limit of memory of each instance.
   uint32 instance_memory_size = 3;
+}
+
+// An object to be stored in the worker's object storage.
+message Object {
+  // The key of the object.
+  bytes hash = 1;
+  // The hash algorithm used to generate the key.
+  string hash_algrithm = 2;
+  // The value of the object.
+  bytes body = 3;
 }

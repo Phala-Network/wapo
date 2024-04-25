@@ -6,6 +6,7 @@ use rocket::figment::{
 };
 use rocket::fs::NamedFile;
 use rocket::http::{ContentType, Method, Status};
+use rocket::request::FromParam;
 use rocket::response::status::Custom;
 use rocket::{get, post, routes, Data, State};
 use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
@@ -34,6 +35,8 @@ use crate::Args;
 
 use app::App;
 
+use self::prpc_service::put_object;
+
 mod app;
 mod prpc_service;
 
@@ -55,6 +58,18 @@ impl From<ReadDataError> for Custom<Vec<u8>> {
     fn from(value: ReadDataError) -> Self {
         let custom = Custom::<&'static str>::from(value);
         Custom(custom.0, custom.1.as_bytes().to_vec())
+    }
+}
+
+#[derive(Debug)]
+struct HexBytes(pub Vec<u8>);
+impl<'r> FromParam<'r> for HexBytes {
+    type Error = &'static str;
+
+    fn from_param(param: &str) -> Result<Self, Self::Error> {
+        let param = param.trim_start_matches("0x");
+        let bytes = hex::decode(param).map_err(|_| "Invalid hex string")?;
+        Ok(HexBytes(bytes))
     }
 }
 
@@ -265,32 +280,24 @@ async fn prpc_admin_get(
     handle_prpc::<AdminServer<_>>(app, method, None, limits, content_type, true).await
 }
 
-#[post("/object/<id>", data = "<data>")]
+#[post("/object/<hash>?<type>", data = "<data>")]
 async fn object_post(
     app: &State<App>,
     limits: &Limits,
-    id: &str,
+    r#type: &str,
+    hash: HexBytes,
     data: Data<'_>,
-) -> Result<(), Custom<&'static str>> {
+) -> Result<(), Custom<String>> {
     let path = app.objects_path().await;
-    std::fs::create_dir_all(&path).or(Err(Custom(
-        Status::InternalServerError,
-        "Failed to create object directory",
-    )))?;
-    let path = path.join(id);
-    let mut file = tokio::fs::File::create(&path).await.or(Err(Custom(
-        Status::InternalServerError,
-        "Failed to create object file",
-    )))?;
-    let limit = limits.get("hash_object").unwrap_or(100.mebibytes());
+    let limit = limits.get("Admin.PutObject").unwrap_or(10.mebibytes());
     let mut stream = data.open(limit);
-    tokio::io::copy(&mut stream, &mut file)
-        .await
-        .or(Err(Custom(
-            Status::InternalServerError,
-            "Failed to write object file",
-        )))?;
-    Ok(())
+    match put_object(path, &hash.0, &mut stream, r#type).await {
+        Ok(()) => Ok(()),
+        Err(err) => {
+            warn!("Failed to put object: {err}");
+            Err(Custom(Status::InternalServerError, err.to_string()))
+        }
+    }
 }
 
 #[get("/object/<id>")]

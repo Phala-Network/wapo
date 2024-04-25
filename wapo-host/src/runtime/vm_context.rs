@@ -9,7 +9,7 @@ use std::{
 };
 
 use anyhow::Context;
-use sha2::{Digest, Sha256};
+use sha2::{Digest, Sha256, Sha512};
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::oneshot::Sender as OneshotSender,
@@ -399,6 +399,12 @@ impl<'a> env::OcallFuncs for WapoCtx {
         match hash_algrithm {
             "sha256" => {
                 let actual_hash = Sha256::digest(&data);
+                if actual_hash.as_slice() != hash {
+                    return Err(OcallError::DataCorruption);
+                }
+            }
+            "sha512" => {
+                let actual_hash = Sha512::digest(&data);
                 if actual_hash.as_slice() != hash {
                     return Err(OcallError::DataCorruption);
                 }
