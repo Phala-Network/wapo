@@ -1,6 +1,6 @@
 pub(crate) mod async_context;
 pub(crate) mod vm_context;
-pub(crate) mod metering;
+pub(crate) mod metrics;
 
 mod resource;
 mod tls;

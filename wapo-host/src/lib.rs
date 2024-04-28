@@ -1,11 +1,11 @@
+mod module_loader;
 #[cfg(feature = "rocket-stream")]
 pub mod rocket_stream;
 mod run;
 mod runtime;
-mod module_loader;
 
 pub mod service;
-pub use runtime::metering::Meter;
+pub use runtime::metrics::Meter;
 pub use runtime::objects;
 pub use runtime::vm_context::{
     crate_outgoing_request_channel, vm_count, OutgoingRequest, OutgoingRequestReceiver,

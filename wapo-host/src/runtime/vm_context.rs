@@ -31,7 +31,7 @@ use wasmtime::Caller;
 
 use super::{
     async_context::{get_task_cx, set_task_env, GuestWaker},
-    metering::Meter,
+    metrics::Meter,
     resource::{PollContext, Resource, ResourceTable, TcpListenerResource},
     tls::{load_tls_config, TlsStream},
 };
