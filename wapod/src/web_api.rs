@@ -25,7 +25,6 @@ use std::str::FromStr;
 
 use service::Command;
 use wapo_host::{
-    objects::put_object,
     rocket_stream::{connect, RequestInfo, StreamResponse},
     service, OutgoingRequest,
 };
@@ -269,10 +268,10 @@ async fn object_post(
     hash: HexBytes,
     data: Data<'_>,
 ) -> Result<(), Custom<String>> {
-    let path = app.objects_path().await;
+    let loader = app.object_loader().await;
     let limit = limits.get("Admin.PutObject").unwrap_or(10.mebibytes());
     let mut stream = data.open(limit);
-    match put_object(path, &hash.0, &mut stream, r#type).await {
+    match loader.put_object(&hash.0, &mut stream, r#type).await {
         Ok(()) => Ok(()),
         Err(err) => {
             warn!("Failed to put object: {err}");
@@ -282,9 +281,8 @@ async fn object_post(
 }
 
 #[get("/object/<id>")]
-async fn object_get(app: &State<App>, id: &str) -> Result<NamedFile, Custom<&'static str>> {
-    let path = app.objects_path().await;
-    let path = path.join(id);
+async fn object_get(app: &State<App>, id: HexBytes) -> Result<NamedFile, Custom<&'static str>> {
+    let path = app.object_loader().await.path(&id.0);
     NamedFile::open(&path)
         .await
         .map_err(|_| Custom(Status::NotFound, "Object not found"))
@@ -314,7 +312,7 @@ fn sign_http_response(_data: &[u8]) -> Option<String> {
 
 pub fn crate_app(args: Args) -> App {
     let (tx, mut rx) = crate_outgoing_request_channel();
-    let (run, spawner) = service::service(args.workers, tx);
+    let (run, spawner) = service::service(args.workers, tx, &args.objects_path);
     tokio::spawn(async move {
         while let Some((id, message)) = rx.recv().await {
             let vmid = ShortId(id);

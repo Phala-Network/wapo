@@ -1,9 +1,46 @@
-use std::{path::Path, str::FromStr};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::Arc,
+};
 
 use anyhow::{bail, Context, Error, Result};
 use scale::{Decode, Encode};
 use sha2::Digest;
 use tokio::io::{AsyncRead, AsyncReadExt};
+
+#[derive(Debug, Clone)]
+pub struct ObjectLoader {
+    objects_path: Arc<PathBuf>,
+}
+
+impl ObjectLoader {
+    pub fn new(objects_path: impl AsRef<Path>) -> Self {
+        Self {
+            objects_path: Arc::new(objects_path.as_ref().to_path_buf()),
+        }
+    }
+
+    pub fn get_object(&self, hash: &[u8], hash_algo: &str) -> Result<Option<Vec<u8>>> {
+        get_object(self.objects_path.as_path(), hash, hash_algo)
+    }
+
+    pub async fn put_object<'a, R>(
+        &self,
+        hash: &[u8],
+        data: &'a mut R,
+        hash_algo: &str,
+    ) -> Result<()>
+    where
+        R: AsyncRead + Unpin + ?Sized,
+    {
+        put_object(self.objects_path.as_path(), hash, data, hash_algo).await
+    }
+
+    pub fn path(&self, hash: &[u8]) -> PathBuf {
+        self.objects_path.join(hex::encode(hash))
+    }
+}
 
 #[derive(Debug, Encode, Decode)]
 pub enum HashAlgo {

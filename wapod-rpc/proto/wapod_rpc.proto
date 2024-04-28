@@ -17,8 +17,8 @@ service Admin {
   rpc Info(google.protobuf.Empty) returns (NodeInfo) {}
   // Put an object to the worker's object storage.
   rpc PutObject(Object) returns (google.protobuf.Empty) {}
-  // Upload manifest
-  rpc UploadManifest(Manifest) returns (Address) {}
+  // Deploy a new WASM instance.
+  rpc Deploy(Manifest) returns (Address) {}
 }
 
 // Basic information about a worker.

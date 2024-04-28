@@ -35,7 +35,7 @@ use super::{
     resource::{PollContext, Resource, ResourceTable, TcpListenerResource},
     tls::{load_tls_config, TlsStream},
 };
-use crate::{IncomingHttpRequest, VmId};
+use crate::{objects::ObjectLoader, IncomingHttpRequest, VmId};
 
 #[derive(Clone, Copy)]
 pub struct ShortId<T>(pub T);
@@ -123,7 +123,7 @@ pub(crate) struct WapoCtx {
     log_handler: Option<LogHandler>,
     _counter: vm_counter::Counter,
     meter: Arc<Meter>,
-    objects_path: PathBuf,
+    objects: ObjectLoader,
 }
 
 impl WapoCtx {
@@ -146,7 +146,7 @@ impl WapoCtx {
             log_handler,
             _counter: Default::default(),
             meter: Default::default(),
-            objects_path,
+            objects: ObjectLoader::new(objects_path),
         }
     }
     pub(crate) fn close(&mut self, resource_id: i32) -> Result<()> {
@@ -394,9 +394,9 @@ impl<'a> env::OcallFuncs for WapoCtx {
     }
 
     fn object_get(&mut self, hash: &[u8], hash_algrithm: &str) -> Result<Vec<u8>> {
-        use super::objects::get_object;
-        let path = self.objects_path.join(&hex::encode(hash));
-        let obj = get_object(&path, hash, hash_algrithm)
+        let obj = self
+            .objects
+            .get_object(hash, hash_algrithm)
             .or(Err(OcallError::IoError))?
             .ok_or(OcallError::NotFound)?;
         Ok(obj)

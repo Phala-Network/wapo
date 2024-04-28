@@ -1,9 +1,8 @@
-use crate::run::{InstanceConfig, WasmEngine};
-use crate::{ShortId, VmId};
 use anyhow::Result;
 use phala_scheduler::TaskScheduler;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
+use std::ops::Deref;
 use std::path::PathBuf;
 use tokio::io::DuplexStream;
 use tokio::{
@@ -15,7 +14,37 @@ use tokio::{
 use tracing::{debug, error, info, warn, Instrument};
 use wapo_env::messages::{AccountId, HttpHead, HttpResponseHead};
 
-pub type CommandSender = Sender<Command>;
+use crate::{
+    module_loader::ModuleLoader,
+    objects::ObjectLoader,
+    run::{InstanceConfig, WasmEngine},
+    ShortId, VmId,
+};
+
+#[repr(transparent)]
+pub struct CommandSender(Sender<Command>);
+
+impl From<Sender<Command>> for CommandSender {
+    fn from(sender: Sender<Command>) -> Self {
+        Self(sender)
+    }
+}
+
+impl Deref for CommandSender {
+    type Target = Sender<Command>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Drop for CommandSender {
+    fn drop(&mut self) {
+        if let Err(err) = self.0.try_send(Command::Stop) {
+            warn!(target: "wapo", "Failed to send stop command to the VM: {err:?}");
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum Report {
@@ -71,17 +100,19 @@ pub struct ServiceRun {
 }
 
 #[derive(Clone)]
-pub struct Spawner {
+pub struct ServiceHandle {
     runtime_handle: tokio::runtime::Handle,
     report_tx: Sender<Report>,
     out_tx: crate::OutgoingRequestSender,
     scheduler: TaskScheduler<VmId>,
+    module_loader: ModuleLoader,
 }
 
 pub fn service(
     worker_threads: usize,
     out_tx: crate::OutgoingRequestSender,
-) -> (ServiceRun, Spawner) {
+    objects_path: &str,
+) -> (ServiceRun, ServiceHandle) {
     let worker_threads = worker_threads.max(1);
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .max_blocking_threads(16)
@@ -95,11 +126,14 @@ pub fn service(
     let runtime_handle = runtime.handle().clone();
     let (report_tx, report_rx) = channel(100);
     let run = ServiceRun { runtime, report_rx };
-    let spawner = Spawner {
+    let object_loader = ObjectLoader::new(objects_path);
+    let module_loader = ModuleLoader::new(WasmEngine::default(), object_loader, 100);
+    let spawner = ServiceHandle {
         runtime_handle,
         report_tx,
         out_tx,
         scheduler: TaskScheduler::new(worker_threads as _),
+        module_loader,
     };
     (run, spawner)
 }
@@ -137,11 +171,12 @@ pub struct InstanceStartConfig {
     objects_path: PathBuf,
 }
 
-impl Spawner {
+impl ServiceHandle {
     #[tracing::instrument(parent=None, name="wapo", fields(id = %ShortId(config.id)), skip_all)]
     pub fn start(
         &self,
-        wasm_bytes: &[u8],
+        wasm_hash: &[u8],
+        wasm_hash_alg: &str,
         prev_stopped: Option<WatchReceiver<bool>>,
         config: InstanceStartConfig,
     ) -> Result<(CommandSender, JoinHandle<ExitReason>)> {
@@ -154,7 +189,7 @@ impl Spawner {
         let event_tx = self.out_tx.clone();
         let (cmd_tx, mut cmd_rx) = channel(128);
         let scheduler = self.scheduler.clone();
-        let wasm_bytes = wasm_bytes.to_vec();
+        let module = self.module_loader.load_module(wasm_hash, wasm_hash_alg)?;
         let handle = self.spawn(async move {
             macro_rules! push_msg {
                 ($expr: expr, $level: ident, $msg: expr) => {{
@@ -198,16 +233,6 @@ impl Spawner {
                 }
             }
             info!(target: "wapo", "Starting instance...");
-            let t0 = std::time::Instant::now();
-            let engine = WasmEngine::default();
-            let module = match engine.compile(&wasm_bytes) {
-                Ok(m) => m,
-                Err(err) => {
-                    error!(target: "wapo", ?err, "Failed to compile wasm module");
-                    return ExitReason::FailedToStart;
-                }
-            };
-            info!(target: "wapo", "Wasm module compiled, elapsed={:.2?}", t0.elapsed());
             let config = InstanceConfig::builder()
                 .id(id)
                 .max_memory_pages(max_memory_pages)
@@ -279,7 +304,7 @@ impl Spawner {
             }
             reason
         });
-        Ok((cmd_tx, handle))
+        Ok((cmd_tx.into(), handle))
     }
 
     pub fn spawn<O: Send + 'static>(
