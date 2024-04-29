@@ -15,7 +15,7 @@ use tokio::{
 use tracing::{debug, error, info, warn, Instrument};
 use wapo_env::messages::{AccountId, HttpHead, HttpResponseHead};
 
-use crate::Meter;
+use crate::Metrics;
 use crate::{
     module_loader::ModuleLoader,
     objects::ObjectLoader,
@@ -26,7 +26,7 @@ use crate::{
 pub struct VmHandle {
     cmd_sender: CommandSender,
     stop_signal: Option<OneshotReceiver<()>>,
-    meter: Arc<Meter>,
+    meter: Arc<Metrics>,
 }
 
 impl VmHandle {
@@ -46,7 +46,7 @@ impl VmHandle {
         &self.cmd_sender
     }
 
-    pub fn meter(&self) -> Arc<Meter> {
+    pub fn meter(&self) -> Arc<Metrics> {
         self.meter.clone()
     }
 }
@@ -229,7 +229,7 @@ impl ServiceHandle {
 
         let scheduler = self.scheduler.clone();
         let module = self.module_loader.load_module(wasm_hash, wasm_hash_alg)?;
-        let meter = Arc::new(Meter::default());
+        let meter = Arc::new(Metrics::default());
         let meter_cloned = meter.clone();
         let handle = self.spawn(async move {
             macro_rules! push_msg {

@@ -3,7 +3,7 @@ use tokio::task::JoinHandle;
 
 use tracing::{info, warn};
 use wapo_host::ShortId;
-use wapo_host::{objects::ObjectLoader, Meter};
+use wapo_host::{objects::ObjectLoader, Metrics};
 use wapod_rpc::prpc::NodeInfo;
 
 use std::collections::HashMap;
@@ -30,14 +30,14 @@ struct CurrentRun {
 
 pub struct InstanceState {
     manifest: Manifest,
-    hist_metrics: Meter,
+    hist_metrics: Metrics,
     current_run: Option<CurrentRun>,
 }
 
 impl InstanceState {
     /// Returns the metrics of the instance during the session.
     /// If the instance is running, the metrics are merged with the current run's metrics.
-    fn metrics(&self) -> Meter {
+    fn metrics(&self) -> Metrics {
         self.current_run
             .as_ref()
             .map(|run| run.vm_handle.meter())

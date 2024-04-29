@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 #[derive(Default, Debug)]
-pub struct Meter {
+pub struct Metrics {
     pub gas_comsumed: AtomicU64,
     pub net_egress: AtomicU64,
     pub net_ingress: AtomicU64,
@@ -11,7 +11,7 @@ pub struct Meter {
     pub stopped: AtomicBool,
 }
 
-impl Meter {
+impl Metrics {
     pub fn set_gas_comsumed(&self, gas: u64) {
         self.gas_comsumed.store(gas, Ordering::Relaxed);
     }
@@ -59,9 +59,9 @@ impl Meter {
     }
 }
 
-impl Meter {
+impl Metrics {
     /// Merges the other meter into this meter.
-    pub fn merge(&self, other: &Meter) {
+    pub fn merge(&self, other: &Metrics) {
         self.gas_comsumed.fetch_add(
             other.gas_comsumed.load(Ordering::Relaxed),
             Ordering::Relaxed,
@@ -81,8 +81,8 @@ impl Meter {
     }
 
     /// Returns a new meter that is the sum of the two meters.
-    pub fn merged(&self, other: &Meter) -> Meter {
-        let mut meter = Meter::default();
+    pub fn merged(&self, other: &Metrics) -> Metrics {
+        let mut meter = Metrics::default();
         meter.merge(self);
         meter.merge(other);
         meter

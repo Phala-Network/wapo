@@ -31,7 +31,7 @@ use wasmtime::Caller;
 
 use super::{
     async_context::{get_task_cx, set_task_env, GuestWaker},
-    metrics::Meter,
+    metrics::Metrics,
     resource::{PollContext, Resource, ResourceTable, TcpListenerResource},
     tls::{load_tls_config, TlsStream},
 };
@@ -57,7 +57,7 @@ pub fn create_env(
     out_tx: OutgoingRequestSender,
     log_handler: Option<LogHandler>,
     objects_path: PathBuf,
-    meter: Option<Arc<Meter>>,
+    meter: Option<Arc<Metrics>>,
 ) -> WapoCtx {
     WapoCtx::new(id, out_tx, log_handler, objects_path, meter)
 }
@@ -123,7 +123,7 @@ pub(crate) struct WapoCtx {
     outgoing_request_tx: OutgoingRequestSender,
     log_handler: Option<LogHandler>,
     _counter: vm_counter::Counter,
-    meter: Arc<Meter>,
+    meter: Arc<Metrics>,
     objects: ObjectLoader,
 }
 
@@ -133,7 +133,7 @@ impl WapoCtx {
         outgoing_request_tx: OutgoingRequestSender,
         log_handler: Option<LogHandler>,
         objects_path: PathBuf,
-        meter: Option<Arc<Meter>>,
+        meter: Option<Arc<Metrics>>,
     ) -> Self {
         Self {
             id,
@@ -173,7 +173,7 @@ impl WapoCtx {
         }
     }
 
-    pub fn meter(&self) -> Arc<Meter> {
+    pub fn meter(&self) -> Arc<Metrics> {
         self.meter.clone()
     }
 }
