@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 
 use tracing::{info, warn};
 use wapo_host::ShortId;
@@ -97,18 +97,6 @@ impl App {
         Some(handle)
     }
 
-    pub(crate) async fn take_handle(&self, vmid: Address) -> Option<VmHandle> {
-        let handle = self
-            .inner
-            .lock()
-            .await
-            .instances
-            .remove(&vmid)?
-            .current_run?
-            .vm_handle;
-        Some(handle)
-    }
-
     pub async fn info(&self) -> NodeInfo {
         let app = self.inner.lock().await;
         let max_instances = app.args.max_instances;
@@ -127,6 +115,10 @@ impl App {
 
     pub async fn start_instance(&self, vmid: Address) -> Result<()> {
         self.inner.lock().await.start_instance(vmid).await
+    }
+
+    pub async fn stop_instance(&self, vmid: Address) -> Result<()> {
+        self.inner.lock().await.stop_instance(vmid).await
     }
 
     pub async fn create_instance(&self, manifest: Manifest) -> Result<Address> {
@@ -157,6 +149,27 @@ impl App {
             inner.start_instance(address).await?;
         }
         Ok(address)
+    }
+
+    pub async fn remove_instance(&self, address: Address) -> Result<()> {
+        let mut inner = self.inner.lock().await;
+        let Some(mut handle) = inner
+            .instances
+            .remove(&address)
+            .map(|state| state.current_run)
+            .flatten()
+            .map(|run| run.vm_handle)
+        else {
+            bail!("Instance not found")
+        };
+        let vmid = ShortId(address);
+        if !handle.is_stopped() {
+            info!("Removing VM {vmid}...");
+            if let Err(err) = handle.stop().await {
+                warn!("Failed to stop {vmid}: {err:?}");
+            }
+        }
+        Ok(())
     }
 }
 
@@ -216,6 +229,21 @@ impl AppInner {
                 }
             }
         });
+        Ok(())
+    }
+
+    async fn stop_instance(&mut self, address: Address) -> Result<()> {
+        let vmid = ShortId(address);
+        println!("Stopping {vmid}...");
+        let instance = self
+            .instances
+            .get_mut(&address)
+            .ok_or(anyhow!("Instance not found"))?;
+        if let Some(mut handle) = instance.current_run.take().map(|run| run.vm_handle) {
+            handle.stop().await.context("Failed to stop instance")?;
+        } else {
+            bail!("Instance not started")
+        }
         Ok(())
     }
 }

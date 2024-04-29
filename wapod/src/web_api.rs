@@ -174,22 +174,6 @@ async fn connect_vm<'r>(
     }
 }
 
-#[post("/stop/<id>")]
-async fn stop(app: &State<App>, id: HexBytes) -> Result<(), Custom<&'static str>> {
-    let address =
-        id.0.try_into()
-            .map_err(|_| Custom(Status::BadRequest, "Invalid address"))?;
-    let Some(mut handle) = app.take_handle(address).await else {
-        return Err(Custom(Status::NotFound, "Instance not found"));
-    };
-    let vmid = ShortId(address);
-    info!("Stopping VM {vmid}...");
-    if let Err(err) = handle.stop().await {
-        warn!("Failed to wait VM exit: {err:?}");
-    }
-    Ok(())
-}
-
 #[get("/info")]
 async fn info(app: &State<App>) -> String {
     let info = app.info().await;
@@ -367,7 +351,6 @@ pub async fn serve_admin(app: App) -> anyhow::Result<()> {
             routes![
                 push_query,
                 push_query_no_origin,
-                stop,
                 info,
                 object_post,
                 object_get,

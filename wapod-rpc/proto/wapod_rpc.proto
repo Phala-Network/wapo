@@ -19,6 +19,12 @@ service Admin {
   rpc PutObject(Object) returns (google.protobuf.Empty) {}
   // Deploy a new WASM instance.
   rpc Deploy(Manifest) returns (Address) {}
+  // Remove an instance from the worker.
+  rpc Remove(Address) returns (google.protobuf.Empty) {}
+  // Start an instance from the worker. On-demand instance will reject this request.
+  rpc Start(Address) returns (google.protobuf.Empty) {}
+  // Stop an instance from the worker.
+  rpc Stop(Address) returns (google.protobuf.Empty) {}
 }
 
 // Basic information about a worker.
@@ -68,4 +74,7 @@ message StringPair {
 }
 
 // Address of an app.
-message Address { bytes address = 1; }
+message Address {
+  // @codec scale [u8;32]
+  bytes address = 1;
+}

@@ -1,3 +1,4 @@
+use anyhow::Context;
 use rocket::{
     data::{ByteUnit, Limits, ToByteUnit as _},
     http::{ContentType, Status},
@@ -34,18 +35,33 @@ impl Admin for App {
             .await
             .map_err(|err| {
                 warn!("Failed to put object: {err}");
-                RpcError::AppError(format!("Failed to put object: {err}"))
+                RpcError::BadRequest(format!("Failed to put object: {err}"))
             })
     }
 
     async fn deploy(&self, request: pb::Manifest) -> Result<pb::Address> {
-        let address = self.create_instance(request).await.map_err(|err| {
-            warn!("Failed to insert instance: {err}");
-            RpcError::AppError(format!("Failed to insert instance: {err}"))
-        })?;
+        let address = self
+            .create_instance(request)
+            .await
+            .context("Failed to create instance")?;
         Ok(pb::Address {
             address: address.to_vec(),
         })
+    }
+
+    async fn remove(&self, request: pb::Address) -> Result<()> {
+        self.remove_instance(request.decode_address()?).await?;
+        Ok(())
+    }
+
+    async fn start(&self, request: pb::Address) -> Result<()> {
+        self.start_instance(request.decode_address()?).await?;
+        Ok(())
+    }
+
+    async fn stop(&self, request: pb::Address) -> Result<()> {
+        self.stop_instance(request.decode_address()?).await?;
+        Ok(())
     }
 }
 
@@ -115,8 +131,7 @@ async fn dispatch_prpc(
             let (code, err) = match err {
                 Error::NotFound => (404, ProtoError::new("Method Not Found")),
                 Error::DecodeError(err) => (400, ProtoError::new(format!("DecodeError({err:?})"))),
-                Error::AppError(msg) => (500, ProtoError::new(msg)),
-                Error::ContractQueryError(msg) => (500, ProtoError::new(msg)),
+                Error::BadRequest(msg) => (400, ProtoError::new(format!("BadRequest({msg:?})"))),
             };
             if json {
                 let error = format!("{err:?}");
