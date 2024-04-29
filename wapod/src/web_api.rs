@@ -269,15 +269,12 @@ async fn object_get(app: &State<App>, id: HexBytes) -> Result<NamedFile, Custom<
 }
 
 fn cors_options() -> CorsOptions {
-    let allowed_origins = AllowedOrigins::all();
     let allowed_methods: AllowedMethods = vec![Method::Get, Method::Post]
         .into_iter()
         .map(From::from)
         .collect();
-
-    // You can also deserialize this
     CorsOptions {
-        allowed_origins,
+        allowed_origins: AllowedOrigins::all(),
         allowed_methods,
         allowed_headers: AllowedHeaders::all(),
         allow_credentials: true,
@@ -319,9 +316,7 @@ pub async fn serve_user(app: App) -> anyhow::Result<()> {
         .select("user");
     let signer = ResponseSigner::new(1024 * 1024 * 10, sign_http_response);
     let _rocket = rocket::custom(figment)
-        .mount("/", rocket_cors::catch_all_options_routes()) // mount the catch all routes
         .attach(cors_options().to_cors().expect("To not fail"))
-        .manage(cors_options().to_cors().expect("To not fail"))
         .attach(signer)
         .attach(RequestTracer)
         .attach(TimeMeter)
@@ -340,9 +335,7 @@ pub async fn serve_admin(app: App) -> anyhow::Result<()> {
         .merge(Env::prefixed("WAPOD_ADMIN_").global())
         .select("admin");
     let _rocket = rocket::custom(figment)
-        .mount("/", rocket_cors::catch_all_options_routes()) // mount the catch all routes
         .attach(cors_options().to_cors().expect("To not fail"))
-        .manage(cors_options().to_cors().expect("To not fail"))
         .attach(RequestTracer)
         .attach(TimeMeter)
         .manage(app)
