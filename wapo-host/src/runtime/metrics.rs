@@ -58,3 +58,33 @@ impl Meter {
         self.stopped.load(Ordering::Relaxed)
     }
 }
+
+impl Meter {
+    /// Merges the other meter into this meter.
+    pub fn merge(&self, other: &Meter) {
+        self.gas_comsumed.fetch_add(
+            other.gas_comsumed.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.net_egress
+            .fetch_add(other.net_egress.load(Ordering::Relaxed), Ordering::Relaxed);
+        self.net_ingress
+            .fetch_add(other.net_ingress.load(Ordering::Relaxed), Ordering::Relaxed);
+        self.storage_read.fetch_add(
+            other.storage_read.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.storage_written.fetch_add(
+            other.storage_written.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+    }
+
+    /// Returns a new meter that is the sum of the two meters.
+    pub fn merged(&self, other: &Meter) -> Meter {
+        let mut meter = Meter::default();
+        meter.merge(self);
+        meter.merge(other);
+        meter
+    }
+}

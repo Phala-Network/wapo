@@ -30,8 +30,20 @@ struct CurrentRun {
 
 pub struct InstanceState {
     manifest: Manifest,
-    metrics: (),
+    hist_metrics: Meter,
     current_run: Option<CurrentRun>,
+}
+
+impl InstanceState {
+    /// Returns the metrics of the instance during the session.
+    /// If the instance is running, the metrics are merged with the current run's metrics.
+    fn metrics(&self) -> Meter {
+        self.current_run
+            .as_ref()
+            .map(|run| run.vm_handle.meter())
+            .unwrap_or_default()
+            .merged(&self.hist_metrics)
+    }
 }
 
 struct AppInner {
@@ -135,7 +147,7 @@ impl App {
         };
         let state = InstanceState {
             manifest,
-            metrics: (),
+            hist_metrics: Default::default(),
             current_run: None,
         };
         inner.instances.insert(address, state);
