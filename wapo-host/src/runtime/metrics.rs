@@ -82,7 +82,7 @@ impl Metrics {
 
     /// Returns a new meter that is the sum of the two meters.
     pub fn merged(&self, other: &Metrics) -> Metrics {
-        let mut meter = Metrics::default();
+        let meter = Metrics::default();
         meter.merge(self);
         meter.merge(other);
         meter

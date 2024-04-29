@@ -9,7 +9,6 @@ use tokio::io::DuplexStream;
 use tokio::{
     sync::mpsc::{channel, unbounded_channel, Receiver, Sender, UnboundedSender},
     sync::oneshot::{Receiver as OneshotReceiver, Sender as OneshotSender},
-    sync::watch::Receiver as WatchReceiver,
     task::JoinHandle,
 };
 use tracing::{debug, error, info, warn, Instrument};

@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Context, Result};
-use tokio::task::JoinHandle;
 
 use tracing::{info, warn};
 use wapo_host::ShortId;
@@ -9,14 +8,13 @@ use wapod_rpc::prpc::NodeInfo;
 use std::collections::HashMap;
 
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
-use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 
 use service::{Command, CommandSender, ServiceHandle};
 
-use wapo_host::service::{self, ExitReason, VmHandle};
+use wapo_host::service::{self, VmHandle};
 use wapod_rpc::prpc::Manifest;
 
 use crate::Args;
@@ -47,6 +45,7 @@ impl InstanceState {
 }
 
 struct AppInner {
+    weak_self: Weak<Mutex<AppInner>>,
     instances: HashMap<Address, InstanceState>,
     args: Args,
     service: ServiceHandle,
@@ -61,12 +60,15 @@ pub struct App {
 impl App {
     pub fn new(service: ServiceHandle, args: Args) -> Self {
         Self {
-            inner: Arc::new(Mutex::new(AppInner {
-                object_loader: ObjectLoader::new(&args.objects_path),
-                instances: HashMap::new(),
-                service,
-                args,
-            })),
+            inner: Arc::new_cyclic(|weak_self| {
+                Mutex::new(AppInner {
+                    weak_self: weak_self.clone(),
+                    object_loader: ObjectLoader::new(&args.objects_path),
+                    instances: HashMap::new(),
+                    service,
+                    args,
+                })
+            }),
         }
     }
 
@@ -184,14 +186,36 @@ impl AppInner {
                 config,
             )
             .context("Failed to start instance")?;
-        instance.current_run = Some(CurrentRun {
+        let run_state = CurrentRun {
             sequence_number: {
                 static NEXT_RUN_SN: AtomicU64 = AtomicU64::new(0);
                 NEXT_RUN_SN.fetch_add(1, Ordering::Relaxed)
             },
             vm_handle,
+        };
+        let sn = run_state.sequence_number;
+        instance.current_run = Some(run_state);
+        // Clean up the instance when it stops.
+        let weak_self = self.weak_self.clone();
+        self.service.spawn(async move {
+            if let Ok(reason) = join_handle.await {
+                info!("VM {vmid} stopped: {reason}");
+            } else {
+                warn!("VM {vmid} stopped unexpectedly");
+            }
+            if let Some(inner) = weak_self.upgrade() {
+                let mut inner = inner.lock().await;
+                let instance = inner.instances.get_mut(&address).unwrap();
+                if let Some(current_run) = instance.current_run.take() {
+                    if current_run.sequence_number == sn {
+                        instance.hist_metrics.merge(&current_run.vm_handle.meter());
+                    } else {
+                        // The instance has been restarted.
+                        instance.current_run = Some(current_run);
+                    }
+                }
+            }
         });
-        let todo = "Where to set to None?";
         Ok(())
     }
 }

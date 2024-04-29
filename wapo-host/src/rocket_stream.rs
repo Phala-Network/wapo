@@ -10,7 +10,6 @@ use rocket::{
 };
 use tokio::{
     io::{split, AsyncWriteExt, DuplexStream},
-    sync::mpsc::Sender as ChannelSender,
     sync::oneshot::channel as oneshot_channel,
 };
 use tracing::error;
