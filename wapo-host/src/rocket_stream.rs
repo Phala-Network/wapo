@@ -8,15 +8,18 @@ use rocket::{
     response::Responder,
     Data, Request,
 };
-use wapo_env::messages::{HttpHead, HttpResponseHead};
 use tokio::{
     io::{split, AsyncWriteExt, DuplexStream},
     sync::mpsc::Sender as ChannelSender,
     sync::oneshot::channel as oneshot_channel,
 };
 use tracing::error;
+use wapo_env::messages::{HttpHead, HttpResponseHead};
 
-use crate::{service::Command, IncomingHttpRequest};
+use crate::{
+    service::{Command, CommandSender},
+    IncomingHttpRequest,
+};
 
 pub struct RequestInfo {
     method: String,
@@ -158,7 +161,7 @@ pub async fn connect(
     head: RequestInfo,
     path: &str,
     body: Option<Data<'_>>,
-    command_tx: ChannelSender<Command>,
+    command_tx: CommandSender,
 ) -> Result<StreamResponse> {
     let is_upgrade = is_upgrade_request(&head);
     let (response_tx, response_rx) = oneshot_channel();

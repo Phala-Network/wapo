@@ -57,8 +57,9 @@ pub fn create_env(
     out_tx: OutgoingRequestSender,
     log_handler: Option<LogHandler>,
     objects_path: PathBuf,
+    meter: Option<Arc<Meter>>,
 ) -> WapoCtx {
-    WapoCtx::new(id, out_tx, log_handler, objects_path)
+    WapoCtx::new(id, out_tx, log_handler, objects_path, meter)
 }
 
 pub(crate) struct TaskSet {
@@ -132,6 +133,7 @@ impl WapoCtx {
         outgoing_request_tx: OutgoingRequestSender,
         log_handler: Option<LogHandler>,
         objects_path: PathBuf,
+        meter: Option<Arc<Meter>>,
     ) -> Self {
         Self {
             id,
@@ -145,7 +147,7 @@ impl WapoCtx {
             outgoing_request_tx,
             log_handler,
             _counter: Default::default(),
-            meter: Default::default(),
+            meter: meter.unwrap_or_default(),
             objects: ObjectLoader::new(objects_path),
         }
     }

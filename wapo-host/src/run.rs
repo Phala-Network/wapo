@@ -18,7 +18,7 @@ use crate::runtime::{
     async_context,
     vm_context::{self as wapo_ctx, LogHandler, WapoCtx},
 };
-use crate::{OutgoingRequestSender, VmId};
+use crate::{Meter, OutgoingRequestSender, VmId};
 
 type RuntimeError = anyhow::Error;
 
@@ -81,11 +81,12 @@ impl WasmModule {
             envs,
             epoch_deadline,
             objects_path,
+            meter,
         } = config;
         let engine = self.engine.inner.clone();
         let mut linker = Linker::<VmCtx>::new(&engine);
 
-        let mut wapo_ctx = wapo_ctx::create_env(id, event_tx, log_handler, objects_path);
+        let mut wapo_ctx = wapo_ctx::create_env(id, event_tx, log_handler, objects_path, meter);
         wapo_ctx.set_weight(weight);
         wapo_ctx::add_ocalls_to_linker(&mut linker, |c| &mut c.wapo_ctx)?;
 
@@ -173,6 +174,8 @@ pub struct InstanceConfig {
     #[builder(default)]
     args: Vec<String>,
     objects_path: PathBuf,
+    #[builder(default)]
+    meter: Option<Arc<Meter>>,
 }
 
 pub struct WasmRun {
@@ -247,7 +250,7 @@ impl WasmRun {
         self.store.data_mut()
     }
 
-    pub fn meter(&self) -> Arc<crate::Meter> {
+    pub fn meter(&self) -> Arc<Meter> {
         self.store.data().meter()
     }
 

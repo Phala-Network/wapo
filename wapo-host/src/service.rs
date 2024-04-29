@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::ops::Deref;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tokio::io::DuplexStream;
 use tokio::{
     sync::mpsc::{channel, unbounded_channel, Receiver, Sender, UnboundedSender},
@@ -14,6 +15,7 @@ use tokio::{
 use tracing::{debug, error, info, warn, Instrument};
 use wapo_env::messages::{AccountId, HttpHead, HttpResponseHead};
 
+use crate::Meter;
 use crate::{
     module_loader::ModuleLoader,
     objects::ObjectLoader,
@@ -21,28 +23,44 @@ use crate::{
     ShortId, VmId,
 };
 
-pub struct CommandSender {
-    srv_tx: Sender<Command>,
-    ctl_tx: UnboundedSender<ControlCommand>,
+pub struct VmHandle {
+    cmd_sender: CommandSender,
     stop_signal: Option<OneshotReceiver<()>>,
+    meter: Arc<Meter>,
 }
 
-impl CommandSender {
+impl VmHandle {
     pub async fn stop(&mut self) -> Result<()> {
-        self.ctl_tx.send(ControlCommand::Stop)?;
+        self.cmd_sender.ctl_tx.send(ControlCommand::Stop)?;
         if let Some(stop_signal) = self.stop_signal.take() {
             stop_signal.await?;
         }
         Ok(())
     }
 
+    pub fn is_stopped(&self) -> bool {
+        self.stop_signal.is_none()
+    }
+
+    pub fn command_sender(&self) -> &CommandSender {
+        &self.cmd_sender
+    }
+
+    pub fn meter(&self) -> Arc<Meter> {
+        self.meter.clone()
+    }
+}
+
+#[derive(Clone)]
+pub struct CommandSender {
+    srv_tx: Sender<Command>,
+    ctl_tx: UnboundedSender<ControlCommand>,
+}
+
+impl CommandSender {
     pub fn update_weight(&mut self, weight: u32) -> Result<()> {
         self.ctl_tx.send(ControlCommand::UpdateWeight(weight))?;
         Ok(())
-    }
-
-    pub fn is_stopped(&self) -> bool {
-        self.stop_signal.is_none()
     }
 }
 
@@ -197,7 +215,7 @@ impl ServiceHandle {
         wasm_hash: &[u8],
         wasm_hash_alg: &str,
         config: InstanceStartConfig,
-    ) -> Result<(CommandSender, JoinHandle<ExitReason>)> {
+    ) -> Result<(VmHandle, JoinHandle<ExitReason>)> {
         let InstanceStartConfig {
             max_memory_pages,
             id,
@@ -211,6 +229,8 @@ impl ServiceHandle {
 
         let scheduler = self.scheduler.clone();
         let module = self.module_loader.load_module(wasm_hash, wasm_hash_alg)?;
+        let meter = Arc::new(Meter::default());
+        let meter_cloned = meter.clone();
         let handle = self.spawn(async move {
             macro_rules! push_msg {
                 ($expr: expr, $level: ident, $msg: expr) => {{
@@ -228,6 +248,7 @@ impl ServiceHandle {
                 .weight(weight)
                 .event_tx(event_tx)
                 .objects_path(objects_path)
+                .meter(Some(meter_cloned))
                 .build();
             let mut wasm_run = match module.run(config) {
                 Ok(i) => i,
@@ -236,6 +257,13 @@ impl ServiceHandle {
                     return ExitReason::FailedToStart;
                 }
             };
+
+            let meter = wasm_run.meter();
+            let meter_cloned = meter.clone();
+            scopeguard::defer! {
+                meter_cloned.stop();
+            }
+
             loop {
                 tokio::select! {
                     rv = &mut wasm_run => {
@@ -283,7 +311,7 @@ impl ServiceHandle {
             }
         });
         let report_tx = self.report_tx.clone();
-        let handle = self.spawn(async move {
+        let task_handle = self.spawn(async move {
             let reason = match handle.await {
                 Ok(r) => r,
                 Err(err) => {
@@ -304,9 +332,13 @@ impl ServiceHandle {
         let cmd_sender = CommandSender {
             srv_tx: cmd_tx,
             ctl_tx: ctl_cmd_tx,
-            stop_signal: Some(stop_signal_rx),
         };
-        Ok((cmd_sender, handle))
+        let vm_handle = VmHandle {
+            cmd_sender: cmd_sender.clone(),
+            stop_signal: Some(stop_signal_rx),
+            meter,
+        };
+        Ok((vm_handle, task_handle))
     }
 
     pub fn spawn<O: Send + 'static>(

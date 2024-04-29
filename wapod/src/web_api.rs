@@ -179,15 +179,13 @@ async fn stop(app: &State<App>, id: HexBytes) -> Result<(), Custom<&'static str>
     let address =
         id.0.try_into()
             .map_err(|_| Custom(Status::BadRequest, "Invalid address"))?;
-    let Some(handle) = app.take_handle(address).await else {
+    let Some(mut handle) = app.take_handle(address).await else {
         return Err(Custom(Status::NotFound, "Instance not found"));
     };
-    drop(handle.sender);
     let vmid = ShortId(address);
     info!("Stopping VM {vmid}...");
-    match handle.handle.await {
-        Ok(reason) => info!("VM exited: {reason:?}"),
-        Err(err) => warn!("Failed to wait VM exit: {err:?}"),
+    if let Err(err) = handle.stop().await {
+        warn!("Failed to wait VM exit: {err:?}");
     }
     Ok(())
 }

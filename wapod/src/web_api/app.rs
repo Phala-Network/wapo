@@ -2,12 +2,13 @@ use anyhow::{anyhow, Context, Result};
 use tokio::task::JoinHandle;
 
 use tracing::{info, warn};
-use wapo_host::objects::ObjectLoader;
 use wapo_host::ShortId;
+use wapo_host::{objects::ObjectLoader, Meter};
 use wapod_rpc::prpc::NodeInfo;
 
 use std::collections::HashMap;
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use tokio::sync::mpsc::Sender;
@@ -15,22 +16,22 @@ use tokio::sync::Mutex;
 
 use service::{Command, CommandSender, ServiceHandle};
 
-use wapo_host::service::{self, ExitReason};
+use wapo_host::service::{self, ExitReason, VmHandle};
 use wapod_rpc::prpc::Manifest;
 
 use crate::Args;
 
 type Address = [u8; 32];
 
-pub struct VmHandle {
-    pub sender: CommandSender,
-    pub handle: JoinHandle<ExitReason>,
+struct CurrentRun {
+    sequence_number: u64,
+    vm_handle: VmHandle,
 }
 
 pub struct InstanceState {
     manifest: Manifest,
     metrics: (),
-    handle: Option<VmHandle>,
+    current_run: Option<CurrentRun>,
 }
 
 struct AppInner {
@@ -67,22 +68,31 @@ impl App {
         Ok(())
     }
 
-    pub async fn sender_for(&self, vmid: Address) -> Option<Sender<Command>> {
-        Some(
-            self.inner
-                .lock()
-                .await
-                .instances
-                .get(&vmid)?
-                .handle
-                .as_ref()?
-                .sender
-                .clone(),
-        )
+    pub async fn sender_for(&self, vmid: Address) -> Option<CommandSender> {
+        let handle = self
+            .inner
+            .lock()
+            .await
+            .instances
+            .get(&vmid)?
+            .current_run
+            .as_ref()?
+            .vm_handle
+            .command_sender()
+            .clone();
+        Some(handle)
     }
 
     pub(crate) async fn take_handle(&self, vmid: Address) -> Option<VmHandle> {
-        self.inner.lock().await.instances.remove(&vmid)?.handle
+        let handle = self
+            .inner
+            .lock()
+            .await
+            .instances
+            .remove(&vmid)?
+            .current_run?
+            .vm_handle;
+        Some(handle)
     }
 
     pub async fn info(&self) -> NodeInfo {
@@ -113,11 +123,12 @@ impl App {
         if let Some(mut handle) = inner
             .instances
             .remove(&address)
-            .map(|state| state.handle)
+            .map(|state| state.current_run)
             .flatten()
+            .map(|run| run.vm_handle)
         {
             info!("Stopping VM {vmid}...");
-            if let Err(err) = handle.sender.stop().await {
+            if let Err(err) = handle.stop().await {
                 warn!("Failed to stop the VM: {err:?}");
             }
             info!("Prev VM {vmid} stopped");
@@ -125,7 +136,7 @@ impl App {
         let state = InstanceState {
             manifest,
             metrics: (),
-            handle: None,
+            current_run: None,
         };
         inner.instances.insert(address, state);
         if immediate {
@@ -144,7 +155,7 @@ impl AppInner {
             .instances
             .get_mut(&address)
             .ok_or(anyhow!("Instance not found"))?;
-        if instance.handle.is_some() {
+        if instance.current_run.is_some() {
             return Err(anyhow!("Instance already started"));
         }
         let config = service::InstanceStartConfig::builder()
@@ -153,7 +164,7 @@ impl AppInner {
             .weight(1)
             .objects_path(self.args.objects_path.as_str().into())
             .build();
-        let (sender, handle) = self
+        let (vm_handle, join_handle) = self
             .service
             .start(
                 &instance.manifest.code_hash,
@@ -161,7 +172,13 @@ impl AppInner {
                 config,
             )
             .context("Failed to start instance")?;
-        instance.handle = Some(VmHandle { sender, handle });
+        instance.current_run = Some(CurrentRun {
+            sequence_number: {
+                static NEXT_RUN_SN: AtomicU64 = AtomicU64::new(0);
+                NEXT_RUN_SN.fetch_add(1, Ordering::Relaxed)
+            },
+            vm_handle,
+        });
         let todo = "Where to set to None?";
         Ok(())
     }
