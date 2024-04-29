@@ -182,11 +182,9 @@ async fn stop(app: &State<App>, id: HexBytes) -> Result<(), Custom<&'static str>
     let Some(handle) = app.take_handle(address).await else {
         return Err(Custom(Status::NotFound, "Instance not found"));
     };
+    drop(handle.sender);
     let vmid = ShortId(address);
     info!("Stopping VM {vmid}...");
-    if let Err(err) = handle.sender.send(Command::Stop).await {
-        warn!("Failed to send stop command to the VM: {err:?}");
-    }
     match handle.handle.await {
         Ok(reason) => info!("VM exited: {reason:?}"),
         Err(err) => warn!("Failed to wait VM exit: {err:?}"),

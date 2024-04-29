@@ -6,8 +6,8 @@ use std::ops::Deref;
 use std::path::PathBuf;
 use tokio::io::DuplexStream;
 use tokio::{
-    sync::mpsc::{channel, Receiver, Sender},
-    sync::oneshot::Sender as OneshotSender,
+    sync::mpsc::{channel, unbounded_channel, Receiver, Sender, UnboundedSender},
+    sync::oneshot::{Receiver as OneshotReceiver, Sender as OneshotSender},
     sync::watch::Receiver as WatchReceiver,
     task::JoinHandle,
 };
@@ -21,12 +21,28 @@ use crate::{
     ShortId, VmId,
 };
 
-#[repr(transparent)]
-pub struct CommandSender(Sender<Command>);
+pub struct CommandSender {
+    srv_tx: Sender<Command>,
+    ctl_tx: UnboundedSender<ControlCommand>,
+    stop_signal: Option<OneshotReceiver<()>>,
+}
 
-impl From<Sender<Command>> for CommandSender {
-    fn from(sender: Sender<Command>) -> Self {
-        Self(sender)
+impl CommandSender {
+    pub async fn stop(&mut self) -> Result<()> {
+        self.ctl_tx.send(ControlCommand::Stop)?;
+        if let Some(stop_signal) = self.stop_signal.take() {
+            stop_signal.await?;
+        }
+        Ok(())
+    }
+
+    pub fn update_weight(&mut self, weight: u32) -> Result<()> {
+        self.ctl_tx.send(ControlCommand::UpdateWeight(weight))?;
+        Ok(())
+    }
+
+    pub fn is_stopped(&self) -> bool {
+        self.stop_signal.is_none()
     }
 }
 
@@ -34,13 +50,13 @@ impl Deref for CommandSender {
     type Target = Sender<Command>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.srv_tx
     }
 }
 
 impl Drop for CommandSender {
     fn drop(&mut self) {
-        if let Err(err) = self.0.try_send(Command::Stop) {
+        if let Err(err) = self.ctl_tx.send(ControlCommand::Stop) {
             warn!(target: "wapo", "Failed to send stop command to the VM: {err:?}");
         }
     }
@@ -73,17 +89,20 @@ pub enum ExitReason {
     FailedToStart,
 }
 
-pub enum Command {
+pub enum ControlCommand {
     // Stop the side VM instance.
     Stop,
+    // Update the task scheduling weight
+    UpdateWeight(u32),
+}
+
+pub enum Command {
     // Push a query from RPC to the instance.
     PushQuery {
         origin: Option<AccountId>,
         payload: Vec<u8>,
         reply_tx: OneshotSender<Vec<u8>>,
     },
-    // Update the task scheduling weight
-    UpdateWeight(u32),
     // An incoming HTTP request
     HttpRequest(IncomingHttpRequest),
 }
@@ -177,7 +196,6 @@ impl ServiceHandle {
         &self,
         wasm_hash: &[u8],
         wasm_hash_alg: &str,
-        prev_stopped: Option<WatchReceiver<bool>>,
         config: InstanceStartConfig,
     ) -> Result<(CommandSender, JoinHandle<ExitReason>)> {
         let InstanceStartConfig {
@@ -188,6 +206,9 @@ impl ServiceHandle {
         } = config;
         let event_tx = self.out_tx.clone();
         let (cmd_tx, mut cmd_rx) = channel(128);
+        let (ctl_cmd_tx, mut ctl_cmd_rx) = unbounded_channel();
+        let (stop_signal_tx, stop_signal_rx) = tokio::sync::oneshot::channel();
+
         let scheduler = self.scheduler.clone();
         let module = self.module_loader.load_module(wasm_hash, wasm_hash_alg)?;
         let handle = self.spawn(async move {
@@ -198,39 +219,6 @@ impl ServiceHandle {
                         error!(target: "wapo", msg=%$msg, %err, "Push message failed");
                     }
                 }};
-            }
-            let mut weight = weight;
-            if let Some(mut prev_stopped) = prev_stopped {
-                if !*prev_stopped.borrow() {
-                    info!(target: "wapo", "Waiting for the previous instance to be stopped...");
-                    tokio::select! {
-                        _ = prev_stopped.changed() => {},
-                        cmd = cmd_rx.recv() => {
-                            match cmd {
-                                None => {
-                                    info!(target: "wapo", "The command channel is closed. Exiting...");
-                                    return ExitReason::InputClosed;
-                                }
-                                Some(Command::Stop) => {
-                                    info!(target: "wapo", "Received stop command. Exiting...");
-                                    return ExitReason::Stopped;
-                                }
-                                Some(Command::UpdateWeight(w)) => {
-                                    weight = w;
-                                }
-                                Some(
-                                    Command::PushQuery { .. } |
-                                    Command::HttpRequest(_)
-                                ) => {
-                                    info!(
-                                        target: "wapo",
-                                        "Ignored command while waiting for the previous instance to be stopped"
-                                    );
-                                }
-                            }
-                        },
-                    }
-                }
             }
             info!(target: "wapo", "Starting instance...");
             let config = InstanceConfig::builder()
@@ -250,27 +238,6 @@ impl ServiceHandle {
             };
             loop {
                 tokio::select! {
-                    cmd = cmd_rx.recv() => {
-                        match cmd {
-                            None => {
-                                info!(target: "wapo", "The command channel is closed. Exiting...");
-                                break ExitReason::InputClosed;
-                            }
-                            Some(Command::Stop) => {
-                                info!(target: "wapo", "Received stop command. Exiting...");
-                                break ExitReason::Stopped;
-                            }
-                            Some(Command::PushQuery{ origin, payload, reply_tx }) => {
-                                push_msg!(wasm_run.state_mut().push_query(origin, payload, reply_tx), debug, "query");
-                            }
-                            Some(Command::HttpRequest(request)) => {
-                                push_msg!(wasm_run.state_mut().push_http_request(request), debug, "http request");
-                            }
-                            Some(Command::UpdateWeight(weight)) => {
-                                wasm_run.state_mut().set_weight(weight);
-                            }
-                        }
-                    }
                     rv = &mut wasm_run => {
                         match rv {
                             Ok(ret) => {
@@ -280,6 +247,35 @@ impl ServiceHandle {
                             Err(err) => {
                                 info!(target: "wapo", ?err, "The instance exited.");
                                 break ExitReason::Panicked;
+                            }
+                        }
+                    }
+                    cmd = cmd_rx.recv() => {
+                        match cmd {
+                            None => {
+                                info!(target: "wapo", "The command channel is closed. Exiting...");
+                                break ExitReason::InputClosed;
+                            }
+                            Some(Command::PushQuery{ origin, payload, reply_tx }) => {
+                                push_msg!(wasm_run.state_mut().push_query(origin, payload, reply_tx), debug, "query");
+                            }
+                            Some(Command::HttpRequest(request)) => {
+                                push_msg!(wasm_run.state_mut().push_http_request(request), debug, "http request");
+                            }
+                        }
+                    }
+                    cmd = ctl_cmd_rx.recv() => {
+                        match cmd {
+                            None => {
+                                info!(target: "wapo", "The control command channel is closed. Exiting...");
+                                break ExitReason::InputClosed;
+                            }
+                            Some(ControlCommand::Stop) => {
+                                info!(target: "wapo", "Received stop command. Exiting...");
+                                break ExitReason::Stopped;
+                            }
+                            Some(ControlCommand::UpdateWeight(weight)) => {
+                                wasm_run.state_mut().set_weight(weight);
                             }
                         }
                     }
@@ -302,9 +298,15 @@ impl ServiceHandle {
             if let Err(err) = report_tx.send(Report::VmTerminated { id, reason }).await {
                 warn!(target: "wapo", ?err, "Failed to send report to service");
             }
+            let _ = stop_signal_tx.send(());
             reason
         });
-        Ok((cmd_tx.into(), handle))
+        let cmd_sender = CommandSender {
+            srv_tx: cmd_tx,
+            ctl_tx: ctl_cmd_tx,
+            stop_signal: Some(stop_signal_rx),
+        };
+        Ok((cmd_sender, handle))
     }
 
     pub fn spawn<O: Send + 'static>(

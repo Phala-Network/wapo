@@ -110,20 +110,17 @@ impl App {
         let address = sp_core::blake2_256(&scale::Encode::encode(&manifest));
         let vmid = ShortId(address);
         let mut inner = self.inner.lock().await;
-        if let Some(handle) = inner
+        if let Some(mut handle) = inner
             .instances
             .remove(&address)
             .map(|state| state.handle)
             .flatten()
         {
             info!("Stopping VM {vmid}...");
-            if let Err(err) = handle.sender.send(Command::Stop).await {
-                warn!("Failed to send stop command to the VM: {err:?}");
+            if let Err(err) = handle.sender.stop().await {
+                warn!("Failed to stop the VM: {err:?}");
             }
-            match handle.handle.await {
-                Ok(reason) => info!("VM exited: {reason:?}"),
-                Err(err) => warn!("Failed to wait VM exit: {err:?}"),
-            }
+            info!("Prev VM {vmid} stopped");
         };
         let state = InstanceState {
             manifest,
@@ -161,7 +158,6 @@ impl AppInner {
             .start(
                 &instance.manifest.code_hash,
                 &instance.manifest.hash_algorithm,
-                None,
                 config,
             )
             .context("Failed to start instance")?;
