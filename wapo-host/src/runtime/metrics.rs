@@ -7,6 +7,7 @@ pub struct Metrics {
     pub net_ingress: u64,
     pub storage_read: u64,
     pub storage_written: u64,
+    pub starts: u64,
 }
 
 impl Metrics {
@@ -92,6 +93,7 @@ impl Meter {
             net_ingress: self.net_ingress.load(Ordering::Relaxed),
             storage_read: self.storage_read.load(Ordering::Relaxed),
             storage_written: self.storage_written.load(Ordering::Relaxed),
+            starts: 1,
         }
     }
 }

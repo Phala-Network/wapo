@@ -70,7 +70,6 @@ impl Admin for App {
         request: pb::Addresses,
     ) -> Result<pb::InstanceMetricsResponse> {
         let todo = "TODO: implement signature";
-        let todo = "TODO: implement starts";
         let todo = "TODO: implement session";
         let addresses = request.decode_addresses()?;
         let addresses = if addresses.is_empty() {
@@ -90,7 +89,7 @@ impl Admin for App {
                 network_egress: m.net_egress,
                 storage_read: m.storage_read,
                 storage_write: m.storage_written,
-                starts: 0,
+                starts: m.starts,
             });
         })
         .await;
