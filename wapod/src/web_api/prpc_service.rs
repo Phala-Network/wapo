@@ -1,5 +1,3 @@
-use std::sync::atomic::Ordering;
-
 use anyhow::Context;
 use rocket::{
     data::{ByteUnit, Limits, ToByteUnit as _},
@@ -87,11 +85,11 @@ impl Admin for App {
                 address: address.encode(),
                 session: vec![],
                 running_time_ms: 0,
-                gas_consumed: m.gas_comsumed.load(Ordering::Relaxed),
-                network_ingress: m.net_ingress.load(Ordering::Relaxed),
-                network_egress: m.net_egress.load(Ordering::Relaxed),
-                storage_read: m.storage_read.load(Ordering::Relaxed),
-                storage_write: m.storage_written.load(Ordering::Relaxed),
+                gas_consumed: m.gas_comsumed,
+                network_ingress: m.net_ingress,
+                network_egress: m.net_egress,
+                storage_read: m.storage_read,
+                storage_write: m.storage_written,
                 starts: 0,
             });
         })

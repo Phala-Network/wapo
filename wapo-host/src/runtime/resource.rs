@@ -13,12 +13,12 @@ use wapo_env::{OcallError, Result};
 use Resource::*;
 
 use super::async_context::{get_task_cx, poll_in_task_cx, GuestWaker};
-use super::metrics::Metrics;
+use super::metrics::Meter;
 use super::tls::TlsStream;
 
 pub struct PollContext {
     pub waker: GuestWaker,
-    pub meter: Arc<Metrics>,
+    pub meter: Arc<Meter>,
 }
 
 pub struct TcpListenerResource {

@@ -6,7 +6,7 @@ use pink_types::js::JsValue;
 use scale::Decode;
 use tracing::{error, info};
 use wapo_host::{
-    crate_outgoing_request_channel, wasmtime::Config, InstanceConfig, Metrics, OutgoingRequest,
+    crate_outgoing_request_channel, wasmtime::Config, InstanceConfig, Meter, OutgoingRequest,
     WasmEngine,
 };
 
@@ -64,7 +64,7 @@ pub struct Args {
     args: Vec<String>,
 }
 
-pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Metrics>)> {
+pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
     let code = tokio::fs::read(&args.program).await?;
     let (event_tx, mut event_rx) = crate_outgoing_request_channel();
     let mut engine_config = Config::new();

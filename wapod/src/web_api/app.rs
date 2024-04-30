@@ -36,11 +36,12 @@ impl InstanceState {
     /// Returns the metrics of the instance during the session.
     /// If the instance is running, the metrics are merged with the current run's metrics.
     pub(crate) fn metrics(&self) -> Metrics {
-        self.current_run
+        let current = self
+            .current_run
             .as_ref()
-            .map(|run| run.vm_handle.meter())
-            .unwrap_or_default()
-            .merged(&self.hist_metrics)
+            .map(|run| run.vm_handle.meter().to_metrics())
+            .unwrap_or_default();
+        self.hist_metrics.merged(&current)
     }
 }
 
@@ -239,7 +240,9 @@ impl AppInner {
                 let instance = inner.instances.get_mut(&address).unwrap();
                 if let Some(current_run) = instance.current_run.take() {
                     if current_run.sequence_number == sn {
-                        instance.hist_metrics.merge(&current_run.vm_handle.meter());
+                        instance
+                            .hist_metrics
+                            .merge(&current_run.vm_handle.meter().to_metrics());
                     } else {
                         // The instance has been restarted.
                         instance.current_run = Some(current_run);

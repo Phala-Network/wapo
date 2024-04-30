@@ -1,7 +1,34 @@
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct Metrics {
+    pub gas_comsumed: u64,
+    pub net_egress: u64,
+    pub net_ingress: u64,
+    pub storage_read: u64,
+    pub storage_written: u64,
+}
+
+impl Metrics {
+    /// Merges the other metrics into this one.
+    pub fn merge(&mut self, other: &Metrics) {
+        self.gas_comsumed += other.gas_comsumed;
+        self.net_egress += other.net_egress;
+        self.net_ingress += other.net_ingress;
+        self.storage_read += other.storage_read;
+        self.storage_written += other.storage_written;
+    }
+
+    /// Returns a new metrics that is the sum of the two.
+    pub fn merged(&self, other: &Metrics) -> Metrics {
+        let mut result = self.clone();
+        result.merge(other);
+        result
+    }
+}
+
+#[derive(Default, Debug)]
+pub struct Meter {
     pub gas_comsumed: AtomicU64,
     pub net_egress: AtomicU64,
     pub net_ingress: AtomicU64,
@@ -11,7 +38,7 @@ pub struct Metrics {
     pub stopped: AtomicBool,
 }
 
-impl Metrics {
+impl Meter {
     pub fn set_gas_comsumed(&self, gas: u64) {
         self.gas_comsumed.store(gas, Ordering::Relaxed);
     }
@@ -57,34 +84,14 @@ impl Metrics {
     pub fn stopped(&self) -> bool {
         self.stopped.load(Ordering::Relaxed)
     }
-}
 
-impl Metrics {
-    /// Merges the other meter into this meter.
-    pub fn merge(&self, other: &Metrics) {
-        self.gas_comsumed.fetch_add(
-            other.gas_comsumed.load(Ordering::Relaxed),
-            Ordering::Relaxed,
-        );
-        self.net_egress
-            .fetch_add(other.net_egress.load(Ordering::Relaxed), Ordering::Relaxed);
-        self.net_ingress
-            .fetch_add(other.net_ingress.load(Ordering::Relaxed), Ordering::Relaxed);
-        self.storage_read.fetch_add(
-            other.storage_read.load(Ordering::Relaxed),
-            Ordering::Relaxed,
-        );
-        self.storage_written.fetch_add(
-            other.storage_written.load(Ordering::Relaxed),
-            Ordering::Relaxed,
-        );
-    }
-
-    /// Returns a new meter that is the sum of the two meters.
-    pub fn merged(&self, other: &Metrics) -> Metrics {
-        let meter = Metrics::default();
-        meter.merge(self);
-        meter.merge(other);
-        meter
+    pub fn to_metrics(&self) -> Metrics {
+        Metrics {
+            gas_comsumed: self.gas_comsumed.load(Ordering::Relaxed),
+            net_egress: self.net_egress.load(Ordering::Relaxed),
+            net_ingress: self.net_ingress.load(Ordering::Relaxed),
+            storage_read: self.storage_read.load(Ordering::Relaxed),
+            storage_written: self.storage_written.load(Ordering::Relaxed),
+        }
     }
 }

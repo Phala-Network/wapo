@@ -18,7 +18,7 @@ use crate::runtime::{
     async_context,
     vm_context::{self as wapo_ctx, LogHandler, WapoCtx},
 };
-use crate::{Metrics, OutgoingRequestSender, VmId};
+use crate::{Meter, OutgoingRequestSender, VmId};
 
 type RuntimeError = anyhow::Error;
 
@@ -175,7 +175,7 @@ pub struct InstanceConfig {
     args: Vec<String>,
     objects_path: PathBuf,
     #[builder(default)]
-    meter: Option<Arc<Metrics>>,
+    meter: Option<Arc<Meter>>,
 }
 
 pub struct WasmRun {
@@ -250,7 +250,7 @@ impl WasmRun {
         self.store.data_mut()
     }
 
-    pub fn meter(&self) -> Arc<Metrics> {
+    pub fn meter(&self) -> Arc<Meter> {
         self.store.data().meter()
     }
 
