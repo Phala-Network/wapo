@@ -35,7 +35,7 @@ pub struct InstanceState {
 impl InstanceState {
     /// Returns the metrics of the instance during the session.
     /// If the instance is running, the metrics are merged with the current run's metrics.
-    fn metrics(&self) -> Metrics {
+    pub(crate) fn metrics(&self) -> Metrics {
         self.current_run
             .as_ref()
             .map(|run| run.vm_handle.meter())
@@ -170,6 +170,24 @@ impl App {
             }
         }
         Ok(())
+    }
+
+    pub async fn for_each_instance<F>(&self, addresses: Option<&[Address]>, mut f: F)
+    where
+        F: FnMut(Address, &InstanceState),
+    {
+        let inner = self.inner.lock().await;
+        if let Some(addresses) = addresses {
+            for address in addresses {
+                if let Some(state) = inner.instances.get(address) {
+                    f(*address, state);
+                }
+            }
+        } else {
+            for (address, state) in inner.instances.iter() {
+                f(*address, state);
+            }
+        }
     }
 }
 

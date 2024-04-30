@@ -21,10 +21,13 @@ service Admin {
   rpc Deploy(Manifest) returns (Address) {}
   // Remove an instance from the worker.
   rpc Remove(Address) returns (google.protobuf.Empty) {}
-  // Start an instance from the worker. On-demand instance will reject this request.
+  // Start an instance from the worker. On-demand instance will reject this
+  // request.
   rpc Start(Address) returns (google.protobuf.Empty) {}
   // Stop an instance from the worker.
   rpc Stop(Address) returns (google.protobuf.Empty) {}
+  // Get metrics for each app
+  rpc InstanceMatrics(Addresses) returns (InstanceMetricsResponse) {}
 }
 
 // Basic information about a worker.
@@ -75,6 +78,35 @@ message StringPair {
 
 // Address of an app.
 message Address {
-  // @codec scale [u8;32]
+  // @codec scale crate::types::Address
   bytes address = 1;
+}
+
+message Addresses {
+  // @codec scale crate::types::Address
+  repeated bytes addresses = 1;
+}
+
+message InstanceMetricsResponse {
+  repeated InstanceMetrics metrics = 1;
+  bytes signature = 2;
+}
+
+// Metrics of an instance.
+message InstanceMetrics {
+  // The address of the instance.
+  // @codec scale crate::types::Address
+  bytes address = 1;
+  bytes session = 2;
+  uint64 running_time_ms = 3;
+  // The CPU usage of the instance.
+  uint64 gas_consumed = 4;
+  // The network usage of the instance.
+  uint64 network_ingress = 5;
+  uint64 network_egress = 6;
+  // The disk usage of the instance.
+  uint64 storage_read = 7;
+  uint64 storage_write = 8;
+  // The number of starts of the instance.
+  uint64 starts = 9;
 }

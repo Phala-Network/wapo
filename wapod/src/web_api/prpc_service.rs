@@ -1,3 +1,5 @@
+use std::sync::atomic::Ordering;
+
 use anyhow::Context;
 use rocket::{
     data::{ByteUnit, Limits, ToByteUnit as _},
@@ -12,6 +14,7 @@ use rpc::prpc::{
     user_server::User,
     NodeInfo,
 };
+use scale::Encode;
 use tracing::{error, info, warn};
 use wapod_rpc as rpc;
 
@@ -62,6 +65,41 @@ impl Admin for App {
     async fn stop(&self, request: pb::Address) -> Result<()> {
         self.stop_instance(request.decode_address()?).await?;
         Ok(())
+    }
+
+    async fn instance_matrics(
+        &self,
+        request: pb::Addresses,
+    ) -> Result<pb::InstanceMetricsResponse> {
+        let todo = "TODO: implement signature";
+        let todo = "TODO: implement starts";
+        let todo = "TODO: implement session";
+        let addresses = request.decode_addresses()?;
+        let addresses = if addresses.is_empty() {
+            None
+        } else {
+            Some(&addresses[..])
+        };
+        let mut metrics = vec![];
+        self.for_each_instance(addresses, |address, instance| {
+            let m = instance.metrics();
+            metrics.push(pb::InstanceMetrics {
+                address: address.encode(),
+                session: vec![],
+                running_time_ms: 0,
+                gas_consumed: m.gas_comsumed.load(Ordering::Relaxed),
+                network_ingress: m.net_ingress.load(Ordering::Relaxed),
+                network_egress: m.net_egress.load(Ordering::Relaxed),
+                storage_read: m.storage_read.load(Ordering::Relaxed),
+                storage_write: m.storage_written.load(Ordering::Relaxed),
+                starts: 0,
+            });
+        })
+        .await;
+        Ok(pb::InstanceMetricsResponse {
+            metrics,
+            signature: vec![],
+        })
     }
 }
 

@@ -3,3 +3,4 @@
 extern crate alloc;
 
 pub mod prpc;
+pub mod types;

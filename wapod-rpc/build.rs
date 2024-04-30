@@ -3,7 +3,7 @@ fn main() {
 
     let mut builder = prpc_build::configure()
         .out_dir(out_dir)
-        .mod_prefix("crate::prpc::")
+        .mod_prefix("super::")
         .disable_package_emission();
     builder = builder.type_attribute(".wapod", "#[::prpc::serde_helpers::prpc_serde_bytes]");
     builder = builder.type_attribute(
