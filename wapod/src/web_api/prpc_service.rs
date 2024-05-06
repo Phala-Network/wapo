@@ -83,7 +83,7 @@ impl Admin for App {
             metrics.push(pb::InstanceMetrics {
                 address: address.encode(),
                 session: vec![],
-                running_time_ms: 0,
+                running_time_ms: m.duration.as_millis() as u64,
                 gas_consumed: m.gas_comsumed,
                 network_ingress: m.net_ingress,
                 network_egress: m.net_egress,

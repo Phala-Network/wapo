@@ -1,4 +1,7 @@
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::{
+    sync::atomic::{AtomicBool, AtomicU64, Ordering},
+    time::{Duration, Instant},
+};
 
 #[derive(Default, Debug, Clone)]
 pub struct Metrics {
@@ -8,16 +11,21 @@ pub struct Metrics {
     pub storage_read: u64,
     pub storage_written: u64,
     pub starts: u64,
+    pub duration: Duration,
 }
 
 impl Metrics {
     /// Merges the other metrics into this one.
     pub fn merge(&mut self, other: &Metrics) {
-        self.gas_comsumed += other.gas_comsumed;
-        self.net_egress += other.net_egress;
-        self.net_ingress += other.net_ingress;
-        self.storage_read += other.storage_read;
-        self.storage_written += other.storage_written;
+        *self = Metrics {
+            gas_comsumed: self.gas_comsumed.saturating_add(other.gas_comsumed),
+            net_egress: self.net_egress.saturating_add(other.net_egress),
+            net_ingress: self.net_ingress.saturating_add(other.net_ingress),
+            storage_read: self.storage_read.saturating_add(other.storage_read),
+            storage_written: self.storage_written.saturating_add(other.storage_written),
+            starts: self.starts.saturating_add(other.starts),
+            duration: self.duration.saturating_add(other.duration),
+        };
     }
 
     /// Returns a new metrics that is the sum of the two.
@@ -28,15 +36,30 @@ impl Metrics {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct Meter {
-    pub gas_comsumed: AtomicU64,
-    pub net_egress: AtomicU64,
-    pub net_ingress: AtomicU64,
-    pub storage_read: AtomicU64,
-    pub storage_written: AtomicU64,
+    created_at: Instant,
+    gas_comsumed: AtomicU64,
+    net_egress: AtomicU64,
+    net_ingress: AtomicU64,
+    storage_read: AtomicU64,
+    storage_written: AtomicU64,
     /// Whether the metering is stopped. Used to signal the epoch checker to stop the VM.
-    pub stopped: AtomicBool,
+    stopped: AtomicBool,
+}
+
+impl Default for Meter {
+    fn default() -> Self {
+        Self {
+            created_at: Instant::now(),
+            gas_comsumed: AtomicU64::new(0),
+            net_egress: AtomicU64::new(0),
+            net_ingress: AtomicU64::new(0),
+            storage_read: AtomicU64::new(0),
+            storage_written: AtomicU64::new(0),
+            stopped: AtomicBool::new(false),
+        }
+    }
 }
 
 impl Meter {
@@ -87,6 +110,7 @@ impl Meter {
     }
 
     pub fn to_metrics(&self) -> Metrics {
+        let todo = "check if Instant be modified";
         Metrics {
             gas_comsumed: self.gas_comsumed.load(Ordering::Relaxed),
             net_egress: self.net_egress.load(Ordering::Relaxed),
@@ -94,6 +118,7 @@ impl Meter {
             storage_read: self.storage_read.load(Ordering::Relaxed),
             storage_written: self.storage_written.load(Ordering::Relaxed),
             starts: 1,
+            duration: self.created_at.elapsed(),
         }
     }
 }
