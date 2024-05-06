@@ -10,7 +10,7 @@ use rpc::prpc::{
     admin_server::Admin,
     server::{Error as RpcError, Service as PrpcService},
     user_server::User,
-    NodeInfo,
+    WorkerInfo,
 };
 use scale::Encode;
 use tracing::{error, info, warn};
@@ -21,7 +21,7 @@ type Result<T, E = RpcError> = std::result::Result<T, E>;
 use super::{read_data, App};
 
 impl Admin for App {
-    async fn info(&self, _request: ()) -> Result<NodeInfo> {
+    async fn info(&self, _request: ()) -> Result<WorkerInfo> {
         Ok(App::info(self).await)
     }
 
@@ -101,7 +101,7 @@ impl Admin for App {
 }
 
 impl User for App {
-    async fn info(&self, _request: ()) -> Result<NodeInfo> {
+    async fn info(&self, _request: ()) -> Result<WorkerInfo> {
         Admin::info(self, _request).await
     }
 }

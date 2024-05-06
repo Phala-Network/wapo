@@ -6,6 +6,7 @@ version = "0.1.0"
 [dependencies]
 wapo-host = { version = "0.1.0", path = "../wapo-host" }
 wapod-rpc = { version = "0.1.0", path = "../wapod-rpc" }
+wapod-signature = { version = "0.1.0", path = "../wapod-signature" }
 tokio = { version = "1.17.0", features = ["full"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "registry"] }
 anyhow = "1.0.69"

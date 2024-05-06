@@ -4,7 +4,9 @@ use tracing::info;
 use web_api::crate_app;
 
 mod logger;
+mod paths;
 mod web_api;
+mod worker_key;
 
 #[derive(Parser)]
 #[clap(about = "wapo - a WASM runtime", version, author)]
@@ -27,8 +29,11 @@ async fn main() -> anyhow::Result<()> {
     logger::init();
 
     info!("Starting wapod server...");
+    let args = Args::parse();
 
-    let app = crate_app(Args::parse());
+    paths::create_dirs_if_needed();
+
+    let app = crate_app(args);
     let admin_service = web_api::serve_admin(app.clone());
     let user_service = async move {
         // Wait for the admin service to start

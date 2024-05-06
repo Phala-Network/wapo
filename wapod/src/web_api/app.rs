@@ -3,7 +3,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use tracing::{info, warn};
 use wapo_host::ShortId;
 use wapo_host::{objects::ObjectLoader, Metrics};
-use wapod_rpc::prpc::NodeInfo;
+use wapod_rpc::prpc::WorkerInfo;
 
 use std::collections::HashMap;
 
@@ -17,6 +17,7 @@ use service::{Command, CommandSender, ServiceHandle};
 use wapo_host::service::{self, VmHandle};
 use wapod_rpc::prpc::Manifest;
 
+use crate::worker_key::load_or_generate_key;
 use crate::Args;
 
 type Address = [u8; 32];
@@ -98,12 +99,13 @@ impl App {
         Some(handle)
     }
 
-    pub async fn info(&self) -> NodeInfo {
+    pub async fn info(&self) -> WorkerInfo {
         let app = self.inner.lock().await;
         let max_instances = app.args.max_instances;
         let running_instances = app.instances.len() as u32;
         let instance_memory_size = app.args.max_memory_pages * 64 * 1024;
-        NodeInfo {
+        WorkerInfo {
+            pubkey: load_or_generate_key().public().as_bytes().to_vec(),
             running_instances,
             max_instances,
             instance_memory_size,

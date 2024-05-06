@@ -4699,6 +4699,7 @@ dependencies = [
  "uuid",
  "wapo-host",
  "wapod-rpc",
+ "wapod-signature",
 ]
 
 [[package]]
