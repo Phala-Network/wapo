@@ -32,6 +32,8 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     paths::create_dirs_if_needed();
+    let key = worker_key::load_or_generate_key().public();
+    info!("Worker pubkey: 0x{}", hex_fmt::HexFmt(key));
 
     let app = crate_app(args);
     let admin_service = web_api::serve_admin(app.clone());
