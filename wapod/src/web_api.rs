@@ -316,6 +316,7 @@ pub async fn serve_user(app: App) -> anyhow::Result<()> {
         .merge(Env::prefixed("WAPOD_USER_").global())
         .select("user");
     let signer = ResponseSigner::new(1024 * 1024 * 10, sign_http_response);
+    let todo = "upgrade request tracer";
     let _rocket = rocket::custom(figment)
         .attach(cors_options().to_cors().expect("To not fail"))
         .attach(signer)

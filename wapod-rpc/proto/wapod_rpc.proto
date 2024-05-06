@@ -27,7 +27,7 @@ service Admin {
   // Stop an instance from the worker.
   rpc Stop(Address) returns (google.protobuf.Empty) {}
   // Get metrics for each app
-  rpc InstanceMatrics(Addresses) returns (InstanceMetricsResponse) {}
+  rpc InstanceMetrics(Addresses) returns (InstanceMetricsResponse) {}
 }
 
 // Basic information about a worker.

@@ -18,6 +18,8 @@ use wapod_rpc as rpc;
 
 type Result<T, E = RpcError> = std::result::Result<T, E>;
 
+use crate::worker_key::load_or_generate_key;
+
 use super::{read_data, App};
 
 impl Admin for App {
@@ -65,11 +67,10 @@ impl Admin for App {
         Ok(())
     }
 
-    async fn instance_matrics(
+    async fn instance_metrics(
         &self,
         request: pb::Addresses,
     ) -> Result<pb::InstanceMetricsResponse> {
-        let todo = "TODO: implement signature";
         let todo = "TODO: implement session";
         let addresses = request.decode_addresses()?;
         let addresses = if addresses.is_empty() {
@@ -93,10 +94,10 @@ impl Admin for App {
             });
         })
         .await;
-        Ok(pb::InstanceMetricsResponse {
-            metrics,
-            signature: vec![],
-        })
+        let encoded_metrics = metrics.encode();
+        let signature =
+            load_or_generate_key().sign(wapod_signature::ContentType::Metrics, encoded_metrics);
+        Ok(pb::InstanceMetricsResponse { metrics, signature })
     }
 }
 
