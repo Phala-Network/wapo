@@ -11,6 +11,7 @@ pub mod crypto;
 
 #[derive(Debug, Encode, Decode, TypeInfo)]
 pub enum ContentType {
+    RpcResponse,
     RegisterInfo,
     Metrics,
 }

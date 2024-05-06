@@ -30,7 +30,7 @@ use wapo_host::{
 };
 
 use crate::web_api::prpc_service::handle_prpc;
-use crate::Args;
+use crate::{worker_key, Args};
 
 use app::App;
 
@@ -282,9 +282,10 @@ fn cors_options() -> CorsOptions {
     }
 }
 
-fn sign_http_response(_data: &[u8]) -> Option<String> {
-    let todo = "sign_http_response";
-    None
+fn sign_http_response(data: &[u8]) -> Option<String> {
+    let pair = worker_key::load_or_generate_key();
+    let signature = pair.sign(wapod_signature::ContentType::RpcResponse, data);
+    Some(hex::encode(signature))
 }
 
 pub fn crate_app(args: Args) -> App {
