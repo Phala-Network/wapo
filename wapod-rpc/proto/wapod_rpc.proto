@@ -13,10 +13,15 @@ service Status {
 
 // The wapod admin RPC.
 service Admin {
-  // Put an object to the worker's object storage.
-  rpc PutObject(Object) returns (google.protobuf.Empty) {}
   // Top the worker.
   rpc Exit(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+}
+
+service Blobs {
+  // Put an object to the worker's object storage.
+  rpc Put(Object) returns (google.protobuf.Empty) {}
+  // Check if an object exists in the worker's object storage.
+  rpc Exists(Object) returns (Boolean) {}
 }
 
 // The instances management RPC.
@@ -115,4 +120,8 @@ message InstanceMetrics {
   uint64 storage_write = 8;
   // The number of starts of the instance.
   uint64 starts = 9;
+}
+
+message Boolean {
+  bool value = 1;
 }

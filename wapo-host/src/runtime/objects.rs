@@ -40,6 +40,10 @@ impl ObjectLoader {
     pub fn path(&self, hash: &[u8]) -> PathBuf {
         self.objects_path.join(hex::encode(hash))
     }
+
+    pub fn exists(&self, hash: &[u8]) -> bool {
+        self.path(hash).exists()
+    }
 }
 
 #[derive(Debug, Encode, Decode)]

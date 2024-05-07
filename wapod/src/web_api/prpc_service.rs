@@ -7,11 +7,12 @@ use rocket::{
 };
 use rpc::prpc::{
     self as pb,
-    admin_server::AdminRpc,
-    instances_server::InstancesRpc,
     server::{Error as RpcError, Service as PrpcService},
-    status_server::StatusRpc,
     WorkerInfo,
+};
+use rpc::prpc::{
+    admin_server::AdminRpc, blobs_server::BlobsRpc, instances_server::InstancesRpc,
+    status_server::StatusRpc,
 };
 use scale::Encode;
 use tracing::{error, info, warn};
@@ -24,7 +25,13 @@ use crate::worker_key::load_or_generate_key;
 use super::{read_data, App};
 
 impl AdminRpc for App {
-    async fn put_object(&self, request: pb::Object) -> Result<()> {
+    async fn exit(&self) -> Result<()> {
+        std::process::exit(0);
+    }
+}
+
+impl BlobsRpc for App {
+    async fn put(&self, request: pb::Object) -> Result<()> {
         let loader = self.object_loader().await;
         loader
             .put_object(
@@ -39,8 +46,11 @@ impl AdminRpc for App {
             })
     }
 
-    async fn exit(&self) -> Result<()> {
-        std::process::exit(0);
+    async fn exists(&self, request: pb::Object) -> Result<pb::Boolean> {
+        let loader = self.object_loader().await;
+        Ok(pb::Boolean {
+            value: loader.exists(&request.hash),
+        })
     }
 }
 
