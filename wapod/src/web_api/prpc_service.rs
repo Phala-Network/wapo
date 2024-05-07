@@ -7,9 +7,10 @@ use rocket::{
 };
 use rpc::prpc::{
     self as pb,
-    admin_server::Admin,
+    admin_server::AdminRpc,
+    instances_server::InstancesRpc,
     server::{Error as RpcError, Service as PrpcService},
-    user_server::User,
+    status_server::StatusRpc,
     WorkerInfo,
 };
 use scale::Encode;
@@ -22,11 +23,7 @@ use crate::worker_key::load_or_generate_key;
 
 use super::{read_data, App};
 
-impl Admin for App {
-    async fn info(&self, _request: ()) -> Result<WorkerInfo> {
-        Ok(App::info(self).await)
-    }
-
+impl AdminRpc for App {
     async fn put_object(&self, request: pb::Object) -> Result<()> {
         let loader = self.object_loader().await;
         loader
@@ -42,6 +39,12 @@ impl Admin for App {
             })
     }
 
+    async fn exit(&self) -> Result<()> {
+        std::process::exit(0);
+    }
+}
+
+impl InstancesRpc for App {
     async fn deploy(&self, request: pb::Manifest) -> Result<pb::Address> {
         let address = self
             .create_instance(request)
@@ -67,10 +70,7 @@ impl Admin for App {
         Ok(())
     }
 
-    async fn instance_metrics(
-        &self,
-        request: pb::Addresses,
-    ) -> Result<pb::InstanceMetricsResponse> {
+    async fn metrics(&self, request: pb::Addresses) -> Result<pb::InstanceMetricsResponse> {
         let todo = "TODO: implement session";
         let addresses = request.decode_addresses()?;
         let addresses = if addresses.is_empty() {
@@ -101,9 +101,9 @@ impl Admin for App {
     }
 }
 
-impl User for App {
-    async fn info(&self, _request: ()) -> Result<WorkerInfo> {
-        Admin::info(self, _request).await
+impl StatusRpc for App {
+    async fn info(&self) -> Result<WorkerInfo> {
+        Ok(App::info(self).await)
     }
 }
 

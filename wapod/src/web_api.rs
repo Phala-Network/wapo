@@ -15,10 +15,9 @@ use tracing::{info, instrument, warn};
 use sp_core::crypto::AccountId32;
 
 use wapo_host::{crate_outgoing_request_channel, ShortId};
-use wapod_rpc::prpc::{
-    admin_server::{supported_methods as admin_methods, AdminServer},
-    user_server::{supported_methods as service_methods, UserServer},
-};
+use wapod_rpc::prpc::instances_server::InstancesServer;
+use wapod_rpc::prpc::server::{ComposedService, Service};
+use wapod_rpc::prpc::{admin_server::AdminServer, status_server::StatusServer};
 
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -36,6 +35,10 @@ use app::App;
 
 mod app;
 mod prpc_service;
+
+type UserService = ComposedService<App, (StatusServer<App>,)>;
+type AdminService =
+    ComposedService<App, (StatusServer<App>, AdminServer<App>, InstancesServer<App>)>;
 
 enum ReadDataError {
     IoError,
@@ -196,7 +199,7 @@ async fn prpc_post(
     json: bool,
 ) -> Result<Vec<u8>, Custom<Vec<u8>>> {
     let _ = id;
-    handle_prpc::<UserServer<_>>(app, method, Some(data), limits, content_type, json).await
+    handle_prpc::<UserService>(app, method, Some(data), limits, content_type, json).await
 }
 
 #[instrument(target="prpc", name="prpc", fields(%id), skip_all)]
@@ -209,7 +212,7 @@ async fn prpc_get(
     content_type: Option<&ContentType>,
 ) -> Result<Vec<u8>, Custom<Vec<u8>>> {
     let _ = id;
-    handle_prpc::<UserServer<_>>(app, method, None, limits, content_type, true).await
+    handle_prpc::<UserService>(app, method, None, limits, content_type, true).await
 }
 
 #[instrument(target="prpc", name="prpc-admin", fields(%id), skip_all)]
@@ -224,7 +227,7 @@ async fn prpc_admin_post(
     json: bool,
 ) -> Result<Vec<u8>, Custom<Vec<u8>>> {
     let _ = id;
-    handle_prpc::<AdminServer<_>>(app, method, Some(data), limits, content_type, json).await
+    handle_prpc::<AdminService>(app, method, Some(data), limits, content_type, json).await
 }
 
 #[instrument(target="prpc", name="prpc-admin", fields(%id), skip_all)]
@@ -237,7 +240,7 @@ async fn prpc_admin_get(
     content_type: Option<&ContentType>,
 ) -> Result<Vec<u8>, Custom<Vec<u8>>> {
     let _ = id;
-    handle_prpc::<AdminServer<_>>(app, method, None, limits, content_type, true).await
+    handle_prpc::<AdminService>(app, method, None, limits, content_type, true).await
 }
 
 #[post("/object/<hash>?<type>", data = "<data>")]
@@ -310,7 +313,7 @@ pub fn crate_app(args: Args) -> App {
 }
 
 pub async fn serve_user(app: App) -> anyhow::Result<()> {
-    print_rpc_methods("/prpc", service_methods());
+    print_rpc_methods("/prpc", &UserService::methods());
     let figment = Figment::from(rocket::Config::default())
         .merge(Toml::file("Wapod.toml").nested())
         .merge(Env::prefixed("WAPOD_USER_").global())
@@ -331,7 +334,7 @@ pub async fn serve_user(app: App) -> anyhow::Result<()> {
 }
 
 pub async fn serve_admin(app: App) -> anyhow::Result<()> {
-    print_rpc_methods("/prpc", admin_methods());
+    print_rpc_methods("/prpc", &AdminService::methods());
     let figment = Figment::from(rocket::Config::default())
         .merge(Toml::file("Wapod.toml").nested())
         .merge(Env::prefixed("WAPOD_ADMIN_").global())

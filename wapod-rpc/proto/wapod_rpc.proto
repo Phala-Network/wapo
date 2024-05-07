@@ -6,17 +6,21 @@ import "google/protobuf/empty.proto";
 package wapod;
 
 // The wapod public RPC.
-service User {
+service Status {
   // Get basic information about the worker state.
   rpc Info(google.protobuf.Empty) returns (WorkerInfo) {}
 }
 
 // The wapod admin RPC.
 service Admin {
-  // Get basic information about the worker state.
-  rpc Info(google.protobuf.Empty) returns (WorkerInfo) {}
   // Put an object to the worker's object storage.
   rpc PutObject(Object) returns (google.protobuf.Empty) {}
+  // Top the worker.
+  rpc Exit(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+}
+
+// The instances management RPC.
+service Instances {
   // Deploy a new WASM instance.
   rpc Deploy(Manifest) returns (Address) {}
   // Remove an instance from the worker.
@@ -27,7 +31,7 @@ service Admin {
   // Stop an instance from the worker.
   rpc Stop(Address) returns (google.protobuf.Empty) {}
   // Get metrics for each app
-  rpc InstanceMetrics(Addresses) returns (InstanceMetricsResponse) {}
+  rpc Metrics(Addresses) returns (InstanceMetricsResponse) {}
 }
 
 // Basic information about a worker.
