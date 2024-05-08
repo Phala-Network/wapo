@@ -15,7 +15,7 @@ rocket = "0.5.0"
 sp-core = "32.0.0"
 serde_json = "1.0"
 tracing = "0.1"
-phala-rocket-middleware = "0.1.0"
+phala-rocket-middleware = "0.1.1"
 rocket_cors = "0.6.0"
 hex = "0.4"
 uuid = { version = "1.8.0", features = ["v4"] }

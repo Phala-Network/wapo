@@ -2681,9 +2681,9 @@ dependencies = [
 
 [[package]]
 name = "phala-rocket-middleware"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c54a21928fda0af37c9fb8692b606a0424a75c98557f79f9389d1f0147fcc496"
+checksum = "2bcd544c1e7ee22aba07a0b306ccb40e224af9b422ef76805887157aba588787"
 dependencies = [
  "log",
  "rocket",
