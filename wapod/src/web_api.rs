@@ -96,7 +96,7 @@ async fn push_query(
     app: &State<App>,
     id: HexBytes,
     origin: Option<&str>,
-    path: String,
+    path: &str,
     data: Data<'_>,
 ) -> Result<Vec<u8>, Custom<&'static str>> {
     let payload = read_data(data, 100.mebibytes()).await?;
@@ -120,7 +120,7 @@ async fn push_query(
     app.send(
         address,
         Command::PushQuery {
-            path,
+            path: path.into(),
             origin,
             payload,
             reply_tx,
@@ -194,7 +194,7 @@ async fn info(app: &State<App>) -> String {
 async fn prpc_post(
     app: &State<App>,
     id: TraceId,
-    method: String,
+    method: &str,
     data: Data<'_>,
     limits: &Limits,
     content_type: Option<&ContentType>,
@@ -209,7 +209,7 @@ async fn prpc_post(
 async fn prpc_get(
     app: &State<App>,
     id: TraceId,
-    method: String,
+    method: &str,
     limits: &Limits,
     content_type: Option<&ContentType>,
 ) -> Result<Vec<u8>, Custom<Vec<u8>>> {
@@ -222,7 +222,7 @@ async fn prpc_get(
 async fn prpc_admin_post(
     app: &State<App>,
     id: TraceId,
-    method: String,
+    method: &str,
     data: Data<'_>,
     limits: &Limits,
     content_type: Option<&ContentType>,
@@ -237,7 +237,7 @@ async fn prpc_admin_post(
 async fn prpc_admin_get(
     app: &State<App>,
     id: TraceId,
-    method: String,
+    method: &str,
     limits: &Limits,
     content_type: Option<&ContentType>,
 ) -> Result<Vec<u8>, Custom<Vec<u8>>> {

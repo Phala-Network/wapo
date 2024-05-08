@@ -148,7 +148,7 @@ impl StatusRpc for App {
 
 pub async fn handle_prpc<S>(
     app: &State<App>,
-    method: String,
+    method: &str,
     data: Option<Data<'_>>,
     limits: &Limits,
     content_type: Option<&ContentType>,
@@ -159,7 +159,7 @@ where
 {
     let data = match data {
         Some(data) => {
-            let limit = limit_for_method(&method, limits);
+            let limit = limit_for_method(method, limits);
             read_data(data, limit).await?
         }
         None => vec![],
@@ -167,7 +167,7 @@ where
     let json = json || content_type.map(|t| t.is_json()).unwrap_or(false);
     let app = (*app).clone();
     let data = data.to_vec();
-    let result = dispatch_prpc(method, data, json, S::from(app)).await;
+    let result = dispatch_prpc(method.into(), data, json, S::from(app)).await;
     let (status_code, output) = result;
     if status_code == 200 {
         Ok(output)
