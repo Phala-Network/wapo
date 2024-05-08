@@ -76,7 +76,9 @@ impl BlobsRpc for App {
 
 impl InstancesRpc for App {
     async fn deploy(&self, request: pb::DeployArgs) -> Result<pb::DeployResponse> {
-        let todo = "disallow to deploy if it is not initialized";
+        if self.session().is_none() {
+            return Err(RpcError::BadRequest("No worker session".into()));
+        }
         let manifest = request
             .manifest
             .ok_or(RpcError::BadRequest("No manifest".into()))?;

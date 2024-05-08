@@ -112,11 +112,18 @@ impl App {
 
     pub async fn info(&self) -> WorkerInfo {
         let app = self.lock();
+        let todo = "Limit the max instances";
         let max_instances = app.args.max_instances;
-        let running_instances = app.instances.len() as u32;
+        let deployed_instances = app.instances.len() as u32;
+        let running_instances = app
+            .instances
+            .values()
+            .filter(|state| state.current_run.is_some())
+            .count() as u32;
         let instance_memory_size = app.args.max_memory_pages * 64 * 1024;
         WorkerInfo {
             pubkey: load_or_generate_key().public().as_bytes().to_vec(),
+            deployed_instances,
             running_instances,
             max_instances,
             instance_memory_size,

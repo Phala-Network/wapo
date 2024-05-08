@@ -49,12 +49,14 @@ message WorkerInfo {
   bytes pubkey = 1;
   // The number of running instances.
   uint32 running_instances = 2;
+  // The number of deployed instances.
+  uint32 deployed_instances = 3;
   // The number of maximum instances.
-  uint32 max_instances = 3;
+  uint32 max_instances = 4;
   // The size limit of memory of each instance.
-  uint32 instance_memory_size = 4;
+  uint32 instance_memory_size = 5;
   // The session id of the worker.
-  bytes session = 5;
+  bytes session = 6;
 }
 
 // An object to be stored in the worker's object storage.
