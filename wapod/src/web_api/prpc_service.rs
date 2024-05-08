@@ -33,7 +33,7 @@ impl AdminRpc for App {
 
 impl BlobsRpc for App {
     async fn put(&self, request: pb::Blob) -> Result<()> {
-        let loader = self.blob_loader().await;
+        let loader = self.blob_loader();
         loader
             .put(
                 &request.hash,
@@ -48,14 +48,14 @@ impl BlobsRpc for App {
     }
 
     async fn exists(&self, request: pb::Blob) -> Result<pb::Boolean> {
-        let loader = self.blob_loader().await;
+        let loader = self.blob_loader();
         Ok(pb::Boolean {
             value: loader.exists(&request.hash),
         })
     }
 
     async fn remove(&self, request: pb::Blob) -> Result<()> {
-        let loader = self.blob_loader().await;
+        let loader = self.blob_loader();
         loader
             .remove(&request.hash)
             .map_err(|err| RpcError::BadRequest(format!("Failed to remove object: {err}")))
@@ -121,8 +121,7 @@ impl InstancesRpc for App {
                 storage_write: m.storage_written,
                 starts: m.starts,
             });
-        })
-        .await;
+        });
         let encoded_metrics = metrics.encode();
         let signature =
             load_or_generate_key().sign(wapod_signature::ContentType::Metrics, encoded_metrics);

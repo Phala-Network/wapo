@@ -9,9 +9,7 @@ use wapod_rpc::prpc::WorkerInfo;
 use std::collections::HashMap;
 
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Weak};
-
-use tokio::sync::Mutex;
+use std::sync::{Arc, Mutex, MutexGuard, Weak};
 
 use service::{Command, CommandSender, ServiceHandle};
 
@@ -83,9 +81,12 @@ impl App {
         }
     }
 
+    fn lock(&self) -> MutexGuard<'_, AppInner> {
+        self.inner.lock().expect("App lock poisoned")
+    }
+
     pub async fn send(&self, vmid: Address, message: Command) -> Result<(), (u16, &'static str)> {
         self.sender_for(vmid)
-            .await
             .ok_or((404, "Instance not found"))?
             .send(message)
             .await
@@ -93,11 +94,9 @@ impl App {
         Ok(())
     }
 
-    pub async fn sender_for(&self, vmid: Address) -> Option<CommandSender> {
+    pub fn sender_for(&self, vmid: Address) -> Option<CommandSender> {
         let handle = self
-            .inner
             .lock()
-            .await
             .instances
             .get(&vmid)?
             .current_run
@@ -109,7 +108,7 @@ impl App {
     }
 
     pub async fn info(&self) -> WorkerInfo {
-        let app = self.inner.lock().await;
+        let app = self.lock();
         let max_instances = app.args.max_instances;
         let running_instances = app.instances.len() as u32;
         let instance_memory_size = app.args.max_memory_pages * 64 * 1024;
@@ -121,36 +120,27 @@ impl App {
         }
     }
 
-    pub async fn blob_loader(&self) -> BlobLoader {
-        self.inner.lock().await.blob_loader.clone()
+    pub fn blob_loader(&self) -> BlobLoader {
+        self.lock().blob_loader.clone()
     }
 
     pub async fn start_instance(&self, vmid: Address) -> Result<()> {
-        self.inner.lock().await.start_instance(vmid).await
+        self.lock().start_instance(vmid)
     }
 
     pub async fn stop_instance(&self, vmid: Address) -> Result<()> {
-        self.inner.lock().await.stop_instance(vmid).await
+        let mut handle = self.lock().stop_instance(vmid)?;
+        handle.stop().await?;
+        Ok(())
     }
 
     pub async fn create_instance(&self, manifest: Manifest) -> Result<InstanceInfo> {
         let immediate = manifest.start_mode == 0;
         let address = sp_core::blake2_256(&scale::Encode::encode(&manifest));
-        let vmid = ShortId(address);
-        let mut inner = self.inner.lock().await;
-        if let Some(mut handle) = inner
-            .instances
-            .remove(&address)
-            .map(|state| state.current_run)
-            .flatten()
-            .map(|run| run.vm_handle)
-        {
-            info!("Stopping VM {vmid}...");
-            if let Err(err) = handle.stop().await {
-                warn!("Failed to stop the VM: {err:?}");
-            }
-            info!("Prev VM {vmid} stopped");
-        };
+        let mut app = self.lock();
+        if app.instances.contains_key(&address) {
+            bail!("Instance already exists")
+        }
         let session: [u8; 32] = rand::thread_rng().gen();
         let state = InstanceState {
             session,
@@ -158,11 +148,11 @@ impl App {
             hist_metrics: Default::default(),
             current_run: None,
         };
-        inner.instances.insert(address, state);
+        app.instances.insert(address, state);
         if immediate {
-            inner.start_instance(address).await?;
+            app.start_instance(address)?;
         }
-        let running = inner.instances.get(&address).unwrap().current_run.is_some();
+        let running = app.instances.get(&address).unwrap().current_run.is_some();
         Ok(InstanceInfo {
             address,
             session,
@@ -171,8 +161,8 @@ impl App {
     }
 
     pub async fn remove_instance(&self, address: Address) -> Result<()> {
-        let mut inner = self.inner.lock().await;
-        let Some(mut handle) = inner
+        let Some(mut handle) = self
+            .lock()
             .instances
             .remove(&address)
             .map(|state| state.current_run)
@@ -191,11 +181,11 @@ impl App {
         Ok(())
     }
 
-    pub async fn for_each_instance<F>(&self, addresses: Option<&[Address]>, mut f: F)
+    pub fn for_each_instance<F>(&self, addresses: Option<&[Address]>, mut f: F)
     where
         F: FnMut(Address, &InstanceState),
     {
-        let inner = self.inner.lock().await;
+        let inner = self.lock();
         if let Some(addresses) = addresses {
             for address in addresses {
                 if let Some(state) = inner.instances.get(address) {
@@ -211,7 +201,7 @@ impl App {
 }
 
 impl AppInner {
-    async fn start_instance(&mut self, address: Address) -> Result<()> {
+    fn start_instance(&mut self, address: Address) -> Result<()> {
         let vmid = ShortId(address);
         println!("Starting {vmid}...");
 
@@ -254,7 +244,7 @@ impl AppInner {
                 warn!("VM {vmid} stopped unexpectedly");
             }
             if let Some(inner) = weak_self.upgrade() {
-                let mut inner = inner.lock().await;
+                let mut inner = inner.lock().expect("App lock poisoned");
                 let instance = inner.instances.get_mut(&address).unwrap();
                 if let Some(current_run) = instance.current_run.take() {
                     if current_run.sequence_number == sn {
@@ -271,18 +261,15 @@ impl AppInner {
         Ok(())
     }
 
-    async fn stop_instance(&mut self, address: Address) -> Result<()> {
-        let vmid = ShortId(address);
-        println!("Stopping {vmid}...");
+    fn stop_instance(&mut self, address: Address) -> Result<VmHandle> {
         let instance = self
             .instances
             .get_mut(&address)
             .ok_or(anyhow!("Instance not found"))?;
-        if let Some(mut handle) = instance.current_run.take().map(|run| run.vm_handle) {
-            handle.stop().await.context("Failed to stop instance")?;
-        } else {
-            bail!("Instance not started")
-        }
-        Ok(())
+        instance
+            .current_run
+            .take()
+            .map(|run| run.vm_handle)
+            .ok_or_else(|| anyhow!("Instance is not running"))
     }
 }
