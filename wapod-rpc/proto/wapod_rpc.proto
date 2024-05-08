@@ -18,9 +18,11 @@ service Admin {
 }
 
 service Blobs {
-  // Put an object to the worker's object storage.
+  // Put a blob to the worker's blobs directory.
   rpc Put(Blob) returns (google.protobuf.Empty) {}
-  // Check if an Blob exists in the worker's object storage.
+  // Remove a blob from the blobs directory.
+  rpc Remove(Blob) returns (google.protobuf.Empty) {}
+  // Check if a blob exists in the worker's blobs directory.
   rpc Exists(Blob) returns (Boolean) {}
 }
 

@@ -398,7 +398,7 @@ impl<'a> env::OcallFuncs for WapoCtx {
     fn object_get(&mut self, hash: &[u8], hash_algrithm: &str) -> Result<Vec<u8>> {
         let obj = self
             .blob_loader
-            .get_object(hash, hash_algrithm)
+            .get(hash, hash_algrithm)
             .or(Err(OcallError::IoError))?
             .ok_or(OcallError::NotFound)?;
         Ok(obj)

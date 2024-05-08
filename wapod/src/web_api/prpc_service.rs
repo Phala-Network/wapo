@@ -34,7 +34,7 @@ impl BlobsRpc for App {
     async fn put(&self, request: pb::Blob) -> Result<()> {
         let loader = self.blob_loader().await;
         loader
-            .put_object(
+            .put(
                 &request.hash,
                 &mut &request.body[..],
                 &request.hash_algrithm,
@@ -51,6 +51,13 @@ impl BlobsRpc for App {
         Ok(pb::Boolean {
             value: loader.exists(&request.hash),
         })
+    }
+
+    async fn remove(&self, request: pb::Blob) -> Result<()> {
+        let loader = self.blob_loader().await;
+        loader
+            .remove(&request.hash)
+            .map_err(|err| RpcError::BadRequest(format!("Failed to remove object: {err}")))
     }
 }
 

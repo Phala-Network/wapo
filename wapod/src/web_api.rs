@@ -262,7 +262,7 @@ async fn object_post(
     let loader = app.blob_loader().await;
     let limit = limits.get("Admin.PutObject").unwrap_or(10.mebibytes());
     let mut stream = data.open(limit);
-    match loader.put_object(&hash.0, &mut stream, r#type).await {
+    match loader.put(&hash.0, &mut stream, r#type).await {
         Ok(()) => Ok(()),
         Err(err) => {
             warn!("Failed to put object: {err}");

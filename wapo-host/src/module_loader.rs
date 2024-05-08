@@ -44,7 +44,7 @@ impl ModuleLoader {
         // TODO: don't lock while compiling
         let wasm_code = state
             .blob_loader
-            .get_object(code_hash, hash_alg)
+            .get(code_hash, hash_alg)
             .with_context(|| anyhow!("Failed to load module {hex_hash}"))?
             .ok_or_else(|| anyhow!("Wasm code not found: {hex_hash}"))?;
         let t0 = Instant::now();

@@ -21,20 +21,20 @@ impl BlobLoader {
         }
     }
 
-    pub fn get_object(&self, hash: &[u8], hash_algo: &str) -> Result<Option<Vec<u8>>> {
+    pub fn get(&self, hash: &[u8], hash_algo: &str) -> Result<Option<Vec<u8>>> {
         get_object(self.store_dir.as_path(), hash, hash_algo)
     }
 
-    pub async fn put_object<'a, R>(
-        &self,
-        hash: &[u8],
-        data: &'a mut R,
-        hash_algo: &str,
-    ) -> Result<()>
+    pub async fn put<'a, R>(&self, hash: &[u8], data: &'a mut R, hash_algo: &str) -> Result<()>
     where
         R: AsyncRead + Unpin + ?Sized,
     {
         put_object(self.store_dir.as_path(), hash, data, hash_algo).await
+    }
+
+    pub fn remove(&self, hash: &[u8]) -> Result<()> {
+        std::fs::remove_file(self.path(hash))?;
+        Ok(())
     }
 
     pub fn path(&self, hash: &[u8]) -> PathBuf {
