@@ -4,4 +4,4 @@ pub(crate) mod metrics;
 
 mod resource;
 mod tls;
-pub mod objects;
+pub mod blobs;

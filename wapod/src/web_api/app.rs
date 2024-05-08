@@ -2,7 +2,7 @@ use anyhow::{anyhow, bail, Context, Result};
 
 use tracing::{info, warn};
 use wapo_host::ShortId;
-use wapo_host::{objects::ObjectLoader, Metrics};
+use wapo_host::{blobs::BlobsLoader, Metrics};
 use wapod_rpc::prpc::WorkerInfo;
 
 use std::collections::HashMap;
@@ -51,7 +51,7 @@ struct AppInner {
     instances: HashMap<Address, InstanceState>,
     args: Args,
     service: ServiceHandle,
-    object_loader: ObjectLoader,
+    blobs_loader: BlobsLoader,
 }
 
 #[derive(Clone)]
@@ -65,7 +65,7 @@ impl App {
             inner: Arc::new_cyclic(|weak_self| {
                 Mutex::new(AppInner {
                     weak_self: weak_self.clone(),
-                    object_loader: ObjectLoader::new(&args.objects_path),
+                    blobs_loader: BlobsLoader::new(&args.blobs_dir),
                     instances: HashMap::new(),
                     service,
                     args,
@@ -112,8 +112,8 @@ impl App {
         }
     }
 
-    pub async fn object_loader(&self) -> ObjectLoader {
-        self.inner.lock().await.object_loader.clone()
+    pub async fn blobs_loader(&self) -> BlobsLoader {
+        self.inner.lock().await.blobs_loader.clone()
     }
 
     pub async fn start_instance(&self, vmid: Address) -> Result<()> {
@@ -210,7 +210,7 @@ impl AppInner {
             .max_memory_pages(self.args.max_memory_pages)
             .id(address)
             .weight(1)
-            .objects_path(self.args.objects_path.as_str().into())
+            .blobs_dir(self.args.blobs_dir.as_str().into())
             .build();
         let (vm_handle, join_handle) = self
             .service

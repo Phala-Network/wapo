@@ -80,13 +80,13 @@ impl WasmModule {
             args,
             envs,
             epoch_deadline,
-            objects_path,
+            blobs_dir,
             meter,
         } = config;
         let engine = self.engine.inner.clone();
         let mut linker = Linker::<VmCtx>::new(&engine);
 
-        let mut wapo_ctx = wapo_ctx::create_env(id, event_tx, log_handler, objects_path, meter);
+        let mut wapo_ctx = wapo_ctx::create_env(id, event_tx, log_handler, blobs_dir, meter);
         wapo_ctx.set_weight(weight);
         wapo_ctx::add_ocalls_to_linker(&mut linker, |c| &mut c.wapo_ctx)?;
 
@@ -173,7 +173,7 @@ pub struct InstanceConfig {
     envs: Vec<(String, String)>,
     #[builder(default)]
     args: Vec<String>,
-    objects_path: PathBuf,
+    blobs_dir: PathBuf,
     #[builder(default)]
     meter: Option<Arc<Meter>>,
 }

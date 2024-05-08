@@ -19,9 +19,9 @@ service Admin {
 
 service Blobs {
   // Put an object to the worker's object storage.
-  rpc Put(Object) returns (google.protobuf.Empty) {}
-  // Check if an object exists in the worker's object storage.
-  rpc Exists(Object) returns (Boolean) {}
+  rpc Put(Blob) returns (google.protobuf.Empty) {}
+  // Check if an Blob exists in the worker's object storage.
+  rpc Exists(Blob) returns (Boolean) {}
 }
 
 // The instances management RPC.
@@ -52,7 +52,7 @@ message WorkerInfo {
 }
 
 // An object to be stored in the worker's object storage.
-message Object {
+message Blob {
   // The key of the object.
   bytes hash = 1;
   // The hash algorithm used to generate the key.

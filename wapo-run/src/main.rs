@@ -104,7 +104,7 @@ pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
         .event_tx(event_tx)
         .args(vm_args)
         .envs(vm_envs)
-        .objects_path("./objects".into())
+        .blobs_dir("./blobs".into())
         .build();
     let mut wasm_run = module.run(config).context("Failed to start the instance")?;
     if let Some(kill_timeout) = args.kill_timeout {

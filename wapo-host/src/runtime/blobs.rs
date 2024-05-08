@@ -10,19 +10,19 @@ use sha2::Digest;
 use tokio::io::{AsyncRead, AsyncReadExt};
 
 #[derive(Debug, Clone)]
-pub struct ObjectLoader {
-    objects_path: Arc<PathBuf>,
+pub struct BlobsLoader {
+    store_dir: Arc<PathBuf>,
 }
 
-impl ObjectLoader {
-    pub fn new(objects_path: impl AsRef<Path>) -> Self {
+impl BlobsLoader {
+    pub fn new(store_dir: impl AsRef<Path>) -> Self {
         Self {
-            objects_path: Arc::new(objects_path.as_ref().to_path_buf()),
+            store_dir: Arc::new(store_dir.as_ref().to_path_buf()),
         }
     }
 
     pub fn get_object(&self, hash: &[u8], hash_algo: &str) -> Result<Option<Vec<u8>>> {
-        get_object(self.objects_path.as_path(), hash, hash_algo)
+        get_object(self.store_dir.as_path(), hash, hash_algo)
     }
 
     pub async fn put_object<'a, R>(
@@ -34,11 +34,11 @@ impl ObjectLoader {
     where
         R: AsyncRead + Unpin + ?Sized,
     {
-        put_object(self.objects_path.as_path(), hash, data, hash_algo).await
+        put_object(self.store_dir.as_path(), hash, data, hash_algo).await
     }
 
     pub fn path(&self, hash: &[u8]) -> PathBuf {
-        self.objects_path.join(hex::encode(hash))
+        self.store_dir.join(hex::encode(hash))
     }
 
     pub fn exists(&self, hash: &[u8]) -> bool {
@@ -131,7 +131,7 @@ where
 
     let path = path.as_ref();
     let tmpdir = path.join(".tmp");
-    std::fs::create_dir_all(&tmpdir).context("Failed to create objects directory")?;
+    std::fs::create_dir_all(&tmpdir).context("Failed to create blobs directory")?;
 
     let tmp_filepath = tmpdir.join(&uuid::Uuid::new_v4().to_string());
     let mut tmpfile = tokio::fs::File::create(&tmp_filepath)
@@ -158,18 +158,18 @@ where
         );
     }
     std::fs::rename(&tmp_filepath, path.join(&key))
-        .context("Failed to move object file to objects directory")?;
+        .context("Failed to move object file to blobs directory")?;
     drop(_guard);
     Ok(())
 }
 
 pub fn get_object(
-    objects_path: impl AsRef<Path>,
+    blobs_dir: impl AsRef<Path>,
     hash: &[u8],
     hash_algo: &str,
 ) -> Result<Option<Vec<u8>>> {
     let hash_algo = HashAlgo::from_str(hash_algo).map_err(Error::msg)?;
-    let result = std::fs::read(objects_path.as_ref().join(hex::encode(hash)));
+    let result = std::fs::read(blobs_dir.as_ref().join(hex::encode(hash)));
     let data = match result {
         Ok(data) => data,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),

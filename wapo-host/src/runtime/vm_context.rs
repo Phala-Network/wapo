@@ -35,7 +35,7 @@ use super::{
     resource::{PollContext, Resource, ResourceTable, TcpListenerResource},
     tls::{load_tls_config, TlsStream},
 };
-use crate::{objects::ObjectLoader, IncomingHttpRequest, VmId};
+use crate::{blobs::BlobsLoader, IncomingHttpRequest, VmId};
 
 #[derive(Clone, Copy)]
 pub struct ShortId<T>(pub T);
@@ -56,10 +56,10 @@ pub fn create_env(
     id: VmId,
     out_tx: OutgoingRequestSender,
     log_handler: Option<LogHandler>,
-    objects_path: PathBuf,
+    blobs_dir: PathBuf,
     meter: Option<Arc<Meter>>,
 ) -> WapoCtx {
-    WapoCtx::new(id, out_tx, log_handler, objects_path, meter)
+    WapoCtx::new(id, out_tx, log_handler, blobs_dir, meter)
 }
 
 pub(crate) struct TaskSet {
@@ -124,7 +124,7 @@ pub(crate) struct WapoCtx {
     log_handler: Option<LogHandler>,
     _counter: vm_counter::Counter,
     meter: Arc<Meter>,
-    objects: ObjectLoader,
+    blobs_loader: BlobsLoader,
 }
 
 impl WapoCtx {
@@ -132,7 +132,7 @@ impl WapoCtx {
         id: VmId,
         outgoing_request_tx: OutgoingRequestSender,
         log_handler: Option<LogHandler>,
-        objects_path: PathBuf,
+        blobs_dir: PathBuf,
         meter: Option<Arc<Meter>>,
     ) -> Self {
         Self {
@@ -148,7 +148,7 @@ impl WapoCtx {
             log_handler,
             _counter: Default::default(),
             meter: meter.unwrap_or_default(),
-            objects: ObjectLoader::new(objects_path),
+            blobs_loader: BlobsLoader::new(blobs_dir),
         }
     }
     pub(crate) fn close(&mut self, resource_id: i32) -> Result<()> {
@@ -397,7 +397,7 @@ impl<'a> env::OcallFuncs for WapoCtx {
 
     fn object_get(&mut self, hash: &[u8], hash_algrithm: &str) -> Result<Vec<u8>> {
         let obj = self
-            .objects
+            .blobs_loader
             .get_object(hash, hash_algrithm)
             .or(Err(OcallError::IoError))?
             .ok_or(OcallError::NotFound)?;

@@ -19,9 +19,9 @@ pub struct Args {
     /// Max number of instances to run
     #[arg(long, default_value_t = 8)]
     max_instances: u32,
-    /// Path to store hash objects
-    #[arg(long, default_value = "./objects")]
-    objects_path: String,
+    /// Path to store hash blobs
+    #[arg(long, default_value = "./blobs")]
+    blobs_dir: String,
 }
 
 #[tokio::main]

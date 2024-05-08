@@ -15,6 +15,7 @@ use tracing::{info, instrument, warn};
 use sp_core::crypto::AccountId32;
 
 use wapo_host::{crate_outgoing_request_channel, ShortId};
+use wapod_rpc::prpc::blobs_server::BlobsServer;
 use wapod_rpc::prpc::instances_server::InstancesServer;
 use wapod_rpc::prpc::server::{ComposedService, Service};
 use wapod_rpc::prpc::{admin_server::AdminServer, status_server::StatusServer};
@@ -37,8 +38,15 @@ mod app;
 mod prpc_service;
 
 type UserService = ComposedService<App, (StatusServer<App>,)>;
-type AdminService =
-    ComposedService<App, (StatusServer<App>, AdminServer<App>, InstancesServer<App>)>;
+type AdminService = ComposedService<
+    App,
+    (
+        StatusServer<App>,
+        AdminServer<App>,
+        InstancesServer<App>,
+        BlobsServer<App>,
+    ),
+>;
 
 enum ReadDataError {
     IoError,
@@ -251,7 +259,7 @@ async fn object_post(
     hash: HexBytes,
     data: Data<'_>,
 ) -> Result<(), Custom<String>> {
-    let loader = app.object_loader().await;
+    let loader = app.blobs_loader().await;
     let limit = limits.get("Admin.PutObject").unwrap_or(10.mebibytes());
     let mut stream = data.open(limit);
     match loader.put_object(&hash.0, &mut stream, r#type).await {
@@ -265,7 +273,7 @@ async fn object_post(
 
 #[get("/object/<id>")]
 async fn object_get(app: &State<App>, id: HexBytes) -> Result<NamedFile, Custom<&'static str>> {
-    let path = app.object_loader().await.path(&id.0);
+    let path = app.blobs_loader().await.path(&id.0);
     NamedFile::open(&path)
         .await
         .map_err(|_| Custom(Status::NotFound, "Object not found"))
@@ -293,7 +301,7 @@ fn sign_http_response(data: &[u8]) -> Option<String> {
 
 pub fn crate_app(args: Args) -> App {
     let (tx, mut rx) = crate_outgoing_request_channel();
-    let (run, spawner) = service::service(args.workers, tx, &args.objects_path);
+    let (run, spawner) = service::service(args.workers, tx, &args.blobs_dir);
     tokio::spawn(async move {
         while let Some((id, message)) = rx.recv().await {
             let vmid = ShortId(id);

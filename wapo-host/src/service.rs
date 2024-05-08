@@ -17,7 +17,7 @@ use wapo_env::messages::{AccountId, HttpHead, HttpResponseHead};
 use crate::Meter;
 use crate::{
     module_loader::ModuleLoader,
-    objects::ObjectLoader,
+    blobs::BlobsLoader,
     run::{InstanceConfig, WasmEngine},
     ShortId, VmId,
 };
@@ -147,7 +147,7 @@ pub struct ServiceHandle {
 pub fn service(
     worker_threads: usize,
     out_tx: crate::OutgoingRequestSender,
-    objects_path: &str,
+    blobs_dir: &str,
 ) -> (ServiceRun, ServiceHandle) {
     let worker_threads = worker_threads.max(1);
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -162,8 +162,8 @@ pub fn service(
     let runtime_handle = runtime.handle().clone();
     let (report_tx, report_rx) = channel(100);
     let run = ServiceRun { runtime, report_rx };
-    let object_loader = ObjectLoader::new(objects_path);
-    let module_loader = ModuleLoader::new(WasmEngine::default(), object_loader, 100);
+    let blobs_loader = BlobsLoader::new(blobs_dir);
+    let module_loader = ModuleLoader::new(WasmEngine::default(), blobs_loader, 100);
     let spawner = ServiceHandle {
         runtime_handle,
         report_tx,
@@ -204,7 +204,7 @@ pub struct InstanceStartConfig {
     max_memory_pages: u32,
     id: VmId,
     weight: u32,
-    objects_path: PathBuf,
+    blobs_dir: PathBuf,
 }
 
 impl ServiceHandle {
@@ -219,7 +219,7 @@ impl ServiceHandle {
             max_memory_pages,
             id,
             weight,
-            objects_path,
+            blobs_dir,
         } = config;
         let event_tx = self.out_tx.clone();
         let (cmd_tx, mut cmd_rx) = channel(128);
@@ -246,7 +246,7 @@ impl ServiceHandle {
                 .scheduler(scheduler)
                 .weight(weight)
                 .event_tx(event_tx)
-                .objects_path(objects_path)
+                .blobs_dir(blobs_dir)
                 .meter(Some(meter_cloned))
                 .build();
             let mut wasm_run = match module.run(config) {
