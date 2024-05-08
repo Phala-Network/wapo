@@ -259,7 +259,7 @@ async fn object_post(
     hash: HexBytes,
     data: Data<'_>,
 ) -> Result<(), Custom<String>> {
-    let loader = app.blobs_loader().await;
+    let loader = app.blob_loader().await;
     let limit = limits.get("Admin.PutObject").unwrap_or(10.mebibytes());
     let mut stream = data.open(limit);
     match loader.put_object(&hash.0, &mut stream, r#type).await {
@@ -273,7 +273,7 @@ async fn object_post(
 
 #[get("/object/<id>")]
 async fn object_get(app: &State<App>, id: HexBytes) -> Result<NamedFile, Custom<&'static str>> {
-    let path = app.blobs_loader().await.path(&id.0);
+    let path = app.blob_loader().await.path(&id.0);
     NamedFile::open(&path)
         .await
         .map_err(|_| Custom(Status::NotFound, "Object not found"))

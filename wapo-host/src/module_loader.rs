@@ -8,7 +8,7 @@ use anyhow::{anyhow, Context, Result};
 use lru::LruCache;
 use tracing::info;
 
-use crate::{blobs::BlobsLoader, WasmEngine, WasmModule};
+use crate::{blobs::BlobLoader, WasmEngine, WasmModule};
 
 #[derive(Clone)]
 pub struct ModuleLoader {
@@ -17,19 +17,19 @@ pub struct ModuleLoader {
 
 struct ModuleLoaderState {
     engine: WasmEngine,
-    blobs_loader: BlobsLoader,
+    blob_loader: BlobLoader,
     cache: LruCache<Vec<u8>, WasmModule>,
 }
 
 impl ModuleLoader {
-    pub fn new(engine: WasmEngine, blobs_loader: BlobsLoader, cache_size: usize) -> Self {
+    pub fn new(engine: WasmEngine, blob_loader: BlobLoader, cache_size: usize) -> Self {
         let cache = LruCache::new(
             NonZeroUsize::new(cache_size.max(1)).expect("cache size must be greater than 0"),
         );
         Self {
             state: Arc::new(Mutex::new(ModuleLoaderState {
                 engine,
-                blobs_loader,
+                blob_loader,
                 cache,
             })),
         }
@@ -43,7 +43,7 @@ impl ModuleLoader {
         let hex_hash = hex_fmt::HexFmt(code_hash);
         // TODO: don't lock while compiling
         let wasm_code = state
-            .blobs_loader
+            .blob_loader
             .get_object(code_hash, hash_alg)
             .with_context(|| anyhow!("Failed to load module {hex_hash}"))?
             .ok_or_else(|| anyhow!("Wasm code not found: {hex_hash}"))?;

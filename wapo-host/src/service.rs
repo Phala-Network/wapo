@@ -16,8 +16,8 @@ use wapo_env::messages::{AccountId, HttpHead, HttpResponseHead};
 
 use crate::Meter;
 use crate::{
+    blobs::BlobLoader,
     module_loader::ModuleLoader,
-    blobs::BlobsLoader,
     run::{InstanceConfig, WasmEngine},
     ShortId, VmId,
 };
@@ -162,8 +162,8 @@ pub fn service(
     let runtime_handle = runtime.handle().clone();
     let (report_tx, report_rx) = channel(100);
     let run = ServiceRun { runtime, report_rx };
-    let blobs_loader = BlobsLoader::new(blobs_dir);
-    let module_loader = ModuleLoader::new(WasmEngine::default(), blobs_loader, 100);
+    let blob_loader = BlobLoader::new(blobs_dir);
+    let module_loader = ModuleLoader::new(WasmEngine::default(), blob_loader, 100);
     let spawner = ServiceHandle {
         runtime_handle,
         report_tx,

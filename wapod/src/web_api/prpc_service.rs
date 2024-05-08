@@ -32,7 +32,7 @@ impl AdminRpc for App {
 
 impl BlobsRpc for App {
     async fn put(&self, request: pb::Blob) -> Result<()> {
-        let loader = self.blobs_loader().await;
+        let loader = self.blob_loader().await;
         loader
             .put_object(
                 &request.hash,
@@ -47,7 +47,7 @@ impl BlobsRpc for App {
     }
 
     async fn exists(&self, request: pb::Blob) -> Result<pb::Boolean> {
-        let loader = self.blobs_loader().await;
+        let loader = self.blob_loader().await;
         Ok(pb::Boolean {
             value: loader.exists(&request.hash),
         })

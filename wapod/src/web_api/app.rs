@@ -2,7 +2,7 @@ use anyhow::{anyhow, bail, Context, Result};
 
 use tracing::{info, warn};
 use wapo_host::ShortId;
-use wapo_host::{blobs::BlobsLoader, Metrics};
+use wapo_host::{blobs::BlobLoader, Metrics};
 use wapod_rpc::prpc::WorkerInfo;
 
 use std::collections::HashMap;
@@ -51,7 +51,7 @@ struct AppInner {
     instances: HashMap<Address, InstanceState>,
     args: Args,
     service: ServiceHandle,
-    blobs_loader: BlobsLoader,
+    blob_loader: BlobLoader,
 }
 
 #[derive(Clone)]
@@ -65,7 +65,7 @@ impl App {
             inner: Arc::new_cyclic(|weak_self| {
                 Mutex::new(AppInner {
                     weak_self: weak_self.clone(),
-                    blobs_loader: BlobsLoader::new(&args.blobs_dir),
+                    blob_loader: BlobLoader::new(&args.blobs_dir),
                     instances: HashMap::new(),
                     service,
                     args,
@@ -112,8 +112,8 @@ impl App {
         }
     }
 
-    pub async fn blobs_loader(&self) -> BlobsLoader {
-        self.inner.lock().await.blobs_loader.clone()
+    pub async fn blob_loader(&self) -> BlobLoader {
+        self.inner.lock().await.blob_loader.clone()
     }
 
     pub async fn start_instance(&self, vmid: Address) -> Result<()> {

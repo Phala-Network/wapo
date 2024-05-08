@@ -5,8 +5,8 @@ mod run;
 mod runtime;
 
 pub mod service;
-pub use runtime::metrics::{Metrics, Meter};
 pub use runtime::blobs;
+pub use runtime::metrics::{Meter, Metrics};
 pub use runtime::vm_context::{
     crate_outgoing_request_channel, vm_count, OutgoingRequest, OutgoingRequestReceiver,
     OutgoingRequestSender, ShortId,

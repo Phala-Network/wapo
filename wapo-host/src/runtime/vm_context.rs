@@ -35,7 +35,7 @@ use super::{
     resource::{PollContext, Resource, ResourceTable, TcpListenerResource},
     tls::{load_tls_config, TlsStream},
 };
-use crate::{blobs::BlobsLoader, IncomingHttpRequest, VmId};
+use crate::{blobs::BlobLoader, IncomingHttpRequest, VmId};
 
 #[derive(Clone, Copy)]
 pub struct ShortId<T>(pub T);
@@ -124,7 +124,7 @@ pub(crate) struct WapoCtx {
     log_handler: Option<LogHandler>,
     _counter: vm_counter::Counter,
     meter: Arc<Meter>,
-    blobs_loader: BlobsLoader,
+    blob_loader: BlobLoader,
 }
 
 impl WapoCtx {
@@ -148,7 +148,7 @@ impl WapoCtx {
             log_handler,
             _counter: Default::default(),
             meter: meter.unwrap_or_default(),
-            blobs_loader: BlobsLoader::new(blobs_dir),
+            blob_loader: BlobLoader::new(blobs_dir),
         }
     }
     pub(crate) fn close(&mut self, resource_id: i32) -> Result<()> {
@@ -397,7 +397,7 @@ impl<'a> env::OcallFuncs for WapoCtx {
 
     fn object_get(&mut self, hash: &[u8], hash_algrithm: &str) -> Result<Vec<u8>> {
         let obj = self
-            .blobs_loader
+            .blob_loader
             .get_object(hash, hash_algrithm)
             .or(Err(OcallError::IoError))?
             .ok_or(OcallError::NotFound)?;

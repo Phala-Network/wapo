@@ -165,7 +165,7 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
         let args_reversed = args.iter().rev();
         let calling: TokenStream;
         let parse_inputs: TokenStream;
-         if !method.encode_input {
+        if !method.encode_input {
             parse_inputs = parse_quote! {
                 let stack = StackedArgs::load(&[p0, p1, p2, p3]).ok_or(OcallError::InvalidParameter)?;
                 #(let (mut #args_reversed, stack) = stack.pop_arg(mem)?;)*

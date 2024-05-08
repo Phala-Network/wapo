@@ -391,8 +391,8 @@ pub mod hyper_v0 {
 #[cfg(feature = "tokio")]
 mod impl_tokio {
     use super::*;
-    use tokio::io::{AsyncRead, AsyncWrite};
     use std::io::Error;
+    use tokio::io::{AsyncRead, AsyncWrite};
 
     impl AsyncRead for TcpStream {
         fn poll_read(

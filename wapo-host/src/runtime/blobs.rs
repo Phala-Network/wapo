@@ -10,11 +10,11 @@ use sha2::Digest;
 use tokio::io::{AsyncRead, AsyncReadExt};
 
 #[derive(Debug, Clone)]
-pub struct BlobsLoader {
+pub struct BlobLoader {
     store_dir: Arc<PathBuf>,
 }
 
-impl BlobsLoader {
+impl BlobLoader {
     pub fn new(store_dir: impl AsRef<Path>) -> Self {
         Self {
             store_dir: Arc::new(store_dir.as_ref().to_path_buf()),
