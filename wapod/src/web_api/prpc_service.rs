@@ -26,6 +26,18 @@ use crate::worker_key::load_or_generate_key;
 use super::{read_data, App};
 
 impl AdminRpc for App {
+    async fn init(&self, request: pb::InitArgs) -> Result<pb::InitResponse> {
+        if request.salt.len() > 64 {
+            return Err(RpcError::BadRequest("Salt too long".into()));
+        }
+        let session_seed = self.init(&request.salt)?;
+        let session = self.session().context("No worker session")?;
+        Ok(pb::InitResponse {
+            session: session.to_vec(),
+            session_seed: session_seed.to_vec(),
+        })
+    }
+
     async fn exit(&self) -> Result<()> {
         std::process::exit(0);
     }
@@ -63,7 +75,7 @@ impl BlobsRpc for App {
 }
 
 impl InstancesRpc for App {
-    async fn deploy(&self, request: pb::DeployRequest) -> Result<pb::DeployResponse> {
+    async fn deploy(&self, request: pb::DeployArgs) -> Result<pb::DeployResponse> {
         let todo = "disallow to deploy if it is not initialized";
         let manifest = request
             .manifest
@@ -100,13 +112,10 @@ impl InstancesRpc for App {
         } else {
             Some(&addresses[..])
         };
-        let mut metrics = {
-            let todo = "implement worker level session";
-            rpc::types::Metrics {
-                session: Default::default(),
-                nonce: rand::thread_rng().gen(),
-                instances: vec![],
-            }
+        let mut metrics = rpc::types::Metrics {
+            session: self.session().context("No worker session")?,
+            nonce: rand::thread_rng().gen(),
+            instances: vec![],
         };
         self.for_each_instance(addresses, |address, instance| {
             let m = instance.metrics();

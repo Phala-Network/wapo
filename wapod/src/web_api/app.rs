@@ -1,6 +1,7 @@
 use anyhow::{anyhow, bail, Context, Result};
 
 use rand::Rng as _;
+use sp_core::hashing::blake2_256;
 use tracing::{info, warn};
 use wapo_host::ShortId;
 use wapo_host::{blobs::BlobLoader, Metrics};
@@ -59,6 +60,7 @@ struct AppInner {
     args: Args,
     service: ServiceHandle,
     blob_loader: BlobLoader,
+    session: Option<[u8; 32]>,
 }
 
 #[derive(Clone)]
@@ -76,6 +78,7 @@ impl App {
                     instances: HashMap::new(),
                     service,
                     args,
+                    session: None,
                 })
             }),
         }
@@ -117,6 +120,7 @@ impl App {
             running_instances,
             max_instances,
             instance_memory_size,
+            session: app.session.map(|s| s.to_vec()).unwrap_or_default(),
         }
     }
 
@@ -203,6 +207,14 @@ impl App {
             }
         }
     }
+
+    pub fn session(&self) -> Option<[u8; 32]> {
+        self.lock().session
+    }
+
+    pub fn init(&self, salt: &[u8]) -> Result<[u8; 32]> {
+        self.lock().init(salt)
+    }
 }
 
 impl AppInner {
@@ -279,5 +291,16 @@ impl AppInner {
             .take()
             .map(|run| run.vm_handle)
             .ok_or_else(|| anyhow!("Instance is not running"))
+    }
+
+    fn init(&mut self, salt: &[u8]) -> Result<[u8; 32]> {
+        if !self.instances.is_empty() {
+            bail!("Init session failed, instances already deployed")
+        }
+        let seed: [u8; 32] = rand::thread_rng().gen();
+        let message = [salt, &seed].concat();
+        let session = blake2_256(&message);
+        self.session = Some(session);
+        Ok(seed)
     }
 }

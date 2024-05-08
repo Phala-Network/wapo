@@ -13,6 +13,8 @@ service Status {
 
 // The wapod admin RPC.
 service Admin {
+  // Initialize the worker.
+  rpc Init(InitArgs) returns (InitResponse) {}
   // Top the worker.
   rpc Exit(google.protobuf.Empty) returns (google.protobuf.Empty) {}
 }
@@ -29,7 +31,7 @@ service Blobs {
 // The instances management RPC.
 service Instances {
   // Deploy a new WASM instance.
-  rpc Deploy(DeployRequest) returns (DeployResponse) {}
+  rpc Deploy(DeployArgs) returns (DeployResponse) {}
   // Remove an instance from the worker.
   rpc Remove(Address) returns (google.protobuf.Empty) {}
   // Start an instance from the worker. On-demand instance will reject this
@@ -51,6 +53,8 @@ message WorkerInfo {
   uint32 max_instances = 3;
   // The size limit of memory of each instance.
   uint32 instance_memory_size = 4;
+  // The session id of the worker.
+  bytes session = 5;
 }
 
 // An object to be stored in the worker's object storage.
@@ -64,7 +68,7 @@ message Blob {
 }
 
 // Request to deploy an app.
-message DeployRequest {
+message DeployArgs {
   // Manifest of an app.
   Manifest manifest = 1;
 }
@@ -122,3 +126,15 @@ message InstanceMetricsResponse {
 }
 
 message Boolean { bool value = 1; }
+
+message InitArgs {
+  // The previous metrics nonce reported to the chain.
+  bytes salt = 1;
+}
+
+message InitResponse {
+  // The new worker session.
+  bytes session = 1;
+  // The seed used to derive the session.
+  bytes session_seed = 2;
+}
