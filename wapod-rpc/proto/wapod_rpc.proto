@@ -39,7 +39,7 @@ service Instances {
   rpc Start(Address) returns (google.protobuf.Empty) {}
   // Stop an instance from the worker.
   rpc Stop(Address) returns (google.protobuf.Empty) {}
-  // Get metrics for each app
+  // Get metrics for each instance
   rpc Metrics(Addresses) returns (InstanceMetricsResponse) {}
 }
 
@@ -69,9 +69,9 @@ message Blob {
   bytes body = 3;
 }
 
-// Request to deploy an app.
+// Request to deploy an instance.
 message DeployArgs {
-  // Manifest of an app.
+  // Manifest of an instance.
   Manifest manifest = 1;
 }
 

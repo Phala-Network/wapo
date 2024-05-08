@@ -33,19 +33,19 @@ use wapo_host::{
 use crate::web_api::prpc_service::handle_prpc;
 use crate::{worker_key, Args};
 
-use app::App;
+use state::Worker;
 
-mod app;
+mod state;
 mod prpc_service;
 
-type UserService = ComposedService<App, (StatusServer<App>,)>;
+type UserService = ComposedService<Worker, (StatusServer<Worker>,)>;
 type AdminService = ComposedService<
-    App,
+    Worker,
     (
-        StatusServer<App>,
-        AdminServer<App>,
-        InstancesServer<App>,
-        BlobsServer<App>,
+        StatusServer<Worker>,
+        AdminServer<Worker>,
+        InstancesServer<Worker>,
+        BlobsServer<Worker>,
     ),
 >;
 
@@ -93,7 +93,7 @@ async fn read_data(data: Data<'_>, limit: ByteUnit) -> Result<Vec<u8>, ReadDataE
 
 #[post("/push/query/<id>/<path>?<origin>", data = "<data>")]
 async fn push_query(
-    app: &State<App>,
+    state: &State<Worker>,
     id: HexBytes,
     origin: Option<&str>,
     path: &str,
@@ -117,7 +117,7 @@ async fn push_query(
         ),
     };
 
-    app.send(
+    state.send(
         address,
         Command::PushQuery {
             path: path.into(),
@@ -137,27 +137,27 @@ async fn push_query(
 
 #[post("/vm/<id>/<path..>", data = "<body>")]
 async fn connect_vm_post<'r>(
-    app: &State<App>,
+    state: &State<Worker>,
     head: RequestInfo,
     id: HexBytes,
     path: PathBuf,
     body: Data<'r>,
 ) -> Result<StreamResponse, (Status, String)> {
-    connect_vm(app, head, id, path, Some(body)).await
+    connect_vm(state, head, id, path, Some(body)).await
 }
 
 #[get("/vm/<id>/<path..>")]
 async fn connect_vm_get<'r>(
-    app: &State<App>,
+    state: &State<Worker>,
     head: RequestInfo,
     id: HexBytes,
     path: PathBuf,
 ) -> Result<StreamResponse, (Status, String)> {
-    connect_vm(app, head, id, path, None).await
+    connect_vm(state, head, id, path, None).await
 }
 
 async fn connect_vm<'r>(
-    app: &State<App>,
+    state: &State<Worker>,
     head: RequestInfo,
     id: HexBytes,
     path: PathBuf,
@@ -166,7 +166,7 @@ async fn connect_vm<'r>(
     let address =
         id.0.try_into()
             .map_err(|_| (Status::BadRequest, "Invalid address".to_string()))?;
-    let Some(command_tx) = app.sender_for(address) else {
+    let Some(command_tx) = state.sender_for(address) else {
         return Err((Status::NotFound, Default::default()));
     };
     let path = path
@@ -180,8 +180,8 @@ async fn connect_vm<'r>(
 }
 
 #[get("/info")]
-async fn info(app: &State<App>) -> String {
-    let info = app.info().await;
+async fn info(state: &State<Worker>) -> String {
+    let info = state.info().await;
     serde_json::json!({
         "running": wapo_host::vm_count(),
         "deployed": info.running_instances,
@@ -192,7 +192,7 @@ async fn info(app: &State<App>) -> String {
 #[instrument(target="prpc", name="prpc", fields(%id), skip_all)]
 #[post("/<method>?<json>", data = "<data>")]
 async fn prpc_post(
-    app: &State<App>,
+    state: &State<Worker>,
     id: TraceId,
     method: &str,
     data: Data<'_>,
@@ -201,26 +201,26 @@ async fn prpc_post(
     json: bool,
 ) -> Result<Vec<u8>, Custom<Vec<u8>>> {
     let _ = id;
-    handle_prpc::<UserService>(app, method, Some(data), limits, content_type, json).await
+    handle_prpc::<UserService>(state, method, Some(data), limits, content_type, json).await
 }
 
 #[instrument(target="prpc", name="prpc", fields(%id), skip_all)]
 #[get("/<method>")]
 async fn prpc_get(
-    app: &State<App>,
+    state: &State<Worker>,
     id: TraceId,
     method: &str,
     limits: &Limits,
     content_type: Option<&ContentType>,
 ) -> Result<Vec<u8>, Custom<Vec<u8>>> {
     let _ = id;
-    handle_prpc::<UserService>(app, method, None, limits, content_type, true).await
+    handle_prpc::<UserService>(state, method, None, limits, content_type, true).await
 }
 
 #[instrument(target="prpc", name="prpc-admin", fields(%id), skip_all)]
 #[post("/<method>?<json>", data = "<data>")]
 async fn prpc_admin_post(
-    app: &State<App>,
+    state: &State<Worker>,
     id: TraceId,
     method: &str,
     data: Data<'_>,
@@ -229,31 +229,31 @@ async fn prpc_admin_post(
     json: bool,
 ) -> Result<Vec<u8>, Custom<Vec<u8>>> {
     let _ = id;
-    handle_prpc::<AdminService>(app, method, Some(data), limits, content_type, json).await
+    handle_prpc::<AdminService>(state, method, Some(data), limits, content_type, json).await
 }
 
 #[instrument(target="prpc", name="prpc-admin", fields(%id), skip_all)]
 #[get("/<method>")]
 async fn prpc_admin_get(
-    app: &State<App>,
+    state: &State<Worker>,
     id: TraceId,
     method: &str,
     limits: &Limits,
     content_type: Option<&ContentType>,
 ) -> Result<Vec<u8>, Custom<Vec<u8>>> {
     let _ = id;
-    handle_prpc::<AdminService>(app, method, None, limits, content_type, true).await
+    handle_prpc::<AdminService>(state, method, None, limits, content_type, true).await
 }
 
 #[post("/object/<hash>?<type>", data = "<data>")]
 async fn object_post(
-    app: &State<App>,
+    state: &State<Worker>,
     limits: &Limits,
     r#type: &str,
     hash: HexBytes,
     data: Data<'_>,
 ) -> Result<(), Custom<String>> {
-    let loader = app.blob_loader();
+    let loader = state.blob_loader();
     let limit = limits.get("Admin.PutObject").unwrap_or(10.mebibytes());
     let mut stream = data.open(limit);
     match loader.put(&hash.0, &mut stream, r#type).await {
@@ -266,8 +266,8 @@ async fn object_post(
 }
 
 #[get("/object/<id>")]
-async fn object_get(app: &State<App>, id: HexBytes) -> Result<NamedFile, Custom<&'static str>> {
-    let path = app.blob_loader().path(&id.0);
+async fn object_get(state: &State<Worker>, id: HexBytes) -> Result<NamedFile, Custom<&'static str>> {
+    let path = state.blob_loader().path(&id.0);
     NamedFile::open(&path)
         .await
         .map_err(|_| Custom(Status::NotFound, "Object not found"))
@@ -293,7 +293,7 @@ fn sign_http_response(data: &[u8]) -> Option<String> {
     Some(hex::encode(signature))
 }
 
-pub fn crate_app(args: Args) -> Result<App> {
+pub fn crate_worker_state(args: Args) -> Result<Worker> {
     let (tx, mut rx) = crate_outgoing_request_channel();
     let (run, spawner) =
         service::service(args.workers, tx, &args.blobs_dir).context("Failed to create service")?;
@@ -312,10 +312,10 @@ pub fn crate_app(args: Args) -> Result<App> {
             println!("event: {:?}", evt);
         });
     });
-    Ok(App::new(spawner, args))
+    Ok(Worker::new(spawner, args))
 }
 
-pub async fn serve_user(app: App) -> Result<()> {
+pub async fn serve_user(state: Worker) -> Result<()> {
     print_rpc_methods("/prpc", &UserService::methods());
     let figment = Figment::from(rocket::Config::default())
         .merge(Toml::file("Wapod.toml").nested())
@@ -331,7 +331,7 @@ pub async fn serve_user(app: App) -> Result<()> {
         .attach(signer)
         .attach(RequestTracer::default())
         .attach(TimeMeter)
-        .manage(app)
+        .manage(state)
         .mount("/", routes![connect_vm_get, connect_vm_post])
         .mount("/prpc", routes![prpc_post, prpc_get])
         .launch()
@@ -339,7 +339,7 @@ pub async fn serve_user(app: App) -> Result<()> {
     Ok(())
 }
 
-pub async fn serve_admin(app: App) -> Result<()> {
+pub async fn serve_admin(state: Worker) -> Result<()> {
     print_rpc_methods("/prpc", &AdminService::methods());
     let figment = Figment::from(rocket::Config::default())
         .merge(Toml::file("Wapod.toml").nested())
@@ -353,7 +353,7 @@ pub async fn serve_admin(app: App) -> Result<()> {
         )
         .attach(RequestTracer::default())
         .attach(TimeMeter)
-        .manage(app)
+        .manage(state)
         .mount("/", routes![push_query, info, object_post, object_get,])
         .mount("/prpc", routes![prpc_admin_post, prpc_admin_get])
         .launch()

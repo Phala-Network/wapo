@@ -23,9 +23,9 @@ type Result<T, E = RpcError> = std::result::Result<T, E>;
 
 use crate::worker_key::load_or_generate_key;
 
-use super::{read_data, App};
+use super::{read_data, Worker};
 
-impl AdminRpc for App {
+impl AdminRpc for Worker {
     async fn init(&self, request: pb::InitArgs) -> Result<pb::InitResponse> {
         if request.salt.len() > 64 {
             return Err(RpcError::BadRequest("Salt too long".into()));
@@ -43,7 +43,7 @@ impl AdminRpc for App {
     }
 }
 
-impl BlobsRpc for App {
+impl BlobsRpc for Worker {
     async fn put(&self, request: pb::Blob) -> Result<()> {
         let loader = self.blob_loader();
         loader
@@ -74,7 +74,7 @@ impl BlobsRpc for App {
     }
 }
 
-impl InstancesRpc for App {
+impl InstancesRpc for Worker {
     async fn deploy(&self, request: pb::DeployArgs) -> Result<pb::DeployResponse> {
         if self.session().is_none() {
             return Err(RpcError::BadRequest("No worker session".into()));
@@ -140,14 +140,14 @@ impl InstancesRpc for App {
     }
 }
 
-impl StatusRpc for App {
+impl StatusRpc for Worker {
     async fn info(&self) -> Result<WorkerInfo> {
-        Ok(App::info(self).await)
+        Ok(Worker::info(self).await)
     }
 }
 
 pub async fn handle_prpc<S>(
-    app: &State<App>,
+    worker: &State<Worker>,
     method: &str,
     data: Option<Data<'_>>,
     limits: &Limits,
@@ -155,7 +155,7 @@ pub async fn handle_prpc<S>(
     json: bool,
 ) -> Result<Vec<u8>, Custom<Vec<u8>>>
 where
-    S: From<App> + PrpcService,
+    S: From<Worker> + PrpcService,
 {
     let data = match data {
         Some(data) => {
@@ -165,9 +165,9 @@ where
         None => vec![],
     };
     let json = json || content_type.map(|t| t.is_json()).unwrap_or(false);
-    let app = (*app).clone();
+    let worker = (*worker).clone();
     let data = data.to_vec();
-    let result = dispatch_prpc(method.into(), data, json, S::from(app)).await;
+    let result = dispatch_prpc(method.into(), data, json, S::from(worker)).await;
     let (status_code, output) = result;
     if status_code == 200 {
         Ok(output)

@@ -54,8 +54,8 @@ impl InstanceState {
     }
 }
 
-struct AppInner {
-    weak_self: Weak<Mutex<AppInner>>,
+struct WorkerState {
+    weak_self: Weak<Mutex<WorkerState>>,
     instances: HashMap<Address, InstanceState>,
     args: Args,
     service: ServiceHandle,
@@ -64,15 +64,15 @@ struct AppInner {
 }
 
 #[derive(Clone)]
-pub struct App {
-    inner: Arc<Mutex<AppInner>>,
+pub struct Worker {
+    inner: Arc<Mutex<WorkerState>>,
 }
 
-impl App {
+impl Worker {
     pub fn new(service: ServiceHandle, args: Args) -> Self {
         Self {
             inner: Arc::new_cyclic(|weak_self| {
-                Mutex::new(AppInner {
+                Mutex::new(WorkerState {
                     weak_self: weak_self.clone(),
                     blob_loader: BlobLoader::new(&args.blobs_dir),
                     instances: HashMap::new(),
@@ -84,8 +84,8 @@ impl App {
         }
     }
 
-    fn lock(&self) -> MutexGuard<'_, AppInner> {
-        self.inner.lock().expect("App lock poisoned")
+    fn lock(&self) -> MutexGuard<'_, WorkerState> {
+        self.inner.lock().expect("Worker lock poisoned")
     }
 
     pub async fn send(&self, vmid: Address, message: Command) -> Result<(), (u16, &'static str)> {
@@ -111,23 +111,23 @@ impl App {
     }
 
     pub async fn info(&self) -> WorkerInfo {
-        let app = self.lock();
+        let worker = self.lock();
         let todo = "Limit the max instances";
-        let max_instances = app.args.max_instances;
-        let deployed_instances = app.instances.len() as u32;
-        let running_instances = app
+        let max_instances = worker.args.max_instances;
+        let deployed_instances = worker.instances.len() as u32;
+        let running_instances = worker
             .instances
             .values()
             .filter(|state| state.current_run.is_some())
             .count() as u32;
-        let instance_memory_size = app.args.max_memory_pages * 64 * 1024;
+        let instance_memory_size = worker.args.max_memory_pages * 64 * 1024;
         WorkerInfo {
             pubkey: load_or_generate_key().public().as_bytes().to_vec(),
             deployed_instances,
             running_instances,
             max_instances,
             instance_memory_size,
-            session: app.session.map(|s| s.to_vec()).unwrap_or_default(),
+            session: worker.session.map(|s| s.to_vec()).unwrap_or_default(),
         }
     }
 
@@ -148,8 +148,8 @@ impl App {
     pub async fn create_instance(&self, manifest: Manifest) -> Result<InstanceInfo> {
         let immediate = manifest.start_mode == 0;
         let address = sp_core::blake2_256(&scale::Encode::encode(&manifest));
-        let mut app = self.lock();
-        if app.instances.contains_key(&address) {
+        let mut worker = self.lock();
+        if worker.instances.contains_key(&address) {
             bail!("Instance already exists")
         }
         let session: [u8; 32] = rand::thread_rng().gen();
@@ -159,11 +159,11 @@ impl App {
             hist_metrics: Default::default(),
             current_run: None,
         };
-        app.instances.insert(address, state);
+        worker.instances.insert(address, state);
         if immediate {
-            app.start_instance(address)?;
+            worker.start_instance(address)?;
         }
-        let running = app
+        let running = worker
             .instances
             .get(&address)
             .expect("Just inserted")
@@ -224,7 +224,7 @@ impl App {
     }
 }
 
-impl AppInner {
+impl WorkerState {
     fn start_instance(&mut self, address: Address) -> Result<()> {
         let vmid = ShortId(address);
         println!("Starting {vmid}...");
@@ -268,7 +268,7 @@ impl AppInner {
                 warn!("VM {vmid} stopped unexpectedly");
             }
             if let Some(inner) = weak_self.upgrade() {
-                let mut inner = inner.lock().expect("App lock poisoned");
+                let mut inner = inner.lock().expect("Worker lock poisoned");
                 let Some(instance) = inner.instances.get_mut(&address) else {
                     warn!("Instance was removed while stopping");
                     return;

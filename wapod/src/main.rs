@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use tracing::info;
-use web_api::crate_app;
+use web_api::crate_worker_state;
 
 mod logger;
 mod paths;
@@ -36,12 +36,12 @@ async fn main() -> Result<()> {
     let key = worker_key::load_or_generate_key().public();
     info!("Worker pubkey: 0x{}", hex_fmt::HexFmt(key));
 
-    let app = crate_app(args).context("Failed to create app")?;
-    let admin_service = web_api::serve_admin(app.clone());
+    let worker_state = crate_worker_state(args).context("Failed to create worker state")?;
+    let admin_service = web_api::serve_admin(worker_state.clone());
     let user_service = async move {
         // Wait for the admin service to start
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        web_api::serve_user(app).await
+        web_api::serve_user(worker_state).await
     };
     tokio::select! {
         result = user_service => {
