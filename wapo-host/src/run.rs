@@ -33,20 +33,14 @@ pub struct WasmEngine {
     inner: Engine,
 }
 
-impl Default for WasmEngine {
-    fn default() -> Self {
-        Self::new(Config::new(), 0)
-    }
-}
-
 impl WasmEngine {
-    pub fn new(mut config: Config, tick_time_ms: u64) -> Self {
+    pub fn new(mut config: Config, tick_time_ms: u64) -> Result<Self> {
         config
             .consume_fuel(true)
             .epoch_interruption(true)
             .static_memory_maximum_size(0)
             .guard_before_linear_memory(false);
-        let engine = Engine::new(&config).expect("Failed to create Wasm engine");
+        let engine = Engine::new(&config).context("Failed to create Wasm engine")?;
         if tick_time_ms > 0 {
             let engine = engine.clone();
             std::thread::Builder::new()
@@ -55,9 +49,9 @@ impl WasmEngine {
                     std::thread::sleep(std::time::Duration::from_millis(tick_time_ms));
                     engine.increment_epoch();
                 })
-                .expect("Failed to start epoch ticking service");
+                .context("Failed to start epoch ticking service")?;
         }
-        Self { inner: engine }
+        Ok(Self { inner: engine })
     }
 
     pub fn compile(&self, wasm_code: &[u8]) -> Result<WasmModule> {
@@ -113,7 +107,7 @@ impl WasmModule {
         };
         let mut store = Store::new(&engine, vm_ctx);
         store.limiter(move |ctx| &mut ctx.limits);
-        store.set_fuel(u64::MAX).expect("Failed to set fuel");
+        store.set_fuel(u64::MAX).context("Failed to set fuel")?;
 
         store.set_epoch_deadline(epoch_deadline);
         store.epoch_deadline_callback(move |ctx| {

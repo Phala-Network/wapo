@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use phala_scheduler::TaskScheduler;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
@@ -13,6 +13,7 @@ use tokio::{
 };
 use tracing::{debug, error, info, warn, Instrument};
 use wapo_env::messages::{AccountId, HttpHead, HttpResponseHead};
+use wasmtime::Config;
 
 use crate::Meter;
 use crate::{
@@ -116,6 +117,7 @@ pub enum ControlCommand {
 pub enum Command {
     // Push a query from RPC to the instance.
     PushQuery {
+        path: String,
         origin: Option<AccountId>,
         payload: Vec<u8>,
         reply_tx: OneshotSender<Vec<u8>>,
@@ -127,7 +129,7 @@ pub enum Command {
 pub struct IncomingHttpRequest {
     pub(crate) head: HttpHead,
     pub(crate) body_stream: DuplexStream,
-    pub(crate) response_tx: OneshotSender<anyhow::Result<HttpResponseHead>>,
+    pub(crate) response_tx: OneshotSender<Result<HttpResponseHead>>,
 }
 
 pub struct ServiceRun {
@@ -148,7 +150,7 @@ pub fn service(
     worker_threads: usize,
     out_tx: crate::OutgoingRequestSender,
     blobs_dir: &str,
-) -> (ServiceRun, ServiceHandle) {
+) -> Result<(ServiceRun, ServiceHandle)> {
     let worker_threads = worker_threads.max(1);
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .max_blocking_threads(16)
@@ -158,12 +160,13 @@ pub fn service(
         .worker_threads(worker_threads + 2)
         .enable_all()
         .build()
-        .unwrap();
+        .context("Failed to create tokio runtime")?;
     let runtime_handle = runtime.handle().clone();
     let (report_tx, report_rx) = channel(100);
     let run = ServiceRun { runtime, report_rx };
     let blob_loader = BlobLoader::new(blobs_dir);
-    let module_loader = ModuleLoader::new(WasmEngine::default(), blob_loader, 100);
+    let engine = WasmEngine::new(Config::new(), 10).context("Failed to create Wasm engine")?;
+    let module_loader = ModuleLoader::new(engine, blob_loader, 100);
     let spawner = ServiceHandle {
         runtime_handle,
         report_tx,
@@ -171,7 +174,7 @@ pub fn service(
         scheduler: TaskScheduler::new(worker_threads as _),
         module_loader,
     };
-    (run, spawner)
+    Ok((run, spawner))
 }
 
 impl ServiceRun {
@@ -283,8 +286,8 @@ impl ServiceHandle {
                                 info!(target: "wapo", "The command channel is closed. Exiting...");
                                 break ExitReason::InputClosed;
                             }
-                            Some(Command::PushQuery{ origin, payload, reply_tx }) => {
-                                push_msg!(wasm_run.state_mut().push_query(origin, payload, reply_tx), debug, "query");
+                            Some(Command::PushQuery{ path, origin, payload, reply_tx }) => {
+                                push_msg!(wasm_run.state_mut().push_query(origin, path, payload, reply_tx), debug, "query");
                             }
                             Some(Command::HttpRequest(request)) => {
                                 push_msg!(wasm_run.state_mut().push_http_request(request), debug, "http request");

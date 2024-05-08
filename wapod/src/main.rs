@@ -1,4 +1,4 @@
-use anyhow::Context;
+use anyhow::{Context, Result};
 use clap::Parser;
 use tracing::info;
 use web_api::crate_app;
@@ -25,17 +25,18 @@ pub struct Args {
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> Result<()> {
     logger::init();
 
     info!("Starting wapod server...");
     let args = Args::parse();
 
-    paths::create_dirs_if_needed();
+    paths::create_dirs_if_needed().context("Failed to create directories")?;
+
     let key = worker_key::load_or_generate_key().public();
     info!("Worker pubkey: 0x{}", hex_fmt::HexFmt(key));
 
-    let app = crate_app(args);
+    let app = crate_app(args).context("Failed to create app")?;
     let admin_service = web_api::serve_admin(app.clone());
     let user_service = async move {
         // Wait for the admin service to start

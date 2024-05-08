@@ -22,6 +22,8 @@ use lazy_static::lazy_static;
 pub struct Query {
     /// The account sending the query.
     pub origin: Option<AccountId>,
+    /// Resource path
+    pub path: String,
     /// The query payload.
     pub payload: Vec<u8>,
     /// The reply channel. Invoke `send` on this channel to send the reply.
@@ -114,6 +116,7 @@ impl Future for Next<'_, Query> {
                 let reply_tx = OneshotSender::new(ResourceId(request.reply_tx));
                 Poll::Ready(Some(Query {
                     origin: request.origin,
+                    path: request.path,
                     payload: request.payload,
                     reply_tx,
                 }))

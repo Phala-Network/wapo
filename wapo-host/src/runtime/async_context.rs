@@ -48,7 +48,7 @@ impl GuestWaker {
             tls_task_env
                 .borrow()
                 .as_ref()
-                .expect("TLS TaskEnv not set. This is a bug.")
+                .expect("BUG: TLS TaskEnv not set.")
                 .tasks
                 .clone()
         });
@@ -186,13 +186,13 @@ where
     });
     let _reset_cx = SetOnDrop(cx_ptr);
 
-    let mut cx_ptr = cx_ptr.expect("TLS task::Context not set. This is a bug.");
+    let mut cx_ptr = cx_ptr.expect("BUG: TLS task::Context not set.");
 
     TLS_TASK_ENV.with(move |tls_task_env| unsafe {
         let borrow = tls_task_env.borrow();
         let env = borrow
             .as_ref()
-            .expect("TLS TaskEnv not set. This is a bug.");
+            .expect("BUG: TLS TaskEnv not set.");
         let parent = cx_ptr.as_mut().waker();
         let waker = relay_waker(env, parent, guest_waker);
         let mut cx = task::Context::from_waker(&waker);

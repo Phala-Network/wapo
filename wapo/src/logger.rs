@@ -18,7 +18,7 @@ impl Logger {
     /// Install the logger as the global logger.
     pub fn init(&'static self) {
         log::set_max_level(self.max_level);
-        log::set_logger(self).unwrap();
+        log::set_logger(self).expect("Failed to set logger");
     }
 }
 

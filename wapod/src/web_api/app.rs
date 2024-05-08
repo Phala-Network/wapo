@@ -152,7 +152,12 @@ impl App {
         if immediate {
             app.start_instance(address)?;
         }
-        let running = app.instances.get(&address).unwrap().current_run.is_some();
+        let running = app
+            .instances
+            .get(&address)
+            .expect("Just inserted")
+            .current_run
+            .is_some();
         Ok(InstanceInfo {
             address,
             session,
@@ -245,7 +250,10 @@ impl AppInner {
             }
             if let Some(inner) = weak_self.upgrade() {
                 let mut inner = inner.lock().expect("App lock poisoned");
-                let instance = inner.instances.get_mut(&address).unwrap();
+                let Some(instance) = inner.instances.get_mut(&address) else {
+                    warn!("Instance was removed while stopping");
+                    return;
+                };
                 if let Some(current_run) = instance.current_run.take() {
                     if current_run.sequence_number == sn {
                         instance

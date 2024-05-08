@@ -8,6 +8,7 @@ pub type H256 = [u8; 32];
 #[derive(Encode, Decode)]
 pub struct QueryRequest {
     pub origin: Option<AccountId>,
+    pub path: String,
     pub payload: Vec<u8>,
     pub reply_tx: i32,
 }

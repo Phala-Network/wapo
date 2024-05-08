@@ -617,6 +617,7 @@ impl WapoCtx {
     pub fn push_query(
         &mut self,
         origin: Option<AccountId>,
+        path: String,
         payload: Vec<u8>,
         reply_tx: OneshotSender<Vec<u8>>,
     ) -> anyhow::Result<()> {
@@ -627,6 +628,7 @@ impl WapoCtx {
         let reply_tx = self.resources.push(Resource::OneshotTx(Some(reply_tx)));
         let reply_tx = reply_tx?;
         let query = QueryRequest {
+            path,
             origin,
             payload,
             reply_tx,

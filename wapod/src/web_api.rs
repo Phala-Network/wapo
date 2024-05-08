@@ -1,3 +1,4 @@
+use anyhow::{Context, Result};
 use phala_rocket_middleware::{RequestTracer, ResponseSigner, TimeMeter, TraceId};
 use rocket::data::{ByteUnit, Limits, ToByteUnit};
 use rocket::figment::{
@@ -90,20 +91,12 @@ async fn read_data(data: Data<'_>, limit: ByteUnit) -> Result<Vec<u8>, ReadDataE
     Ok(data.into_inner())
 }
 
-#[post("/push/query/<id>", data = "<data>")]
-async fn push_query_no_origin(
-    app: &State<App>,
-    id: HexBytes,
-    data: Data<'_>,
-) -> Result<Vec<u8>, Custom<&'static str>> {
-    push_query(app, id, None, data).await
-}
-
-#[post("/push/query/<id>/<origin>", data = "<data>")]
+#[post("/push/query/<id>/<path>?<origin>", data = "<data>")]
 async fn push_query(
     app: &State<App>,
     id: HexBytes,
     origin: Option<&str>,
+    path: String,
     data: Data<'_>,
 ) -> Result<Vec<u8>, Custom<&'static str>> {
     let payload = read_data(data, 100.mebibytes()).await?;
@@ -127,6 +120,7 @@ async fn push_query(
     app.send(
         address,
         Command::PushQuery {
+            path,
             origin,
             payload,
             reply_tx,
@@ -299,9 +293,10 @@ fn sign_http_response(data: &[u8]) -> Option<String> {
     Some(hex::encode(signature))
 }
 
-pub fn crate_app(args: Args) -> App {
+pub fn crate_app(args: Args) -> Result<App> {
     let (tx, mut rx) = crate_outgoing_request_channel();
-    let (run, spawner) = service::service(args.workers, tx, &args.blobs_dir);
+    let (run, spawner) =
+        service::service(args.workers, tx, &args.blobs_dir).context("Failed to create service")?;
     tokio::spawn(async move {
         while let Some((id, message)) = rx.recv().await {
             let vmid = ShortId(id);
@@ -317,10 +312,10 @@ pub fn crate_app(args: Args) -> App {
             println!("event: {:?}", evt);
         });
     });
-    App::new(spawner, args)
+    Ok(App::new(spawner, args))
 }
 
-pub async fn serve_user(app: App) -> anyhow::Result<()> {
+pub async fn serve_user(app: App) -> Result<()> {
     print_rpc_methods("/prpc", &UserService::methods());
     let figment = Figment::from(rocket::Config::default())
         .merge(Toml::file("Wapod.toml").nested())
@@ -328,7 +323,11 @@ pub async fn serve_user(app: App) -> anyhow::Result<()> {
         .select("user");
     let signer = ResponseSigner::new(1024 * 1024 * 10, sign_http_response);
     let _rocket = rocket::custom(figment)
-        .attach(cors_options().to_cors().expect("To not fail"))
+        .attach(
+            cors_options()
+                .to_cors()
+                .context("Failed to create CORS options")?,
+        )
         .attach(signer)
         .attach(RequestTracer::default())
         .attach(TimeMeter)
@@ -340,27 +339,22 @@ pub async fn serve_user(app: App) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn serve_admin(app: App) -> anyhow::Result<()> {
+pub async fn serve_admin(app: App) -> Result<()> {
     print_rpc_methods("/prpc", &AdminService::methods());
     let figment = Figment::from(rocket::Config::default())
         .merge(Toml::file("Wapod.toml").nested())
         .merge(Env::prefixed("WAPOD_ADMIN_").global())
         .select("admin");
     let _rocket = rocket::custom(figment)
-        .attach(cors_options().to_cors().expect("To not fail"))
+        .attach(
+            cors_options()
+                .to_cors()
+                .context("Failed to create CORS options")?,
+        )
         .attach(RequestTracer::default())
         .attach(TimeMeter)
         .manage(app)
-        .mount(
-            "/",
-            routes![
-                push_query,
-                push_query_no_origin,
-                info,
-                object_post,
-                object_get,
-            ],
-        )
+        .mount("/", routes![push_query, info, object_post, object_get,])
         .mount("/prpc", routes![prpc_admin_post, prpc_admin_get])
         .launch()
         .await?;

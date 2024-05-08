@@ -383,7 +383,7 @@ fn gen_ocall_impl_method(method: &OcallMethod) -> Result<TokenStream> {
             if ret != len {
                 panic!("ocall get return length mismatch");
             }
-            Ok(Decode::decode(&mut buf.as_ref()).expect("Failed to decode ocall return value"))
+            Ok(Decode::decode(&mut buf.as_ref()).expect("BUG: Failed to decode ocall return value"))
         }
     };
 

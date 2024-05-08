@@ -10,11 +10,10 @@ fn main() {
         ".wapod",
         "#[derive(::serde::Serialize, ::serde::Deserialize)]",
     );
-    for t in &[
-        ".wapod.Manifest",
-        ".wapod.StringPair",
-    ] {
+    for t in &[".wapod.Manifest", ".wapod.StringPair"] {
         builder = builder.type_attribute(t, "#[derive(::scale::Encode, ::scale::Decode)]");
     }
-    builder.compile(&["wapod_rpc.proto"], &["./proto"]).unwrap();
+    builder
+        .compile(&["wapod_rpc.proto"], &["./proto"])
+        .expect("Failed to compile proto files");
 }

@@ -24,7 +24,7 @@ struct ModuleLoaderState {
 impl ModuleLoader {
     pub fn new(engine: WasmEngine, blob_loader: BlobLoader, cache_size: usize) -> Self {
         let cache = LruCache::new(
-            NonZeroUsize::new(cache_size.max(1)).expect("cache size must be greater than 0"),
+            NonZeroUsize::new(cache_size.max(1)).expect("BUG: cache size must be greater than 0"),
         );
         Self {
             state: Arc::new(Mutex::new(ModuleLoaderState {
@@ -36,7 +36,7 @@ impl ModuleLoader {
     }
 
     pub fn load_module(&self, code_hash: &[u8], hash_alg: &str) -> Result<WasmModule> {
-        let mut state = self.state.lock().expect("ModuleLoaderState lock poisoned");
+        let mut state = self.state.lock().expect("BUG: ModuleLoaderState lock poisoned");
         if let Some(module) = state.cache.get(code_hash) {
             return Ok(module.clone());
         }
