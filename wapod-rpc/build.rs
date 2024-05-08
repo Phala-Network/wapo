@@ -13,7 +13,6 @@ fn main() {
     for t in &[
         ".wapod.Manifest",
         ".wapod.StringPair",
-        ".wapod.InstanceMetrics",
     ] {
         builder = builder.type_attribute(t, "#[derive(::scale::Encode, ::scale::Decode)]");
     }

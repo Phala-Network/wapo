@@ -1,4 +1,5 @@
 use anyhow::Context;
+use rand::Rng;
 use rocket::{
     data::{ByteUnit, Limits, ToByteUnit as _},
     http::{ContentType, Status},
@@ -62,13 +63,18 @@ impl BlobsRpc for App {
 }
 
 impl InstancesRpc for App {
-    async fn deploy(&self, request: pb::Manifest) -> Result<pb::Address> {
-        let address = self
-            .create_instance(request)
+    async fn deploy(&self, request: pb::DeployRequest) -> Result<pb::DeployResponse> {
+        let todo = "disallow to deploy if it is not initialized";
+        let manifest = request
+            .manifest
+            .ok_or(RpcError::BadRequest("No manifest".into()))?;
+        let info = self
+            .create_instance(manifest)
             .await
             .context("Failed to create instance")?;
-        Ok(pb::Address {
-            address: address.to_vec(),
+        Ok(pb::DeployResponse {
+            address: info.address.to_vec(),
+            session: info.session.to_vec(),
         })
     }
 
@@ -88,19 +94,25 @@ impl InstancesRpc for App {
     }
 
     async fn metrics(&self, request: pb::Addresses) -> Result<pb::InstanceMetricsResponse> {
-        let todo = "TODO: implement session";
         let addresses = request.decode_addresses()?;
         let addresses = if addresses.is_empty() {
             None
         } else {
             Some(&addresses[..])
         };
-        let mut metrics = vec![];
+        let mut metrics = {
+            let todo = "implement worker level session";
+            rpc::types::Metrics {
+                session: Default::default(),
+                nonce: rand::thread_rng().gen(),
+                instances: vec![],
+            }
+        };
         self.for_each_instance(addresses, |address, instance| {
             let m = instance.metrics();
-            metrics.push(pb::InstanceMetrics {
-                address: address.encode(),
-                session: vec![],
+            metrics.instances.push(rpc::types::InstanceMetrics {
+                address: address,
+                session: instance.session,
                 running_time_ms: m.duration.as_millis() as u64,
                 gas_consumed: m.gas_comsumed,
                 network_ingress: m.net_ingress,
@@ -114,7 +126,7 @@ impl InstancesRpc for App {
         let encoded_metrics = metrics.encode();
         let signature =
             load_or_generate_key().sign(wapod_signature::ContentType::Metrics, encoded_metrics);
-        Ok(pb::InstanceMetricsResponse { metrics, signature })
+        Ok(pb::InstanceMetricsResponse::new(metrics, signature))
     }
 }
 

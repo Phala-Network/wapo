@@ -4764,6 +4764,7 @@ dependencies = [
  "hex_fmt",
  "parity-scale-codec",
  "phala-rocket-middleware",
+ "rand",
  "rocket",
  "rocket_cors",
  "scopeguard",

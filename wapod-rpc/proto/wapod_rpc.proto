@@ -29,7 +29,7 @@ service Blobs {
 // The instances management RPC.
 service Instances {
   // Deploy a new WASM instance.
-  rpc Deploy(Manifest) returns (Address) {}
+  rpc Deploy(DeployRequest) returns (DeployResponse) {}
   // Remove an instance from the worker.
   rpc Remove(Address) returns (google.protobuf.Empty) {}
   // Start an instance from the worker. On-demand instance will reject this
@@ -61,6 +61,19 @@ message Blob {
   string hash_algrithm = 2;
   // The value of the object.
   bytes body = 3;
+}
+
+// Request to deploy an app.
+message DeployRequest {
+  // Manifest of an app.
+  Manifest manifest = 1;
+}
+
+message DeployResponse {
+  // The address of the deployed instance.
+  bytes address = 1;
+  // The session id of the deployed instance.
+  bytes session = 2;
 }
 
 // Manifest of an app.
@@ -101,29 +114,11 @@ message Addresses {
 }
 
 message InstanceMetricsResponse {
-  repeated InstanceMetrics metrics = 1;
+  // @codec scale crate::types::Metrics
+  // The metrics payload.
+  bytes encoded_metrics = 1;
+  // The signature of the metrics payload.
   bytes signature = 2;
 }
 
-// Metrics of an instance.
-message InstanceMetrics {
-  // The address of the instance.
-  // @codec scale crate::types::Address
-  bytes address = 1;
-  bytes session = 2;
-  uint64 running_time_ms = 3;
-  // The CPU usage of the instance.
-  uint64 gas_consumed = 4;
-  // The network usage of the instance.
-  uint64 network_ingress = 5;
-  uint64 network_egress = 6;
-  // The disk usage of the instance.
-  uint64 storage_read = 7;
-  uint64 storage_write = 8;
-  // The number of starts of the instance.
-  uint64 starts = 9;
-}
-
-message Boolean {
-  bool value = 1;
-}
+message Boolean { bool value = 1; }

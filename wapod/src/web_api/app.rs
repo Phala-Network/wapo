@@ -1,5 +1,6 @@
 use anyhow::{anyhow, bail, Context, Result};
 
+use rand::Rng as _;
 use tracing::{info, warn};
 use wapo_host::ShortId;
 use wapo_host::{blobs::BlobLoader, Metrics};
@@ -27,7 +28,15 @@ struct CurrentRun {
     vm_handle: VmHandle,
 }
 
+#[derive(Debug, Clone)]
+pub struct InstanceInfo {
+    pub address: Address,
+    pub session: [u8; 32],
+    pub running: bool,
+}
+
 pub struct InstanceState {
+    pub session: [u8; 32],
     manifest: Manifest,
     hist_metrics: Metrics,
     current_run: Option<CurrentRun>,
@@ -124,7 +133,7 @@ impl App {
         self.inner.lock().await.stop_instance(vmid).await
     }
 
-    pub async fn create_instance(&self, manifest: Manifest) -> Result<Address> {
+    pub async fn create_instance(&self, manifest: Manifest) -> Result<InstanceInfo> {
         let immediate = manifest.start_mode == 0;
         let address = sp_core::blake2_256(&scale::Encode::encode(&manifest));
         let vmid = ShortId(address);
@@ -142,7 +151,9 @@ impl App {
             }
             info!("Prev VM {vmid} stopped");
         };
+        let session: [u8; 32] = rand::thread_rng().gen();
         let state = InstanceState {
+            session,
             manifest,
             hist_metrics: Default::default(),
             current_run: None,
@@ -151,7 +162,12 @@ impl App {
         if immediate {
             inner.start_instance(address).await?;
         }
-        Ok(address)
+        let running = inner.instances.get(&address).unwrap().current_run.is_some();
+        Ok(InstanceInfo {
+            address,
+            session,
+            running,
+        })
     }
 
     pub async fn remove_instance(&self, address: Address) -> Result<()> {
