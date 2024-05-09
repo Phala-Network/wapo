@@ -1,4 +1,14 @@
 
 [workspace]
 resolver = "2"
-members = ["wapo", "wapod", "wapo-host", "wapo-macro", "wapo-env", "wapod-rpc", "wapo-run", "wapod-signature"]
+members = [
+    "wapo",
+    "wapod",
+    "wapo-host",
+    "wapo-macro",
+    "wapo-env",
+    "wapod-rpc",
+    "wapo-run",
+    "wapod-signature",
+    "e2e/guest",
+]
