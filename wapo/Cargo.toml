@@ -16,8 +16,7 @@ derive_more = "0.99"
 hyper-v0 = { version = "0.14.28", package = "hyper", features = ["server", "client"], optional = true }
 
 # For hyper 1.0 support
-hyper = { version = "1.2.0", optional = true }
-hyper-util = { version = "0.1.3", features = ["server-auto", "client", "tokio", "client-legacy", "service"], optional = true }
+hyper = { version = "1.2.0", optional = true, features = ["server", "client", "http1"] }
 tower-service = { version = "0.3.2", optional = true }
 
 tokio = { version = "1", optional = true }
@@ -29,5 +28,5 @@ lazy_static = "1"
 [features]
 default = ["full"]
 full = ["hyper-v0", "hyper-v1", "tokio", "tower"]
-hyper-v1 = ["dep:hyper", "dep:hyper-util", "tokio"]
+hyper-v1 = ["dep:hyper", "tokio"]
 tower = ["dep:tower-service", "hyper-v1"]

@@ -137,10 +137,6 @@ pub mod hyper_v1 {
     use futures::Future;
     use hyper::service::Service;
     use hyper::Uri;
-    use hyper_util::{
-        client::legacy::connect::{Connected, Connection},
-        rt::TokioIo,
-    };
 
     use super::{TcpConnector, TcpStream};
     use crate::env::OcallError;
@@ -161,23 +157,17 @@ pub mod hyper_v1 {
     pub struct HttpConnecting(#[pin] TcpConnector);
 
     impl Future for HttpConnecting {
-        type Output = Result<TokioIo<TcpStream>, OcallError>;
+        type Output = Result<TcpStream, OcallError>;
 
         fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
             let stream = futures::ready!(self.project().0.poll(cx))?;
-            Poll::Ready(Ok(TokioIo::new(stream)))
-        }
-    }
-
-    impl Connection for TcpStream {
-        fn connected(&self) -> Connected {
-            Connected::new()
+            Poll::Ready(Ok(stream))
         }
     }
 
     #[cfg(feature = "tower")]
     impl tower_service::Service<Uri> for HttpConnector {
-        type Response = TokioIo<TcpStream>;
+        type Response = TcpStream;
         type Error = OcallError;
         type Future = HttpConnecting;
 
@@ -191,7 +181,7 @@ pub mod hyper_v1 {
     }
 
     impl Service<Uri> for HttpConnector {
-        type Response = TokioIo<TcpStream>;
+        type Response = TcpStream;
         type Error = OcallError;
         type Future = HttpConnecting;
 
