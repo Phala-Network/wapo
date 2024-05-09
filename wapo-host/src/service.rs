@@ -86,9 +86,20 @@ impl Drop for CommandSenderInner {
     }
 }
 
-#[derive(Debug)]
 pub enum Report {
     VmTerminated { id: VmId, reason: ExitReason },
+}
+
+impl std::fmt::Debug for Report {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::VmTerminated { id, reason } => f
+                .debug_struct("VmTerminated")
+                .field("id", &hex_fmt::HexFmt(id))
+                .field("reason", reason)
+                .finish(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, derive_more::Display)]
