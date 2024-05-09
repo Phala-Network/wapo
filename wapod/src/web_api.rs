@@ -300,8 +300,12 @@ fn sign_http_response(data: &[u8]) -> Option<String> {
 
 pub fn crate_worker_state(args: Args) -> Result<Worker> {
     let (tx, mut rx) = crate_outgoing_request_channel();
-    let (run, spawner) =
-        service::service(args.workers, tx, &args.blobs_dir).context("Failed to create service")?;
+    let (run, spawner) = service::service(
+        args.max_instances.saturating_add(2) as usize,
+        tx,
+        &args.blobs_dir,
+    )
+    .context("Failed to create service")?;
     tokio::spawn(async move {
         while let Some((id, message)) = rx.recv().await {
             let vmid = ShortId(id);
@@ -320,12 +324,15 @@ pub fn crate_worker_state(args: Args) -> Result<Worker> {
     Ok(Worker::new(spawner, args))
 }
 
-pub async fn serve_user(state: Worker) -> Result<()> {
+pub async fn serve_user(state: Worker, args: Args) -> Result<()> {
     print_rpc_methods("/prpc", &UserService::methods());
-    let figment = Figment::from(rocket::Config::default())
+    let mut figment = Figment::from(rocket::Config::default())
         .merge(Toml::file("Wapod.toml").nested())
         .merge(Env::prefixed("WAPOD_USER_").global())
         .select("user");
+    if let Some(user_port) = args.user_port {
+        figment = figment.merge(("port", user_port));
+    }
     let signer = ResponseSigner::new(1024 * 1024 * 10, sign_http_response);
     let _rocket = rocket::custom(figment)
         .attach(
@@ -344,12 +351,15 @@ pub async fn serve_user(state: Worker) -> Result<()> {
     Ok(())
 }
 
-pub async fn serve_admin(state: Worker) -> Result<()> {
+pub async fn serve_admin(state: Worker, args: Args) -> Result<()> {
     print_rpc_methods("/prpc", &AdminService::methods());
-    let figment = Figment::from(rocket::Config::default())
+    let mut figment = Figment::from(rocket::Config::default())
         .merge(Toml::file("Wapod.toml").nested())
         .merge(Env::prefixed("WAPOD_ADMIN_").global())
         .select("admin");
+    if let Some(admin_port) = args.admin_port {
+        figment = figment.merge(("port", admin_port));
+    }
     let _rocket = rocket::custom(figment)
         .attach(
             cors_options()
