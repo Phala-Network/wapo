@@ -217,7 +217,7 @@
         }
 
         async function loadApps() {
-            const response = await rpcCall('App.List');
+            const response = await fetchAPI('App.List');
             updateAppsTable(response.apps);
         }
 
