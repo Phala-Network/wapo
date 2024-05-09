@@ -12,8 +12,7 @@ use rpc::prpc::{
     WorkerInfo,
 };
 use rpc::prpc::{
-    admin_server::AdminRpc, blobs_server::BlobsRpc, instances_server::InstancesRpc,
-    status_server::StatusRpc,
+    admin_server::AdminRpc, app_server::AppRpc, blobs_server::BlobsRpc, status_server::StatusRpc,
 };
 use scale::Encode;
 use tracing::{error, info, warn};
@@ -74,7 +73,7 @@ impl BlobsRpc for Worker {
     }
 }
 
-impl InstancesRpc for Worker {
+impl AppRpc for Worker {
     async fn deploy(&self, request: pb::DeployArgs) -> Result<pb::DeployResponse> {
         if self.session().is_none() {
             return Err(RpcError::BadRequest("No worker session".into()));
@@ -83,9 +82,9 @@ impl InstancesRpc for Worker {
             .manifest
             .ok_or(RpcError::BadRequest("No manifest".into()))?;
         let info = self
-            .create_instance(manifest)
+            .deploy_app(manifest)
             .await
-            .context("Failed to create instance")?;
+            .context("Failed to deploy app")?;
         Ok(pb::DeployResponse {
             address: info.address.to_vec(),
             session: info.session.to_vec(),
@@ -93,37 +92,37 @@ impl InstancesRpc for Worker {
     }
 
     async fn remove(&self, request: pb::Address) -> Result<()> {
-        self.remove_instance(request.decode_address()?).await?;
+        self.remove_app(request.decode_address()?).await?;
         Ok(())
     }
 
     async fn start(&self, request: pb::Address) -> Result<()> {
-        self.start_instance(request.decode_address()?).await?;
+        self.start_app(request.decode_address()?).await?;
         Ok(())
     }
 
     async fn stop(&self, request: pb::Address) -> Result<()> {
-        self.stop_instance(request.decode_address()?).await?;
+        self.stop_app(request.decode_address()?).await?;
         Ok(())
     }
 
-    async fn metrics(&self, request: pb::Addresses) -> Result<pb::InstanceMetricsResponse> {
+    async fn metrics(&self, request: pb::Addresses) -> Result<pb::AppMetricsResponse> {
         let addresses = request.decode_addresses()?;
         let addresses = if addresses.is_empty() {
             None
         } else {
             Some(&addresses[..])
         };
-        let mut metrics = rpc::types::Metrics {
+        let mut metrics = rpc::types::AppsMetrics {
             session: self.session().context("No worker session")?,
             nonce: rand::thread_rng().gen(),
-            instances: vec![],
+            apps: vec![],
         };
-        self.for_each_instance(addresses, |address, instance| {
-            let m = instance.metrics();
-            metrics.instances.push(rpc::types::InstanceMetrics {
+        self.for_each_app(addresses, |address, app| {
+            let m = app.metrics();
+            metrics.apps.push(rpc::types::AppMetrics {
                 address: address,
-                session: instance.session,
+                session: app.session,
                 running_time_ms: m.duration.as_millis() as u64,
                 gas_consumed: m.gas_comsumed,
                 network_ingress: m.net_ingress,
@@ -136,7 +135,7 @@ impl InstancesRpc for Worker {
         let encoded_metrics = metrics.encode();
         let signature =
             load_or_generate_key().sign(wapod_signature::ContentType::Metrics, encoded_metrics);
-        Ok(pb::InstanceMetricsResponse::new(metrics, signature))
+        Ok(pb::AppMetricsResponse::new(metrics, signature))
     }
 }
 

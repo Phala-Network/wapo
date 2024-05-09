@@ -4,7 +4,7 @@ pub type Address = [u8; 32];
 pub type Bytes32 = [u8; 32];
 
 #[derive(Debug, Encode, Decode)]
-pub struct InstanceMetrics {
+pub struct AppMetrics {
     pub address: Address,
     pub session: Bytes32,
     pub running_time_ms: u64,
@@ -17,8 +17,8 @@ pub struct InstanceMetrics {
 }
 
 #[derive(Debug, Encode, Decode)]
-pub struct Metrics {
+pub struct AppsMetrics {
     pub session: Bytes32,
     pub nonce: Bytes32,
-    pub instances: Vec<InstanceMetrics>,
+    pub apps: Vec<AppMetrics>,
 }

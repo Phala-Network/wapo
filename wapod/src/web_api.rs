@@ -17,7 +17,7 @@ use sp_core::crypto::AccountId32;
 
 use wapo_host::{crate_outgoing_request_channel, ShortId};
 use wapod_rpc::prpc::blobs_server::BlobsServer;
-use wapod_rpc::prpc::instances_server::InstancesServer;
+use wapod_rpc::prpc::app_server::AppServer;
 use wapod_rpc::prpc::server::{ComposedService, Service};
 use wapod_rpc::prpc::{admin_server::AdminServer, status_server::StatusServer};
 
@@ -44,7 +44,7 @@ type AdminService = ComposedService<
     (
         StatusServer<Worker>,
         AdminServer<Worker>,
-        InstancesServer<Worker>,
+        AppServer<Worker>,
         BlobsServer<Worker>,
     ),
 >;

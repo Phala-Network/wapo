@@ -29,7 +29,7 @@ service Blobs {
 }
 
 // The instances management RPC.
-service Instances {
+service App {
   // Deploy a new WASM instance.
   rpc Deploy(DeployArgs) returns (DeployResponse) {}
   // Remove an instance from the worker.
@@ -40,17 +40,17 @@ service Instances {
   // Stop an instance from the worker.
   rpc Stop(Address) returns (google.protobuf.Empty) {}
   // Get metrics for each instance
-  rpc Metrics(Addresses) returns (InstanceMetricsResponse) {}
+  rpc Metrics(Addresses) returns (AppMetricsResponse) {}
 }
 
 // Basic information about a worker.
 message WorkerInfo {
   // The public key of the worker.
   bytes pubkey = 1;
+  // The number of deployed apps.
+  uint32 deployed_apps = 2;
   // The number of running instances.
-  uint32 running_instances = 2;
-  // The number of deployed instances.
-  uint32 deployed_instances = 3;
+  uint32 running_instances = 3;
   // The number of maximum instances.
   uint32 max_instances = 4;
   // The size limit of memory of each instance.
@@ -119,8 +119,8 @@ message Addresses {
   repeated bytes addresses = 1;
 }
 
-message InstanceMetricsResponse {
-  // @codec scale crate::types::Metrics
+message AppMetricsResponse {
+  // @codec scale crate::types::AppsMetrics
   // The metrics payload.
   bytes encoded_metrics = 1;
   // The signature of the metrics payload.
