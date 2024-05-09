@@ -39,6 +39,11 @@ service App {
   rpc Start(Address) returns (google.protobuf.Empty) {}
   // Stop an instance from the worker.
   rpc Stop(Address) returns (google.protobuf.Empty) {}
+  // Set the number of instances of an app. Returns the actual number of
+  // instances after the operation. It might be less than the requested number
+  // if the worker's capacity is not enough or the app doesn't support multiple
+  // instances.
+  rpc Resize(ResizeArgs) returns (Number) {}
   // Get metrics for each instance
   rpc Metrics(Addresses) returns (AppMetricsResponse) {}
 }
@@ -141,4 +146,15 @@ message InitResponse {
   bytes session = 1;
   // The seed used to derive the session.
   bytes session_seed = 2;
+}
+
+// Represents a number.
+message Number { uint64 value = 1; }
+
+message ResizeArgs {
+  // The address of the app to set the number of instances.
+  // @codec scale crate::types::Address
+  bytes address = 1;
+  // The number of instances to set.
+  uint64 instances = 2;
 }

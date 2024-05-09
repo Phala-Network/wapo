@@ -116,7 +116,6 @@ impl Worker {
 
     pub async fn info(&self) -> WorkerInfo {
         let worker = self.lock();
-        let todo = "Limit the max instances";
         let max_instances = worker.args.max_instances as u64;
         let deployed_apps = worker.apps.len() as u64;
         let running_instances = worker
@@ -139,16 +138,20 @@ impl Worker {
         self.lock().blob_loader.clone()
     }
 
-    pub async fn start_app(&self, vmid: Address) -> Result<()> {
-        self.lock().start_app(vmid)
+    pub async fn start_app(&self, address: Address) -> Result<()> {
+        self.resize_app_instances(address, 1).await
     }
 
     pub async fn stop_app(&self, address: Address) -> Result<()> {
-        let handles = self.lock().stop_app(address)?;
+        self.resize_app_instances(address, 0).await
+    }
+
+    pub async fn resize_app_instances(&self, address: Address, count: usize) -> Result<()> {
+        let handles = self.lock().resize_app_instances(address, count)?;
         let total = handles.len();
         let vmid = ShortId(address);
         for (i, mut handle) in handles.into_iter().enumerate() {
-            info!("Stopping {vmid} ({i}/{total})...");
+            info!(%vmid, "Stopping instances ({i}/{total})...");
             handle.stop().await?;
         }
         Ok(())
@@ -218,18 +221,23 @@ impl Worker {
     pub fn init(&self, salt: &[u8]) -> Result<[u8; 32]> {
         self.lock().init(salt)
     }
+
+    pub fn num_instances_of(&self, address: Address) -> Option<usize> {
+        self.lock()
+            .apps
+            .get(&address)
+            .map(|app| app.instances.len())
+    }
 }
 
 impl WorkerState {
     fn start_app(&mut self, address: Address) -> Result<()> {
         let vmid = ShortId(address);
-        println!("Starting {vmid}...");
-
         let app = self
             .apps
             .get_mut(&address)
             .ok_or(anyhow!("Instance not found"))?;
-        if !app.instances.is_empty() {
+        if !app.manifest.allow_multi_instances && !app.instances.is_empty() {
             return Err(anyhow!("Instance already started"));
         }
         let config = service::InstanceStartConfig::builder()
@@ -293,17 +301,47 @@ impl WorkerState {
         Ok(())
     }
 
-    fn stop_app(&mut self, address: Address) -> Result<Vec<VmHandle>> {
-        let instance = self
+    fn resize_app_instances(&mut self, address: Address, count: usize) -> Result<Vec<VmHandle>> {
+        let app = self
             .apps
             .get_mut(&address)
             .ok_or(anyhow!("App not found"))?;
-        let handles = instance
-            .instances
-            .drain(..)
-            .map(|run| run.vm_handle)
-            .collect();
-        Ok(handles)
+        let vmid = ShortId(address);
+        let current = app.instances.len();
+        let max_allowed = if app.manifest.allow_multi_instances {
+            1
+        } else {
+            count
+        };
+        info!(%vmid, current, count, max_allowed, "Changing number of instances");
+        if count > current {
+            let available_slots = self.available_slots();
+            let creating = available_slots.min(count - current);
+            info!(available_slots, creating, max_allowed, "Creating instances");
+            for i in 0..creating {
+                info!(%vmid, "Starting ({i}/{creating})...");
+                self.start_app(address)?;
+            }
+        } else if count < current {
+            let stop_count = current - count;
+            info!(%vmid, stop_count, "Stopping instances");
+            let handles = app
+                .instances
+                .drain(count..)
+                .map(|run| run.vm_handle)
+                .collect();
+            return Ok(handles);
+        }
+        Ok(vec![])
+    }
+
+    fn available_slots(&self) -> usize {
+        let max = self.args.max_instances as usize;
+        max.saturating_sub(self.running_instances())
+    }
+
+    fn running_instances(&self) -> usize {
+        self.apps.values().map(|app| app.instances.len()).sum()
     }
 
     fn init(&mut self, salt: &[u8]) -> Result<[u8; 32]> {

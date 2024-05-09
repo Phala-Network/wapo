@@ -137,6 +137,16 @@ impl AppRpc for Worker {
             load_or_generate_key().sign(wapod_signature::ContentType::Metrics, encoded_metrics);
         Ok(pb::AppMetricsResponse::new(metrics, signature))
     }
+
+    async fn resize(&self, request: pb::ResizeArgs) -> Result<pb::Number> {
+        let address = request.decode_address()?;
+        self.resize_app_instances(address, request.instances as usize)
+            .await?;
+        let number = self.num_instances_of(address).ok_or(RpcError::NotFound)?;
+        Ok(pb::Number {
+            value: number as u64,
+        })
+    }
 }
 
 impl StatusRpc for Worker {
