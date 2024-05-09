@@ -13,6 +13,10 @@ fn patch_or_err(input: TokenStream) -> syn::Result<TokenStream> {
     let crate_wapo = crate::find_crate_name("wapo")?;
     Ok(syn::parse_quote! {
         #[no_mangle]
+        extern "C" fn __main_argc_argv(_: i32, _: i32) -> i32 {
+            0
+        }
+        #[no_mangle]
         extern "C" fn wapo_poll() -> i32 {
             #crate_wapo::env::tasks::wapo_poll()
         }

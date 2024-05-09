@@ -1,7 +1,8 @@
 [package]
-name = "guest"
+name = "e2e-guest"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 wapo = { path = "../../wapo" }
+log = "0.4"

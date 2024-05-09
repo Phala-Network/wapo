@@ -31,6 +31,8 @@ pub struct Args {
 #[tokio::main]
 async fn main() -> Result<()> {
     logger::init();
+    let todo = "set panic = abort";
+    let todo = "Validate max_memory_pages * max_instances < WAPOD_ENCLAVE_MEM_SIZE";
 
     info!("Starting wapod server...");
     let args = Args::parse();

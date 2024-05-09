@@ -8,6 +8,7 @@ use rocket::figment::{
 use rocket::fs::NamedFile;
 use rocket::http::{ContentType, Method, Status};
 use rocket::request::FromParam;
+use rocket::response::content::RawHtml;
 use rocket::response::status::Custom;
 use rocket::{get, post, routes, Data, State};
 use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
@@ -255,17 +256,17 @@ async fn object_post(
     r#type: &str,
     hash: HexBytes,
     data: Data<'_>,
-) -> Result<(), Custom<String>> {
+) -> Result<Vec<u8>, Custom<String>> {
     let loader = state.blob_loader();
     let limit = limits.get("Admin.PutObject").unwrap_or(10.mebibytes());
     let mut stream = data.open(limit);
-    match loader.put(&hash.0, &mut stream, r#type).await {
-        Ok(()) => Ok(()),
-        Err(err) => {
-            warn!("Failed to put object: {err}");
-            Err(Custom(Status::InternalServerError, err.to_string()))
-        }
-    }
+    loader
+        .put(&hash.0, &mut stream, r#type)
+        .await
+        .map_err(|err| {
+            warn!("Failed to put object: {err:?}");
+            Custom(Status::InternalServerError, err.to_string())
+        })
 }
 
 #[get("/object/<id>")]
@@ -277,6 +278,13 @@ async fn object_get(
     NamedFile::open(&path)
         .await
         .map_err(|_| Custom(Status::NotFound, "Object not found"))
+}
+
+#[get("/")]
+async fn console() -> RawHtml<String> {
+    let todo = "switch to include_str";
+    RawHtml(std::fs::read_to_string("src/console.html").unwrap())
+    // RawHtml(include_str!("console.html"))
 }
 
 fn cors_options() -> CorsOptions {
@@ -370,7 +378,10 @@ pub async fn serve_admin(state: Worker, args: Args) -> Result<()> {
         .attach(RequestTracer::default())
         .attach(TimeMeter)
         .manage(state)
-        .mount("/", routes![push_query, info, object_post, object_get,])
+        .mount(
+            "/",
+            routes![push_query, info, object_post, object_get, console],
+        )
         .mount("/prpc", routes![prpc_admin_post, prpc_admin_get])
         .launch()
         .await?;

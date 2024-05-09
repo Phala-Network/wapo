@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.">
+    <title>API Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 10px;
+        }
+
+        .page {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .collapsible {
+            background-color: #777;
+            color: white;
+            cursor: pointer;
+            padding: 18px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 15px;
+        }
+
+        .active,
+        .collapsible:hover {
+            background-color: #555;
+        }
+
+        .content {
+            padding: 0 18px;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.2s ease-out;
+            background-color: #f1f1f1;
+            margin-bottom: 10px;
+            /* Space between forms */
+        }
+
+        .form-group {
+            margin-bottom: 10px;
+        }
+
+        label {
+            display: block;
+        }
+
+        input[type="text"],
+        input[type="file"],
+        input[type="number"],
+        button,
+        textarea,
+        table {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+        }
+
+        .response {
+            height: 130px;
+            margin-top: 15px;
+            border: 1px solid #eee;
+            background-color: #f2f2f2;
+        }
+
+        table {
+            border-collapse: collapse;
+            margin-top: 10px;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+        }
+
+        th,
+        td {
+            border-bottom: 1px solid #dddddd;
+            text-align: left;
+            padding: 8px;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        .btn-small {
+            padding: 5px 10px;
+            font-size: 0.8em;
+            margin-right: 5px;
+            /* Space between buttons */
+        }
+    </style>
+    <script>
+        async function fetchAPI(method, data) {
+            data = data ? data : {};
+            const response = await fetch(`/prpc/${method}?json`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+            return response.json();
+        }
+
+        async function rpcCall(method, data) {
+            const response = await fetchAPI(method, data);
+            consoleLog(method, response);
+            return response;
+        }
+
+        function hex(data) {
+            return '0x' + Array.from(new Uint8Array(data))
+                .map(b => b.toString(16).padStart(2, '0'))
+                .join('');
+        }
+
+        async function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+        async function updateInfo() {
+            const data = await fetchAPI('Status.Info');
+            document.getElementById('responseWorkerInfo').textContent = JSON.stringify(data, null, 2);
+        }
+
+        function consoleLog(tip, msg) {
+            document.getElementById('consoleOutput').textContent = tip + ':\n' + JSON.stringify(msg, null, 2);
+        }
+
+        function toggleCollapsible(event) {
+            event.target.classList.toggle("active");
+            var content = event.target.nextElementSibling;
+            if (content.style.maxHeight) {
+                content.style.maxHeight = null;
+            } else {
+                content.style.maxHeight = content.scrollHeight + "px";
+            }
+        }
+
+        async function initWorker() {
+            console.log('Initializing worker...');
+            await rpcCall('Worker.Init', { salt: "0x" });
+            await updateInfo();
+        }
+
+        async function exitWorker() {
+            console.log('Exiting worker...');
+            await rpcCall('Worker.Exit');
+        }
+
+        async function stopApp(address) {
+            console.log('Stopping app with address: ' + address);
+            await rpcCall('App.Stop', { address });
+            await loadApps();
+        }
+
+        async function startApp(address) {
+            console.log('Starting app with address: ' + address);
+            await rpcCall('App.Start', { address });
+            await loadApps();
+        }
+
+        async function removeApp(address) {
+            console.log('Removing app with address: ' + address);
+            await rpcCall('App.Remove', { address });
+            await loadApps();
+        }
+
+        async function resizeApp(address) {
+            var newSize = prompt('Enter new size for ' + address + ':');
+            console.log('Resizing app with address: ' + address + ' to size ' + newSize);
+            await rpcCall('App.Resize', { address, instances: parseInt(newSize) });
+            await loadApps();
+        }
+
+        function updateAppsTable(appsData) {
+            const tbody = document.getElementById('appsTable').querySelector('tbody');
+            tbody.innerHTML = ''; // Clear existing rows
+            appsData.forEach(app => {
+                let row = tbody.insertRow();
+                let addressCell = row.insertCell(0);
+                let instancesCell = row.insertCell(1);
+                let actionsCell = row.insertCell(2);
+
+                addressCell.textContent = app.address;
+                instancesCell.textContent = app.instances;
+
+                let stopButton = document.createElement('button');
+                stopButton.textContent = 'Stop';
+                stopButton.className = 'btn-small';
+                stopButton.addEventListener('click', () => stopApp(app.address));
+
+                let startButton = document.createElement('button');
+                startButton.textContent = 'Start';
+                startButton.className = 'btn-small';
+                startButton.addEventListener('click', () => startApp(app.address));
+
+                let resizeButton = document.createElement('button');
+                resizeButton.textContent = 'Resize';
+                resizeButton.className = 'btn-small';
+                resizeButton.addEventListener('click', () => resizeApp(app.address));
+
+                let removeButton = document.createElement('button');
+                removeButton.textContent = 'Remove';
+                removeButton.className = 'btn-small';
+                removeButton.addEventListener('click', () => removeApp(app.address));
+
+                actionsCell.appendChild(stopButton);
+                actionsCell.appendChild(startButton);
+                actionsCell.appendChild(resizeButton);
+                actionsCell.appendChild(removeButton);
+            });
+        }
+
+        async function loadApps() {
+            const response = await rpcCall('App.List');
+            updateAppsTable(response.apps);
+        }
+
+        window.addEventListener('DOMContentLoaded', (event) => {
+            updateInfo();
+            loadApps();
+
+            document.getElementById('blobsPutForm').addEventListener('submit', async function (event) {
+                event.preventDefault();
+                const fileInput = document.getElementById('putFile');
+                const file = fileInput.files[0];
+                const data = await file.slice().arrayBuffer();
+                const blobData = {
+                    hash: '0x',
+                    hash_algrithm: 'sha256',
+                    body: hex(data)
+                };
+                await rpcCall('Blobs.Put', blobData);
+            });
+
+            document.getElementById('appDeployForm').addEventListener('submit', async function (event) {
+                event.preventDefault();
+
+                // Prepare the manifest data from form input.
+                const manifest = {
+                    runtime: "test",
+                    code_hash: document.getElementById('deployCodeHash').value,
+                    hash_algorithm: "sha256",
+                    args: JSON.parse(document.getElementById('deployArgs').value),
+                    env_vars: JSON.parse(document.getElementById('deployEnvVars').textContent),
+                    start_mode: parseInt(document.getElementById('deployStartMode').value),
+                    salt: document.getElementById('deploySalt').value,
+                    allow_multi_instances: document.getElementById('deployAllowMultiInstances').checked
+                };
+
+                // Make the POST request to the Deploy endpoint.
+                await rpcCall('App.Deploy', {
+                    manifest
+                });
+                await loadApps();
+            });
+
+            document.querySelectorAll('.collapsible').forEach(item => {
+                item.addEventListener('click', toggleCollapsible);
+            });
+
+            // Additional forms submission handling below for the rest operations...
+        });
+    </script>
+</head>
+
+<body>
+    <div class="page">
+        <button type="button" class="collapsible">Worker Info</button>
+        <div class="content">
+            <textarea class="response" id="responseWorkerInfo"></textarea>
+            <button onclick="updateInfo()">Update</button>
+            <button onclick="initWorker()">Init Worker</button>
+            <button onclick="exitWorker()">Exit Worker</button>
+        </div>
+
+        <button type="button" class="collapsible">Blobs</button>
+        <div class="content">
+            <form id="blobsPutForm">
+                <div class="form-group">
+                    <label for="putFile">File:</label>
+                    <input type="file" id="putFile" name="file">
+                    <button type="submit">Put Blob</button>
+                </div>
+            </form>
+        </div>
+
+        <button type="button" class="collapsible">Apps</button>
+        <div class="content">
+            <form id="appDeployForm">
+                <div class="form-group">
+                    <label for="deployCodeHash">Code Hash:</label>
+                    <input type="text" id="deployCodeHash" required>
+                </div>
+                <div class="form-group">
+                    <label for="deployArgs">Args:</label>
+                    <input type="text" id="deployArgs" value="[]">
+                </div>
+                <div class="form-group">
+                    <label for="deployEnvVars">Env Vars (json object of string pairs):</label>
+                    <textarea id="deployEnvVars">[]</textarea>
+                </div>
+                <div class="form-group">
+                    <label for="deployStartMode">Start Mode:</label>
+                    <input type="number" id="deployStartMode" value="0">
+                </div>
+                <div class="form-group">
+                    <label for="deploySalt">Salt:</label>
+                    <input type="text" id="deploySalt" value="0x">
+                </div>
+                <div class="form-group">
+                    <label for="deployAllowMultiInstances">Allow Multi Instances:</label>
+                    <input type="checkbox" id="deployAllowMultiInstances">
+                </div>
+                <button type="submit">Deploy</button>
+            </form>
+        </div>
+
+        <div id="deployedApps">
+            <h2>Deployed Apps</h2>
+            <button onclick="loadApps()">Update</button>
+            <table id="appsTable">
+                <thead>
+                    <tr>
+                        <th>Address</th>
+                        <th>Instances</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- App rows will be dynamically inserted here -->
+                </tbody>
+            </table>
+        </div>
+
+        <textarea class="response" id="consoleOutput"></textarea>
+    </div>
+</body>
+
+</html>

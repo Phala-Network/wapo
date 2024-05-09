@@ -1,13 +1,21 @@
 #![no_main]
-
-use std::time::Duration;
-
-use wapo::time::sleep;
+use log::{error, info};
 
 #[wapo::main]
 async fn main() {
+    use wapo::logger::{LevelFilter, Logger};
+    Logger::with_max_level(LevelFilter::Info).init();
+
+    info!("Started!");
+    let ch = wapo::channel::incoming_queries();
     loop {
-        println!("Hello, world!");
-        sleep(Duration::from_secs(1)).await;
+        info!("Waiting for query...");
+        let Some(query) = ch.next().await else {
+            break;
+        };
+        info!("Received query: {:?}", query.path);
+        if let Err(err) = query.reply_tx.send(b"Hello, World!") {
+            error!("Failed to send reply: {:?}", err);
+        }
     }
 }

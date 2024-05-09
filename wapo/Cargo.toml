@@ -9,7 +9,7 @@ version = "0.1.1"
 [dependencies]
 wapo-env = { version = "0.1.0", path = "../wapo-env", default-features = false }
 wapo-macro = { version = "0.1.0", path = "../wapo-macro" }
-log = "0.4.16"
+log = { version = "0.4.16", features = ["std"] }
 derive_more = "0.99"
 
 # For hyper 0.14 support

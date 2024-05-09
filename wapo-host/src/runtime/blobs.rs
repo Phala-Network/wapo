@@ -25,7 +25,7 @@ impl BlobLoader {
         get_object(self.store_dir.as_path(), hash, hash_algo)
     }
 
-    pub async fn put<'a, R>(&self, hash: &[u8], data: &'a mut R, hash_algo: &str) -> Result<()>
+    pub async fn put<'a, R>(&self, hash: &[u8], data: &'a mut R, hash_algo: &str) -> Result<Vec<u8>>
     where
         R: AsyncRead + Unpin + ?Sized,
     {
@@ -122,13 +122,11 @@ pub async fn put_object<'a, R>(
     hash: &[u8],
     data: &'a mut R,
     hash_algo: &str,
-) -> Result<()>
+) -> Result<Vec<u8>>
 where
     R: AsyncRead + Unpin + ?Sized,
 {
     let hash_algo = HashAlgo::from_str(hash_algo).map_err(Error::msg)?;
-    let key = hex::encode(hash);
-
     let path = path.as_ref();
     let tmpdir = path.join(".tmp");
     std::fs::create_dir_all(&tmpdir).context("Failed to create blobs directory")?;
@@ -151,16 +149,17 @@ where
 
     // Make sure the hash of the file is correct
     let actual_hash = hash_file(&tmp_filepath, hash_algo).await?;
-    if actual_hash != hash {
+    if !hash.is_empty() && actual_hash != hash {
         bail!(
-            "Object file hash mismatch, actual hash is {}",
-            hex_fmt::HexFmt(actual_hash)
+            "Object file hash mismatch, actual: {}, expected: {}",
+            hex_fmt::HexFmt(actual_hash),
+            hex_fmt::HexFmt(hash)
         );
     }
+    let key = hex::encode(&actual_hash);
     std::fs::rename(&tmp_filepath, path.join(&key))
         .context("Failed to move object file to blobs directory")?;
-    drop(_guard);
-    Ok(())
+    Ok(actual_hash)
 }
 
 pub fn get_object(

@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use phala_scheduler::TaskScheduler;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::ops::Deref;
@@ -31,7 +30,8 @@ pub struct VmHandle {
 
 impl VmHandle {
     pub async fn stop(&mut self) -> Result<()> {
-        self.cmd_sender.ctl_tx.send(ControlCommand::Stop)?;
+        info!(target: "wapo", "Stopping instance...");
+        self.cmd_sender.inner.ctl_tx.send(ControlCommand::Stop)?;
         if let Some(stop_signal) = self.stop_signal.take() {
             stop_signal.await?;
         }
@@ -53,13 +53,19 @@ impl VmHandle {
 
 #[derive(Clone)]
 pub struct CommandSender {
+    inner: Arc<CommandSenderInner>,
+}
+
+struct CommandSenderInner {
     srv_tx: Sender<Command>,
     ctl_tx: UnboundedSender<ControlCommand>,
 }
 
 impl CommandSender {
     pub fn update_weight(&mut self, weight: u32) -> Result<()> {
-        self.ctl_tx.send(ControlCommand::UpdateWeight(weight))?;
+        self.inner
+            .ctl_tx
+            .send(ControlCommand::UpdateWeight(weight))?;
         Ok(())
     }
 }
@@ -68,11 +74,11 @@ impl Deref for CommandSender {
     type Target = Sender<Command>;
 
     fn deref(&self) -> &Self::Target {
-        &self.srv_tx
+        &self.inner.srv_tx
     }
 }
 
-impl Drop for CommandSender {
+impl Drop for CommandSenderInner {
     fn drop(&mut self) {
         if let Err(err) = self.ctl_tx.send(ControlCommand::Stop) {
             warn!(target: "wapo", "Failed to send stop command to the VM: {err:?}");
@@ -142,7 +148,6 @@ pub struct ServiceHandle {
     runtime_handle: tokio::runtime::Handle,
     report_tx: Sender<Report>,
     out_tx: crate::OutgoingRequestSender,
-    scheduler: TaskScheduler<VmId>,
     module_loader: ModuleLoader,
 }
 
@@ -171,7 +176,6 @@ pub fn service(
         runtime_handle,
         report_tx,
         out_tx,
-        scheduler: TaskScheduler::new(worker_threads as _),
         module_loader,
     };
     Ok((run, spawner))
@@ -229,7 +233,6 @@ impl ServiceHandle {
         let (ctl_cmd_tx, mut ctl_cmd_rx) = unbounded_channel();
         let (stop_signal_tx, stop_signal_rx) = tokio::sync::oneshot::channel();
 
-        let scheduler = self.scheduler.clone();
         let module = self.module_loader.load_module(wasm_hash, wasm_hash_alg)?;
         let meter = Arc::new(Meter::default());
         let meter_cloned = meter.clone();
@@ -246,7 +249,6 @@ impl ServiceHandle {
             let config = InstanceConfig::builder()
                 .id(id)
                 .max_memory_pages(max_memory_pages)
-                .scheduler(scheduler)
                 .weight(weight)
                 .event_tx(event_tx)
                 .blobs_dir(blobs_dir)
@@ -332,11 +334,13 @@ impl ServiceHandle {
             reason
         });
         let cmd_sender = CommandSender {
-            srv_tx: cmd_tx,
-            ctl_tx: ctl_cmd_tx,
+            inner: Arc::new(CommandSenderInner {
+                srv_tx: cmd_tx,
+                ctl_tx: ctl_cmd_tx,
+            }),
         };
         let vm_handle = VmHandle {
-            cmd_sender: cmd_sender.clone(),
+            cmd_sender,
             stop_signal: Some(stop_signal_rx),
             meter,
         };

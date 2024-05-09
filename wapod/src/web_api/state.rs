@@ -5,7 +5,7 @@ use sp_core::hashing::blake2_256;
 use tracing::{info, warn};
 use wapo_host::ShortId;
 use wapo_host::{blobs::BlobLoader, Metrics};
-use wapod_rpc::prpc::WorkerInfo;
+use wapod_rpc::prpc as pb;
 
 use std::collections::HashMap;
 
@@ -32,6 +32,7 @@ struct Instance {
 pub struct AppInfo {
     pub address: Address,
     pub session: [u8; 32],
+    pub running_instances: usize,
 }
 
 pub struct AppState {
@@ -114,7 +115,7 @@ impl Worker {
         Some(handle)
     }
 
-    pub async fn info(&self) -> WorkerInfo {
+    pub async fn info(&self) -> pb::WorkerInfo {
         let worker = self.lock();
         let max_instances = worker.args.max_instances as u64;
         let deployed_apps = worker.apps.len() as u64;
@@ -124,7 +125,7 @@ impl Worker {
             .map(|state| state.instances.len())
             .sum::<usize>() as u64;
         let instance_memory_size = worker.args.max_memory_pages as u64 * 64 * 1024;
-        WorkerInfo {
+        pb::WorkerInfo {
             pubkey: load_or_generate_key().public().as_bytes().to_vec(),
             deployed_apps,
             running_instances,
@@ -151,7 +152,7 @@ impl Worker {
         let total = handles.len();
         let vmid = ShortId(address);
         for (i, mut handle) in handles.into_iter().enumerate() {
-            info!(%vmid, "Stopping instances ({i}/{total})...");
+            info!(%vmid, "Stopping instances ({}/{total})...", i + 1);
             handle.stop().await?;
         }
         Ok(())
@@ -173,9 +174,18 @@ impl Worker {
         };
         worker.apps.insert(address, state);
         if immediate {
-            worker.start_app(address)?;
+            worker.resize_app_instances(address, 1)?;
         }
-        Ok(AppInfo { address, session })
+        let running_instances = worker
+            .apps
+            .get(&address)
+            .map(|app| app.instances.len())
+            .unwrap_or(0);
+        Ok(AppInfo {
+            address,
+            session,
+            running_instances,
+        })
     }
 
     pub async fn remove_app(&self, address: Address) -> Result<()> {
@@ -227,6 +237,19 @@ impl Worker {
             .apps
             .get(&address)
             .map(|app| app.instances.len())
+    }
+
+    pub fn list(&self) -> Vec<AppInfo> {
+        let inner = self.lock();
+        inner
+            .apps
+            .iter()
+            .map(|(address, state)| AppInfo {
+                address: *address,
+                session: state.session,
+                running_instances: state.instances.len(),
+            })
+            .collect()
     }
 }
 
@@ -309,9 +332,9 @@ impl WorkerState {
         let vmid = ShortId(address);
         let current = app.instances.len();
         let max_allowed = if app.manifest.allow_multi_instances {
-            1
-        } else {
             count
+        } else {
+            1
         };
         info!(%vmid, current, count, max_allowed, "Changing number of instances");
         if count > current {
@@ -319,7 +342,7 @@ impl WorkerState {
             let creating = available_slots.min(count - current);
             info!(available_slots, creating, max_allowed, "Creating instances");
             for i in 0..creating {
-                info!(%vmid, "Starting ({i}/{creating})...");
+                info!(%vmid, "Starting ({}/{creating})...", i + 1);
                 self.start_app(address)?;
             }
         } else if count < current {

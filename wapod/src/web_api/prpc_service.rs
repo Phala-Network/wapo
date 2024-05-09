@@ -43,9 +43,9 @@ impl WorkerRpc for Worker {
 }
 
 impl BlobsRpc for Worker {
-    async fn put(&self, request: pb::Blob) -> Result<()> {
+    async fn put(&self, request: pb::Blob) -> Result<pb::Blob> {
         let loader = self.blob_loader();
-        loader
+        let hash = loader
             .put(
                 &request.hash,
                 &mut &request.body[..],
@@ -55,7 +55,12 @@ impl BlobsRpc for Worker {
             .map_err(|err| {
                 warn!("Failed to put object: {err}");
                 RpcError::BadRequest(format!("Failed to put object: {err}"))
-            })
+            })?;
+        Ok(pb::Blob {
+            hash,
+            hash_algrithm: request.hash_algrithm,
+            body: vec![],
+        })
     }
 
     async fn exists(&self, request: pb::Blob) -> Result<pb::Boolean> {
@@ -146,6 +151,15 @@ impl AppRpc for Worker {
         Ok(pb::Number {
             value: number as u64,
         })
+    }
+
+    async fn list(&self) -> Result<pb::AppListResponse> {
+        let apps = self
+            .list()
+            .into_iter()
+            .map(|info| pb::AppInfo::new(info.address, info.running_instances as _))
+            .collect();
+        Ok(pb::AppListResponse { apps })
     }
 }
 

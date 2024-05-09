@@ -21,7 +21,7 @@ service Worker {
 
 service Blobs {
   // Put a blob to the worker's blobs directory.
-  rpc Put(Blob) returns (google.protobuf.Empty) {}
+  rpc Put(Blob) returns (Blob) {}
   // Remove a blob from the blobs directory.
   rpc Remove(Blob) returns (google.protobuf.Empty) {}
   // Check if a blob exists in the worker's blobs directory.
@@ -46,6 +46,8 @@ service App {
   rpc Resize(ResizeArgs) returns (Number) {}
   // Get metrics for each instance
   rpc Metrics(Addresses) returns (AppMetricsResponse) {}
+  // List all deployed apps.
+  rpc List(google.protobuf.Empty) returns (AppListResponse) {}
 }
 
 // Basic information about a worker.
@@ -132,6 +134,18 @@ message AppMetricsResponse {
   bytes encoded_metrics = 1;
   // The signature of the metrics payload.
   bytes signature = 2;
+}
+
+message AppListResponse {
+  // The list of deployed apps.
+  repeated AppInfo apps = 2;
+}
+
+message AppInfo {
+  // @codec scale crate::types::Address
+  bytes address = 1;
+  // The number of running instances of the app.
+  uint64 instances = 2;
 }
 
 message Boolean { bool value = 1; }

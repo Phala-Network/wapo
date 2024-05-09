@@ -36,7 +36,10 @@ impl ModuleLoader {
     }
 
     pub fn load_module(&self, code_hash: &[u8], hash_alg: &str) -> Result<WasmModule> {
-        let mut state = self.state.lock().expect("BUG: ModuleLoaderState lock poisoned");
+        let mut state = self
+            .state
+            .lock()
+            .expect("BUG: ModuleLoaderState lock poisoned");
         if let Some(module) = state.cache.get(code_hash) {
             return Ok(module.clone());
         }
@@ -54,6 +57,7 @@ impl ModuleLoader {
             .compile(&wasm_code)
             .with_context(|| anyhow!("Failed to compile module {hex_hash}"))?;
         info!(target: "wapo", "Module {hex_hash} compiled, elapsed={:.2?}", t0.elapsed());
+        state.cache.put(code_hash.to_vec(), module.clone());
         Ok(module)
     }
 }
