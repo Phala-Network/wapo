@@ -9,6 +9,7 @@ use wapod_rpc::prpc::WorkerInfo;
 
 use std::collections::HashMap;
 
+use std::ops::Add;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 
@@ -31,26 +32,24 @@ struct Instance {
 pub struct AppInfo {
     pub address: Address,
     pub session: [u8; 32],
-    pub running: bool,
 }
 
 pub struct AppState {
     pub session: [u8; 32],
     manifest: Manifest,
     hist_metrics: Metrics,
-    current_run: Option<Instance>,
+    instances: Vec<Instance>,
 }
 
 impl AppState {
-    /// Returns the metrics of the instance during the session.
-    /// If the instance is running, the metrics are merged with the current run's metrics.
+    /// Returns the metrics of the app during the session.
+    /// If there are any instance running, the metrics are merged with the current run's metrics.
     pub(crate) fn metrics(&self) -> Metrics {
-        let current = self
-            .current_run
-            .as_ref()
+        let init = self.hist_metrics.clone();
+        self.instances
+            .iter()
             .map(|run| run.vm_handle.meter().to_metrics())
-            .unwrap_or_default();
-        self.hist_metrics.merged(&current)
+            .fold(init, Add::add)
     }
 }
 
@@ -88,8 +87,13 @@ impl Worker {
         self.inner.lock().expect("Worker lock poisoned")
     }
 
-    pub async fn send(&self, vmid: Address, message: Command) -> Result<(), (u16, &'static str)> {
-        self.sender_for(vmid)
+    pub async fn send(
+        &self,
+        vmid: Address,
+        index: usize,
+        message: Command,
+    ) -> Result<(), (u16, &'static str)> {
+        self.sender_for(vmid, index)
             .ok_or((404, "App not found"))?
             .send(message)
             .await
@@ -97,13 +101,13 @@ impl Worker {
         Ok(())
     }
 
-    pub fn sender_for(&self, vmid: Address) -> Option<CommandSender> {
+    pub fn sender_for(&self, vmid: Address, index: usize) -> Option<CommandSender> {
         let handle = self
             .lock()
             .apps
             .get(&vmid)?
-            .current_run
-            .as_ref()?
+            .instances
+            .get(index)?
             .vm_handle
             .command_sender()
             .clone();
@@ -113,14 +117,14 @@ impl Worker {
     pub async fn info(&self) -> WorkerInfo {
         let worker = self.lock();
         let todo = "Limit the max instances";
-        let max_instances = worker.args.max_instances;
-        let deployed_apps = worker.apps.len() as u32;
+        let max_instances = worker.args.max_instances as u64;
+        let deployed_apps = worker.apps.len() as u64;
         let running_instances = worker
             .apps
             .values()
-            .filter(|state| state.current_run.is_some())
-            .count() as u32;
-        let instance_memory_size = worker.args.max_memory_pages * 64 * 1024;
+            .map(|state| state.instances.len())
+            .sum::<usize>() as u64;
+        let instance_memory_size = worker.args.max_memory_pages as u64 * 64 * 1024;
         WorkerInfo {
             pubkey: load_or_generate_key().public().as_bytes().to_vec(),
             deployed_apps,
@@ -139,9 +143,14 @@ impl Worker {
         self.lock().start_app(vmid)
     }
 
-    pub async fn stop_app(&self, vmid: Address) -> Result<()> {
-        let mut handle = self.lock().stop_app(vmid)?;
-        handle.stop().await?;
+    pub async fn stop_app(&self, address: Address) -> Result<()> {
+        let handles = self.lock().stop_app(address)?;
+        let total = handles.len();
+        let vmid = ShortId(address);
+        for (i, mut handle) in handles.into_iter().enumerate() {
+            info!("Stopping {vmid} ({i}/{total})...");
+            handle.stop().await?;
+        }
         Ok(())
     }
 
@@ -157,41 +166,28 @@ impl Worker {
             session,
             manifest,
             hist_metrics: Default::default(),
-            current_run: None,
+            instances: vec![],
         };
         worker.apps.insert(address, state);
         if immediate {
             worker.start_app(address)?;
         }
-        let running = worker
-            .apps
-            .get(&address)
-            .expect("Just inserted")
-            .current_run
-            .is_some();
-        Ok(AppInfo {
-            address,
-            session,
-            running,
-        })
+        Ok(AppInfo { address, session })
     }
 
     pub async fn remove_app(&self, address: Address) -> Result<()> {
-        let Some(mut handle) = self
-            .lock()
-            .apps
-            .remove(&address)
-            .map(|state| state.current_run)
-            .flatten()
-            .map(|run| run.vm_handle)
-        else {
+        let Some(app) = self.lock().apps.remove(&address) else {
             bail!("App not found")
         };
         let vmid = ShortId(address);
-        if !handle.is_stopped() {
-            info!("Removing VM {vmid}...");
-            if let Err(err) = handle.stop().await {
-                warn!("Failed to stop {vmid}: {err:?}");
+        let n = app.instances.len();
+        for (i, instance) in app.instances.into_iter().enumerate() {
+            let mut handle = instance.vm_handle;
+            if !handle.is_stopped() {
+                info!("Removing VM {vmid}, ({i}/{n})...");
+                if let Err(err) = handle.stop().await {
+                    warn!("Failed to stop {vmid}: {err:?}");
+                }
             }
         }
         Ok(())
@@ -233,7 +229,7 @@ impl WorkerState {
             .apps
             .get_mut(&address)
             .ok_or(anyhow!("Instance not found"))?;
-        if app.current_run.is_some() {
+        if !app.instances.is_empty() {
             return Err(anyhow!("Instance already started"));
         }
         let config = service::InstanceStartConfig::builder()
@@ -258,10 +254,11 @@ impl WorkerState {
             vm_handle,
         };
         let sn = instance.sequence_number;
-        app.current_run = Some(instance);
+        app.instances.push(instance);
         // Clean up the instance when it stops.
         let weak_self = self.weak_self.clone();
         self.service.spawn(async move {
+            let todo = "Restart the instance if it stopped unexpectedly";
             if let Ok(reason) = join_handle.await {
                 info!("VM {vmid} stopped: {reason}");
             } else {
@@ -270,33 +267,43 @@ impl WorkerState {
             if let Some(inner) = weak_self.upgrade() {
                 let mut inner = inner.lock().expect("Worker lock poisoned");
                 let Some(app) = inner.apps.get_mut(&address) else {
-                    warn!("App was removed while stopping");
+                    info!("App was removed before stopping");
                     return;
                 };
-                if let Some(current_run) = app.current_run.take() {
-                    if current_run.sequence_number == sn {
-                        app.hist_metrics
-                            .merge(&current_run.vm_handle.meter().to_metrics());
-                    } else {
-                        // The app has been restarted.
-                        app.current_run = Some(current_run);
-                    }
-                }
+                let mut found = None;
+                app.instances = app
+                    .instances
+                    .drain(..)
+                    .filter_map(|instance| {
+                        if instance.sequence_number == sn {
+                            found = Some(instance);
+                            None
+                        } else {
+                            Some(instance)
+                        }
+                    })
+                    .collect();
+                let Some(instance) = found else {
+                    warn!("Instance was removed before stopping");
+                    return;
+                };
+                app.hist_metrics += instance.vm_handle.meter().to_metrics();
             }
         });
         Ok(())
     }
 
-    fn stop_app(&mut self, address: Address) -> Result<VmHandle> {
+    fn stop_app(&mut self, address: Address) -> Result<Vec<VmHandle>> {
         let instance = self
             .apps
             .get_mut(&address)
             .ok_or(anyhow!("App not found"))?;
-        instance
-            .current_run
-            .take()
+        let handles = instance
+            .instances
+            .drain(..)
             .map(|run| run.vm_handle)
-            .ok_or_else(|| anyhow!("Instance is not running"))
+            .collect();
+        Ok(handles)
     }
 
     fn init(&mut self, salt: &[u8]) -> Result<[u8; 32]> {

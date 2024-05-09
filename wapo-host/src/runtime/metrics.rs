@@ -1,4 +1,5 @@
 use std::{
+    ops::{Add, AddAssign},
     sync::atomic::{AtomicBool, AtomicU64, Ordering},
     time::{Duration, Instant},
 };
@@ -33,6 +34,34 @@ impl Metrics {
         let mut result = self.clone();
         result.merge(other);
         result
+    }
+}
+
+impl Add for Metrics {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        self.merged(&other)
+    }
+}
+
+impl Add<&Metrics> for Metrics {
+    type Output = Self;
+
+    fn add(self, other: &Self) -> Self {
+        self.merged(other)
+    }
+}
+
+impl AddAssign for Metrics {
+    fn add_assign(&mut self, other: Self) {
+        self.merge(&other);
+    }
+}
+
+impl AddAssign<&Metrics> for Metrics {
+    fn add_assign(&mut self, other: &Self) {
+        self.merge(other);
     }
 }
 

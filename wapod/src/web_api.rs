@@ -16,8 +16,8 @@ use tracing::{info, instrument, warn};
 use sp_core::crypto::AccountId32;
 
 use wapo_host::{crate_outgoing_request_channel, ShortId};
-use wapod_rpc::prpc::blobs_server::BlobsServer;
 use wapod_rpc::prpc::app_server::AppServer;
+use wapod_rpc::prpc::blobs_server::BlobsServer;
 use wapod_rpc::prpc::server::{ComposedService, Service};
 use wapod_rpc::prpc::{admin_server::AdminServer, status_server::StatusServer};
 
@@ -35,8 +35,8 @@ use crate::{worker_key, Args};
 
 use state::Worker;
 
-mod state;
 mod prpc_service;
+mod state;
 
 type UserService = ComposedService<Worker, (StatusServer<Worker>,)>;
 type AdminService = ComposedService<
@@ -117,17 +117,19 @@ async fn push_query(
         ),
     };
 
-    state.send(
-        address,
-        Command::PushQuery {
-            path: path.into(),
-            origin,
-            payload,
-            reply_tx,
-        },
-    )
-    .await
-    .map_err(|(code, reason)| Custom(Status { code }, reason))?;
+    state
+        .send(
+            address,
+            0,
+            Command::PushQuery {
+                path: path.into(),
+                origin,
+                payload,
+                reply_tx,
+            },
+        )
+        .await
+        .map_err(|(code, reason)| Custom(Status { code }, reason))?;
     let reply = rx.await.or(Err(Custom(
         Status::InternalServerError,
         "Failed to receive query reply from the VM",
@@ -166,7 +168,7 @@ async fn connect_vm<'r>(
     let address =
         id.0.try_into()
             .map_err(|_| (Status::BadRequest, "Invalid address".to_string()))?;
-    let Some(command_tx) = state.sender_for(address) else {
+    let Some(command_tx) = state.sender_for(address, 0) else {
         return Err((Status::NotFound, Default::default()));
     };
     let path = path
@@ -266,7 +268,10 @@ async fn object_post(
 }
 
 #[get("/object/<id>")]
-async fn object_get(state: &State<Worker>, id: HexBytes) -> Result<NamedFile, Custom<&'static str>> {
+async fn object_get(
+    state: &State<Worker>,
+    id: HexBytes,
+) -> Result<NamedFile, Custom<&'static str>> {
     let path = state.blob_loader().path(&id.0);
     NamedFile::open(&path)
         .await

@@ -48,13 +48,13 @@ message WorkerInfo {
   // The public key of the worker.
   bytes pubkey = 1;
   // The number of deployed apps.
-  uint32 deployed_apps = 2;
+  uint64 deployed_apps = 2;
   // The number of running instances.
-  uint32 running_instances = 3;
+  uint64 running_instances = 3;
   // The number of maximum instances.
-  uint32 max_instances = 4;
+  uint64 max_instances = 4;
   // The size limit of memory of each instance.
-  uint32 instance_memory_size = 5;
+  uint64 instance_memory_size = 5;
   // The session id of the worker.
   bytes session = 6;
 }
@@ -98,6 +98,8 @@ message Manifest {
   int32 start_mode = 6;
   // The salt used to derive the app's address.
   bytes salt = 7;
+  // Allow to run multiple instances of the app in a single worker.
+  bool allow_multi_instances = 8;
 }
 
 // Environment variable of an app.
