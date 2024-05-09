@@ -12,7 +12,7 @@ service Status {
 }
 
 // The wapod admin RPC.
-service Admin {
+service Worker {
   // Initialize the worker.
   rpc Init(InitArgs) returns (InitResponse) {}
   // Top the worker.

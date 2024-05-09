@@ -12,7 +12,7 @@ use rpc::prpc::{
     WorkerInfo,
 };
 use rpc::prpc::{
-    admin_server::AdminRpc, app_server::AppRpc, blobs_server::BlobsRpc, status_server::StatusRpc,
+    app_server::AppRpc, blobs_server::BlobsRpc, status_server::StatusRpc, worker_server::WorkerRpc,
 };
 use scale::Encode;
 use tracing::{error, info, warn};
@@ -24,7 +24,7 @@ use crate::worker_key::load_or_generate_key;
 
 use super::{read_data, Worker};
 
-impl AdminRpc for Worker {
+impl WorkerRpc for Worker {
     async fn init(&self, request: pb::InitArgs) -> Result<pb::InitResponse> {
         if request.salt.len() > 64 {
             return Err(RpcError::BadRequest("Salt too long".into()));

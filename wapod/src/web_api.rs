@@ -16,10 +16,11 @@ use tracing::{info, instrument, warn};
 use sp_core::crypto::AccountId32;
 
 use wapo_host::{crate_outgoing_request_channel, ShortId};
-use wapod_rpc::prpc::app_server::AppServer;
-use wapod_rpc::prpc::blobs_server::BlobsServer;
 use wapod_rpc::prpc::server::{ComposedService, Service};
-use wapod_rpc::prpc::{admin_server::AdminServer, status_server::StatusServer};
+use wapod_rpc::prpc::{
+    app_server::AppServer, blobs_server::BlobsServer, status_server::StatusServer,
+    worker_server::WorkerServer,
+};
 
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -43,7 +44,7 @@ type AdminService = ComposedService<
     Worker,
     (
         StatusServer<Worker>,
-        AdminServer<Worker>,
+        WorkerServer<Worker>,
         AppServer<Worker>,
         BlobsServer<Worker>,
     ),
