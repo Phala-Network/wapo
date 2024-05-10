@@ -106,7 +106,7 @@ impl AppRpc for Worker {
 
     #[tracing::instrument(name="app.start", fields(id = %ShortId(&request.address)), skip_all)]
     async fn start(&self, request: pb::Address) -> Result<()> {
-        self.start_app(request.decode_address()?).await?;
+        self.start_app(request.decode_address()?, false).await?;
         Ok(())
     }
 
@@ -150,9 +150,9 @@ impl AppRpc for Worker {
 
     #[tracing::instrument(name="app.resize", fields(id = %ShortId(&request.address)), skip_all)]
     async fn resize(&self, request: pb::ResizeArgs) -> Result<pb::Number> {
-        info!(new_size=request.instances, "Resizing app");
+        info!(new_size = request.instances, "Resizing app");
         let address = request.decode_address()?;
-        self.resize_app_instances(address, request.instances as usize)
+        self.resize_app_instances(address, request.instances as usize, false)
             .await?;
         let number = self.num_instances_of(address).ok_or(RpcError::NotFound)?;
         Ok(pb::Number {

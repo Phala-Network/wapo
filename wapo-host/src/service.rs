@@ -80,8 +80,8 @@ impl Deref for CommandSender {
 
 impl Drop for CommandSenderInner {
     fn drop(&mut self) {
-        if let Err(err) = self.ctl_tx.send(ControlCommand::Stop) {
-            warn!(target: "wapo", "Failed to send stop command to the VM: {err:?}");
+        if let Err(_) = self.ctl_tx.send(ControlCommand::Stop) {
+            info!(target: "wapo", "Instance already stopped");
         }
     }
 }

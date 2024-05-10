@@ -35,6 +35,7 @@ pub struct AppInfo {
     pub session: [u8; 32],
     pub running_instances: usize,
     pub resizable: bool,
+    pub on_demand: bool,
 }
 
 pub struct AppState {
@@ -142,18 +143,22 @@ impl Worker {
         self.lock().blob_loader.clone()
     }
 
-    pub async fn start_app(&self, address: Address) -> Result<()> {
-        self.resize_app_instances(address, 1).await
+    pub async fn start_app(&self, address: Address, demand: bool) -> Result<()> {
+        self.resize_app_instances(address, 1, demand).await
     }
 
     pub async fn stop_app(&self, address: Address) -> Result<()> {
-        self.resize_app_instances(address, 0).await
+        self.resize_app_instances(address, 0, false).await
     }
 
-    pub async fn resize_app_instances(&self, address: Address, count: usize) -> Result<()> {
-        let handles = self.lock().resize_app_instances(address, count)?;
+    pub async fn resize_app_instances(
+        &self,
+        address: Address,
+        count: usize,
+        demand: bool,
+    ) -> Result<()> {
+        let handles = self.lock().resize_app_instances(address, count, demand)?;
         let total = handles.len();
-        let vmid = ShortId(address);
         for (i, mut handle) in handles.into_iter().enumerate() {
             info!("Stopping instances ({}/{total})...", i + 1);
             handle.stop().await?;
@@ -180,7 +185,7 @@ impl Worker {
         };
         worker.apps.insert(address, state);
         if immediate {
-            worker.resize_app_instances(address, 1)?;
+            worker.resize_app_instances(address, 1, false)?;
         }
         let app = worker
             .apps
@@ -192,6 +197,7 @@ impl Worker {
             running_instances: app.instances.len(),
             resizable: app.manifest.resizable,
             sn: app.sn,
+            on_demand: app.manifest.start_mode == 1,
         })
     }
 
@@ -204,7 +210,7 @@ impl Worker {
         for (i, instance) in app.instances.into_iter().enumerate() {
             let mut handle = instance.vm_handle;
             if !handle.is_stopped() {
-                info!("Removing VM {vmid}, ({i}/{n})...");
+                info!("Stopping instance {vmid}, ({}/{n})...", i + 1);
                 if let Err(err) = handle.stop().await {
                     warn!("Failed to stop {vmid}: {err:?}");
                 }
@@ -256,6 +262,7 @@ impl Worker {
                 session: state.session,
                 running_instances: state.instances.len(),
                 resizable: state.manifest.resizable,
+                on_demand: state.manifest.start_mode == 0,
                 sn: state.sn,
             })
             .collect()
@@ -337,16 +344,24 @@ impl WorkerState {
         Ok(())
     }
 
-    fn resize_app_instances(&mut self, address: Address, count: usize) -> Result<Vec<VmHandle>> {
+    fn resize_app_instances(
+        &mut self,
+        address: Address,
+        count: usize,
+        demand: bool,
+    ) -> Result<Vec<VmHandle>> {
         let app = self
             .apps
             .get_mut(&address)
             .ok_or(anyhow!("App not found"))?;
-        let vmid = ShortId(address);
         let current = app.instances.len();
         let max_allowed = if app.manifest.resizable { count } else { 1 };
         info!(current, count, max_allowed, "Changing number of instances");
         if count > current {
+            let on_demand = app.manifest.start_mode == 1;
+            if on_demand && !demand {
+                bail!("On-demand app cannot be started directly");
+            }
             let available_slots = self.available_slots();
             let creating = available_slots.min(count - current);
             info!(available_slots, creating, "Creating instances");

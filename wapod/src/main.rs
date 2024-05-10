@@ -33,6 +33,8 @@ async fn main() -> Result<()> {
     logger::init();
     let todo = "set panic = abort";
     let todo = "Validate max_memory_pages * max_instances < WAPOD_ENCLAVE_MEM_SIZE";
+    let todo = "Store instance logs to disk";
+    let todo = "implement on-demand instance";
 
     info!("Starting wapod server...");
     let args = Args::parse();
