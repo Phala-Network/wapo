@@ -16,6 +16,7 @@ use rpc::prpc::{
 };
 use scale::Encode;
 use tracing::{error, info, warn};
+use wapo_host::ShortId;
 use wapod_rpc as rpc;
 
 type Result<T, E = RpcError> = std::result::Result<T, E>;
@@ -90,22 +91,26 @@ impl AppRpc for Worker {
             .deploy_app(manifest)
             .await
             .context("Failed to deploy app")?;
+        info!("Deployed app: {}", hex_fmt::HexFmt(&info.address));
         Ok(pb::DeployResponse {
             address: info.address.to_vec(),
             session: info.session.to_vec(),
         })
     }
 
+    #[tracing::instrument(name="app.remove", fields(id = %ShortId(&request.address)), skip_all)]
     async fn remove(&self, request: pb::Address) -> Result<()> {
         self.remove_app(request.decode_address()?).await?;
         Ok(())
     }
 
+    #[tracing::instrument(name="app.start", fields(id = %ShortId(&request.address)), skip_all)]
     async fn start(&self, request: pb::Address) -> Result<()> {
         self.start_app(request.decode_address()?).await?;
         Ok(())
     }
 
+    #[tracing::instrument(name="app.stop", fields(id = %ShortId(&request.address)), skip_all)]
     async fn stop(&self, request: pb::Address) -> Result<()> {
         self.stop_app(request.decode_address()?).await?;
         Ok(())
@@ -143,6 +148,7 @@ impl AppRpc for Worker {
         Ok(pb::AppMetricsResponse::new(metrics, signature))
     }
 
+    #[tracing::instrument(name="app.resize", fields(id = %ShortId(&request.address), new_size = request.instances), skip_all)]
     async fn resize(&self, request: pb::ResizeArgs) -> Result<pb::Number> {
         let address = request.decode_address()?;
         self.resize_app_instances(address, request.instances as usize)
