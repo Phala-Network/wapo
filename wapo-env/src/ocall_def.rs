@@ -103,7 +103,7 @@ pub trait OcallFuncs {
 
     /// Reverse lookup hash object.
     #[ocall(id = 244, encode_output)]
-    fn object_get(hash: &[u8], hash_algrithm: &str) -> Result<Vec<u8>>;
+    fn object_get(hash: &[u8], hash_algorithm: &str) -> Result<Vec<u8>>;
 }
 
 #[repr(u8)]

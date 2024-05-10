@@ -50,7 +50,7 @@ impl BlobsRpc for Worker {
             .put(
                 &request.hash,
                 &mut &request.body[..],
-                &request.hash_algrithm,
+                &request.hash_algorithm,
             )
             .await
             .map_err(|err| {
@@ -59,7 +59,7 @@ impl BlobsRpc for Worker {
             })?;
         Ok(pb::Blob {
             hash,
-            hash_algrithm: request.hash_algrithm,
+            hash_algorithm: request.hash_algorithm,
             body: vec![],
         })
     }

@@ -395,10 +395,10 @@ impl<'a> env::OcallFuncs for WapoCtx {
             .or(Err(OcallError::IoError))
     }
 
-    fn object_get(&mut self, hash: &[u8], hash_algrithm: &str) -> Result<Vec<u8>> {
+    fn object_get(&mut self, hash: &[u8], hash_algorithm: &str) -> Result<Vec<u8>> {
         let obj = self
             .blob_loader
-            .get(hash, hash_algrithm)
+            .get(hash, hash_algorithm)
             .or(Err(OcallError::IoError))?
             .ok_or(OcallError::NotFound)?;
         Ok(obj)

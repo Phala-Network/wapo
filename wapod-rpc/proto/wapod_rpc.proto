@@ -73,7 +73,7 @@ message Blob {
   // The key of the object.
   bytes hash = 1;
   // The hash algorithm used to generate the key.
-  string hash_algrithm = 2;
+  string hash_algorithm = 2;
   // The value of the object.
   bytes body = 3;
 }
