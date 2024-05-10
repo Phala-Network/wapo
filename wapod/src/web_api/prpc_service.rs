@@ -170,6 +170,7 @@ impl AppRpc for Worker {
                     info.address,
                     info.running_instances as _,
                     info.resizable,
+                    info.start_mode,
                 )
             })
             .collect();

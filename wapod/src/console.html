@@ -244,7 +244,8 @@
                 let addressCell = row.insertCell(1);
                 let resizableCell = row.insertCell(2);
                 let instancesCell = row.insertCell(3);
-                let actionsCell = row.insertCell(4);
+                let startModeCell = row.insertCell(4);
+                let actionsCell = row.insertCell(5);
 
                 snCell.textContent = app.sn;
 
@@ -256,6 +257,8 @@
                 resizableCell.textContent = app.resizable ? 'Yes' : 'No';
 
                 instancesCell.textContent = app.instances;
+
+                startModeCell.textContent = app.start_mode;
 
                 let stopButton = document.createElement('button');
                 stopButton.textContent = 'Stop';
@@ -407,6 +410,7 @@
                         <th>Address</th>
                         <th>Resizable</th>
                         <th>Instances</th>
+                        <th>Mode</th>
                         <th>Actions</th>
                     </tr>
                 </thead>

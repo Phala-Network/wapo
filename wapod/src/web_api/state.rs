@@ -35,7 +35,7 @@ pub struct AppInfo {
     pub session: [u8; 32],
     pub running_instances: usize,
     pub resizable: bool,
-    pub on_demand: bool,
+    pub start_mode: u32,
 }
 
 pub struct AppState {
@@ -197,7 +197,7 @@ impl Worker {
             running_instances: app.instances.len(),
             resizable: app.manifest.resizable,
             sn: app.sn,
-            on_demand: app.manifest.start_mode == 1,
+            start_mode: app.manifest.start_mode,
         })
     }
 
@@ -262,7 +262,7 @@ impl Worker {
                 session: state.session,
                 running_instances: state.instances.len(),
                 resizable: state.manifest.resizable,
-                on_demand: state.manifest.start_mode == 0,
+                start_mode: state.manifest.start_mode,
                 sn: state.sn,
             })
             .collect()
