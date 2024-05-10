@@ -148,8 +148,9 @@ impl AppRpc for Worker {
         Ok(pb::AppMetricsResponse::new(metrics, signature))
     }
 
-    #[tracing::instrument(name="app.resize", fields(id = %ShortId(&request.address), new_size = request.instances), skip_all)]
+    #[tracing::instrument(name="app.resize", fields(id = %ShortId(&request.address)), skip_all)]
     async fn resize(&self, request: pb::ResizeArgs) -> Result<pb::Number> {
+        info!(new_size=request.instances, "Resizing app");
         let address = request.decode_address()?;
         self.resize_app_instances(address, request.instances as usize)
             .await?;

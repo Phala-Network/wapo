@@ -155,7 +155,7 @@ impl Worker {
         let total = handles.len();
         let vmid = ShortId(address);
         for (i, mut handle) in handles.into_iter().enumerate() {
-            info!(%vmid, "Stopping instances ({}/{total})...", i + 1);
+            info!("Stopping instances ({}/{total})...", i + 1);
             handle.stop().await?;
         }
         Ok(())
@@ -345,18 +345,18 @@ impl WorkerState {
         let vmid = ShortId(address);
         let current = app.instances.len();
         let max_allowed = if app.manifest.resizable { count } else { 1 };
-        info!(%vmid, current, count, max_allowed, "Changing number of instances");
+        info!(current, count, max_allowed, "Changing number of instances");
         if count > current {
             let available_slots = self.available_slots();
             let creating = available_slots.min(count - current);
-            info!(available_slots, creating, max_allowed, "Creating instances");
+            info!(available_slots, creating, "Creating instances");
             for i in 0..creating {
-                info!(%vmid, "Starting ({}/{creating})...", i + 1);
+                info!("Starting instance ({}/{creating})...", i + 1);
                 self.start_app(address)?;
             }
         } else if count < current {
             let stop_count = current - count;
-            info!(%vmid, stop_count, "Stopping instances");
+            info!(stop_count, "Stopping instances");
             let handles = app
                 .instances
                 .drain(count..)

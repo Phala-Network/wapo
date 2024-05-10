@@ -240,14 +240,20 @@
             tbody.innerHTML = ''; // Clear existing rows
             appsData.forEach(app => {
                 let row = tbody.insertRow();
-                let addressCell = row.insertCell(0);
-                let instancesCell = row.insertCell(1);
-                let actionsCell = row.insertCell(2);
+                let snCell = row.insertCell(0);
+                let addressCell = row.insertCell(1);
+                let resizableCell = row.insertCell(2);
+                let instancesCell = row.insertCell(3);
+                let actionsCell = row.insertCell(4);
+
+                snCell.textContent = app.sn;
 
                 let addressSpan = document.createElement('span');
                 addressSpan.className = 'shortened-address';
                 addressSpan.textContent = app.address;
                 addressCell.appendChild(addressSpan);
+
+                resizableCell.textContent = app.resizable ? 'Yes' : 'No';
 
                 instancesCell.textContent = app.instances;
 
@@ -397,7 +403,9 @@
             <table id="appsTable">
                 <thead>
                     <tr>
+                        <th>SN</th>
                         <th>Address</th>
+                        <th>Resizable</th>
                         <th>Instances</th>
                         <th>Actions</th>
                     </tr>
