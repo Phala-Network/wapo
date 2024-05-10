@@ -223,11 +223,45 @@
             /* Space between buttons */
             margin-left: 0px;
         }
+
+        /* Add to your style tag */
+        #toasts {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 500;
+        }
+
+        .toast {
+            background-color: #333;
+            color: white;
+            padding: 10px;
+            margin-top: 5px;
+            border-radius: 5px;
+            min-width: 250px;
+            text-align: center;
+            transition: all .5s;
+            opacity: .9;
+        }
+
+        .toast.success {
+            background-color: green;
+        }
+
+        .toast.error {
+            background-color: red;
+        }
     </style>
 </head>
 
 <body>
     <div id="app" class="page">
+        <div id="toasts">
+            <div v-for="(toast, index) in toasts" :key="index" :class="['toast', toast.type]">
+                {{ toast.message }}
+            </div>
+        </div>
+
         <div class="tabs form-group">
             <button class="tab" @click="activeTab = 'workerInfo'">Worker Info</button>
             <button class="tab" @click="activeTab = 'blobs'">Blobs</button>
@@ -351,19 +385,28 @@
                         salt: '0x00',
                         resizable: false
                     },
+                    toasts: [],
+                    nextToastId: 0,
                 };
             },
             methods: {
                 async fetchAPI(method, data) {
-                    data = data || {};
-                    const response = await fetch(`/prpc/${method}?json`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(data)
-                    });
-                    return response.json();
+                    const toastId = this.addToast(`Calling ${method}`);
+                    try {
+                        data = data || {};
+                        const response = await fetch(`/prpc/${method}?json`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(data)
+                        });
+                        const success = response.ok;
+                        this.updateToast(toastId, success);
+                        return response.json();
+                    } catch (err) {
+                        this.updateToast(toastId, false);
+                    }
                 },
 
                 async rpcCall(method, data) {
@@ -510,6 +553,26 @@
                     this.consoleOutput = '';
                 },
 
+                addToast(message) {
+                    const id = this.nextToastId++;
+                    this.toasts.push({ id, message, type: 'pending', show: true });
+                    return id;
+                },
+
+                removeToast(id) {
+                    const toastIndex = this.toasts.findIndex(toast => toast.id === id);
+                    if (toastIndex !== -1) {
+                        this.toasts.splice(toastIndex, 1);
+                    }
+                },
+
+                updateToast(id, success) {
+                    const toastIndex = this.toasts.findIndex(toast => toast.id === id);
+                    if (toastIndex !== -1) {
+                        this.toasts[toastIndex].type = success ? 'success' : 'error';
+                        setTimeout(() => this.removeToast(id), success ? 1000 : 5000);
+                    }
+                },
             },
             mounted() {
                 this.updateInfo();
