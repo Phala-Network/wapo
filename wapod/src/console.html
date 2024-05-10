@@ -3,8 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.">
-    <title>API Test Page</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wapod Console</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -13,9 +13,39 @@
         }
 
         .page {
-            max-width: 800px;
+            max-width: 900px;
             margin: auto;
             padding: 5px;
+            padding-bottom: 150px;
+            /* Add bottom padding to account for floating log box */
+        }
+
+        .tabs {
+            overflow: hidden;
+            background-color: #f1f1f1;
+        }
+
+        .tab {
+            float: left;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 10px 16px;
+            transition: 0.3s;
+            font-size: 17px;
+        }
+
+        .tab:hover {
+            background-color: #ddd;
+        }
+
+        .tab.active {
+            background-color: #ccc;
+        }
+
+        .tabcontent {
+            padding: 6px 12px;
+            border-top: none;
         }
 
         .collapsible {
@@ -39,8 +69,6 @@
 
         .content {
             padding: 0 10px;
-            /* Reduced padding */
-            max-height: 0;
             overflow: hidden;
             transition: max-height 0.2s ease-out;
             background-color: #f1f1f1;
@@ -78,8 +106,8 @@
             /* Align with text baseline */
         }
 
-        .response {
-            height: 130px;
+        #workerInfo {
+            height: 150px;
             margin-top: 10px;
             border: 1px solid #eee;
             background-color: #f2f2f2;
@@ -145,283 +173,373 @@
             text-overflow: ellipsis;
             white-space: nowrap;
         }
+
+        .app-op-buttons {
+            max-width: 180px;
+        }
+
+        #consoleOutput {
+            height: 130px;
+            margin-top: 10px;
+            /* Preserve formatting and spaces */
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+
+            border: 1px solid #333;
+            /* Dark border color */
+            background-color: #1e1e1e;
+            /* Dark background */
+            color: #dcdcdc;
+            /* Light text color for contrast */
+            font-family: 'Courier New', monospace;
+            /* Monospace font for terminal look */
+            font-size: 0.8em;
+            /* Adjust font size if desired */
+            padding: 6px;
+            overflow-y: auto;
+            /* Add a vertical scrollbar */
+            white-space: pre;
+        }
+
+        .console-controls {
+            /* Fixed position so it scrolls with the textarea */
+            position: fixed;
+            /* Place above the console box */
+            bottom: 125px;
+            /* Distance from the right side */
+            right: 15px;
+            /* Ensure it's above the logs */
+            z-index: 1010;
+        }
+
+        .console-controls button {
+            /* Smaller padding for tiny buttons */
+            padding: 1px 1px;
+            /* Smaller font size for tiny buttons */
+            font-size: 0.7em;
+            /* Space between buttons */
+            margin-left: 0px;
+        }
     </style>
-    <script>
-        async function fetchAPI(method, data) {
-            data = data ? data : {};
-            const response = await fetch(`/prpc/${method}?json`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(data)
-            });
-            return response.json();
-        }
-
-        async function rpcCall(method, data) {
-            const response = await fetchAPI(method, data);
-            consoleLog(method, response);
-            return response;
-        }
-
-        function hex(data) {
-            return '0x' + Array.from(new Uint8Array(data))
-                .map(b => b.toString(16).padStart(2, '0'))
-                .join('');
-        }
-
-        async function sleep(ms) {
-            return new Promise(resolve => setTimeout(resolve, ms));
-        }
-        async function updateInfo() {
-            const data = await fetchAPI('Status.Info');
-            document.getElementById('responseWorkerInfo').textContent = JSON.stringify(data, null, 2);
-        }
-
-        function consoleLog(tip, msg) {
-            document.getElementById('consoleOutput').textContent = tip + ':\n' + JSON.stringify(msg, null, 2);
-        }
-
-        function toggleCollapsible(event) {
-            event.target.classList.toggle("active");
-            var content = event.target.nextElementSibling;
-            if (content.style.maxHeight) {
-                content.style.maxHeight = null;
-            } else {
-                content.style.maxHeight = content.scrollHeight + "px";
-            }
-        }
-
-        async function initWorker() {
-            console.log('Initializing worker...');
-            await rpcCall('Worker.Init', { salt: "0x" });
-            await updateInfo();
-        }
-
-        async function exitWorker() {
-            console.log('Exiting worker...');
-            await rpcCall('Worker.Exit');
-        }
-
-        async function clearApps() {
-            console.log('Clearing apps...');
-            await rpcCall('App.Clear');
-            await loadApps();
-        }
-
-        async function stopApp(address) {
-            console.log('Stopping app with address: ' + address);
-            await rpcCall('App.Stop', { address });
-            await loadApps();
-        }
-
-        async function startApp(address) {
-            console.log('Starting app with address: ' + address);
-            await rpcCall('App.Start', { address });
-            await loadApps();
-        }
-
-        async function removeApp(address) {
-            console.log('Removing app with address: ' + address);
-            await rpcCall('App.Remove', { address });
-            await loadApps();
-        }
-
-        async function resizeApp(address) {
-            var newSize = prompt('Enter new size for ' + address + ':');
-            console.log('Resizing app with address: ' + address + ' to size ' + newSize);
-            await rpcCall('App.Resize', { address, instances: parseInt(newSize) });
-            await loadApps();
-        }
-
-        function updateAppsTable(appsData) {
-            const tbody = document.getElementById('appsTable').querySelector('tbody');
-            tbody.innerHTML = ''; // Clear existing rows
-            appsData.forEach(app => {
-                let row = tbody.insertRow();
-                let snCell = row.insertCell(0);
-                let addressCell = row.insertCell(1);
-                let resizableCell = row.insertCell(2);
-                let instancesCell = row.insertCell(3);
-                let startModeCell = row.insertCell(4);
-                let actionsCell = row.insertCell(5);
-
-                snCell.textContent = app.sn;
-
-                let addressSpan = document.createElement('span');
-                addressSpan.className = 'shortened-address';
-                addressSpan.textContent = app.address;
-                addressCell.appendChild(addressSpan);
-
-                resizableCell.textContent = app.resizable ? 'Yes' : 'No';
-
-                instancesCell.textContent = app.instances;
-
-                startModeCell.textContent = app.start_mode;
-
-                let stopButton = document.createElement('button');
-                stopButton.textContent = 'Stop';
-                stopButton.className = 'btn-small';
-                stopButton.addEventListener('click', () => stopApp(app.address));
-
-                let startButton = document.createElement('button');
-                startButton.textContent = 'Start';
-                startButton.className = 'btn-small';
-                startButton.addEventListener('click', () => startApp(app.address));
-
-                let resizeButton = document.createElement('button');
-                resizeButton.textContent = 'Resize';
-                resizeButton.className = 'btn-small';
-                resizeButton.addEventListener('click', () => resizeApp(app.address));
-
-                let removeButton = document.createElement('button');
-                removeButton.textContent = 'Remove';
-                removeButton.className = 'btn-small';
-                removeButton.addEventListener('click', () => removeApp(app.address));
-
-                let actionsDiv = document.createElement('div');
-                actionsDiv.className = 'form-group';
-
-                actionsDiv.appendChild(stopButton);
-                actionsDiv.appendChild(startButton);
-                actionsDiv.appendChild(resizeButton);
-                actionsDiv.appendChild(removeButton);
-
-                actionsCell.appendChild(actionsDiv);
-            });
-        }
-
-        async function loadApps() {
-            const response = await fetchAPI('App.List');
-            updateAppsTable(response.apps);
-        }
-
-        window.addEventListener('DOMContentLoaded', (event) => {
-            updateInfo();
-            loadApps();
-
-            document.getElementById('blobsPutForm').addEventListener('submit', async function (event) {
-                event.preventDefault();
-                const fileInput = document.getElementById('putFile');
-                const file = fileInput.files[0];
-                const data = await file.slice().arrayBuffer();
-                const blobData = {
-                    hash: '0x',
-                    hash_algrithm: 'sha256',
-                    body: hex(data)
-                };
-                await rpcCall('Blobs.Put', blobData);
-            });
-
-            document.getElementById('appDeployForm').addEventListener('submit', async function (event) {
-                event.preventDefault();
-
-                // Prepare the manifest data from form input.
-                const manifest = {
-                    runtime: "test",
-                    code_hash: document.getElementById('deployCodeHash').value,
-                    hash_algorithm: "sha256",
-                    args: JSON.parse(document.getElementById('deployArgs').value),
-                    env_vars: JSON.parse(document.getElementById('deployEnvVars').textContent),
-                    start_mode: parseInt(document.getElementById('deployStartMode').value),
-                    salt: document.getElementById('deploySalt').value,
-                    resizable: document.getElementById('deployResizable').checked
-                };
-
-                // Make the POST request to the Deploy endpoint.
-                await rpcCall('App.Deploy', {
-                    manifest
-                });
-                await loadApps();
-            });
-
-            document.querySelectorAll('.collapsible').forEach(item => {
-                item.addEventListener('click', toggleCollapsible);
-            });
-
-            // Additional forms submission handling below for the rest operations...
-        });
-    </script>
 </head>
 
 <body>
-    <div class="page">
-        <button type="button" class="collapsible">Worker Info</button>
-        <div class="content">
-            <textarea class="response" id="responseWorkerInfo"></textarea>
+    <div id="app" class="page">
+        <div class="tabs form-group">
+            <button class="tab" @click="activeTab = 'workerInfo'">Worker Info</button>
+            <button class="tab" @click="activeTab = 'blobs'">Blobs</button>
+            <button class="tab" @click="activeTab = 'apps'">Apps</button>
+        </div>
+
+        <div v-show="activeTab === 'workerInfo'" class="tabcontent">
+            <textarea id="workerInfo" v-model="workerInfoResponse"></textarea>
             <div class="form-group">
-                <button onclick="updateInfo()">Update</button>
-                <button onclick="initWorker()">Init Worker</button>
-                <button onclick="exitWorker()">Exit Worker</button>
+                <button @click="updateInfo">Refresh</button>
+                <button @click="initWorker">Init Worker</button>
             </div>
         </div>
 
-        <button type="button" class="collapsible">Blobs</button>
-        <div class="content">
-            <form id="blobsPutForm">
+        <div v-show="activeTab === 'blobs'" class="tabcontent">
+            <form @submit.prevent="uploadBlob">
                 <div class="form-group">
                     <label for="putFile">File:</label>
-                    <input type="file" id="putFile" name="file">
+                    <input type="file" id="putFile" ref="fileInput" name="file">
                     <button type="submit">Upload Blob</button>
                 </div>
             </form>
         </div>
 
-        <button type="button" class="collapsible">Deploy App</button>
-        <div class="content">
-            <form id="appDeployForm">
-                <div class="form-group">
-                    <label for="deployCodeHash">Code Hash:</label>
-                    <input type="text" id="deployCodeHash" required>
+        <div v-show="activeTab === 'apps'" class="tabcontent">
+            <div>
+                <button type="button" @click="showDeployApp = !showDeployApp" class="collapsible">Deploy App</button>
+                <div v-show="showDeployApp" class="content">
+                    <form @submit.prevent="deployApp">
+                        <div class="form-group">
+                            <label for="deployCodeHash">Code Hash:</label>
+                            <input type="text" v-model="deployForm.codeHash" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="deployArgs">Args:</label>
+                            <input type="text" v-model="deployForm.args">
+                        </div>
+                        <div class="form-group">
+                            <label for="deployEnvVars">Env Vars (list of string pairs):</label>
+                            <textarea v-model="deployForm.envVars"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="deployStartMode">Start Mode:</label>
+                            <input type="number" v-model.number="deployForm.startMode">
+                        </div>
+                        <div class="form-group">
+                            <label for="deploySalt">Salt:</label>
+                            <input type="text" v-model="deployForm.salt">
+                        </div>
+                        <div class="form-group">
+                            <label for="deployResizable">Resizable:</label>
+                            <input type="checkbox" v-model="deployForm.resizable">
+                        </div>
+                        <button type="submit">Deploy</button>
+                    </form>
                 </div>
+            </div>
+
+            <div id="deployedApps">
+                <h2>Apps</h2>
                 <div class="form-group">
-                    <label for="deployArgs">Args:</label>
-                    <input type="text" id="deployArgs" value="[]">
+                    <button @click="loadApps">Refresh</button>
+                    <button @click="clearApps">Clear Apps</button>
                 </div>
-                <div class="form-group">
-                    <label for="deployEnvVars">Env Vars (list of string pairs):</label>
-                    <textarea id="deployEnvVars">[]</textarea>
-                </div>
-                <div class="form-group">
-                    <label for="deployStartMode">Start Mode:</label>
-                    <input type="number" id="deployStartMode" value="0">
-                </div>
-                <div class="form-group">
-                    <label for="deploySalt">Salt:</label>
-                    <input type="text" id="deploySalt" value="0x">
-                </div>
-                <div class="form-group">
-                    <label for="deployResizable">Resizable:</label>
-                    <input type="checkbox" id="deployResizable">
-                </div>
-                <button type="submit">Deploy</button>
-            </form>
+                <table id="appsTable">
+                    <thead>
+                        <tr>
+                            <th>SN</th>
+                            <th>Address</th>
+                            <th>Resizable</th>
+                            <th>Start Mode</th>
+                            <th>Instances</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="app in appsData" :key="app.address">
+                            <td>{{ app.sn }}</td>
+                            <td><span class="shortened-address">{{ app.address }}</span></td>
+                            <td>{{ app.resizable ? 'Yes' : 'No' }}</td>
+                            <td>{{ app.start_mode == 0 ? 'Imediate' : 'OnDemand' }}</td>
+                            <td>{{ app.instances }}</td>
+                            <td>
+                                <div class="form-group app-op-buttons">
+                                    <button class="btn-small" @click="stopApp(app.address)">Stop</button>
+                                    <button class="btn-small" @click="startApp(app.address)">Start</button>
+                                    <button class="btn-small" @click="resizeApp(app.address)">Resize</button>
+                                    <button class="btn-small" @click="removeApp(app.address)">Remove</button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
-        <div id="deployedApps">
-            <h2>Apps</h2>
-            <button onclick="loadApps()">Update</button>
-            <button onclick="clearApps()">Clear Apps</button>
-            <table id="appsTable">
-                <thead>
-                    <tr>
-                        <th>SN</th>
-                        <th>Address</th>
-                        <th>Resizable</th>
-                        <th>Instances</th>
-                        <th>Mode</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- App rows will be dynamically inserted here -->
-                </tbody>
-            </table>
+        <div class="console-controls">
+            <div class="form-group">
+                <button @click="copyConsoleOutput">Copy</button>
+                <button @click="clearConsoleOutput">Clear</button>
+            </div>
         </div>
-
-        <textarea class="response" id="consoleOutput"></textarea>
+        <textarea id="consoleOutput" v-model="consoleOutput"></textarea>
     </div>
+
+    <script src="https://unpkg.com/vue@3.4.27"></script>
+    <script>
+        Vue.createApp({
+            data() {
+                return {
+                    showDeployApp: false,
+                    activeTab: 'workerInfo',
+                    workerInfoResponse: '',
+                    consoleOutput: '',
+                    appsData: [],
+                    deployForm: {
+                        codeHash: '',
+                        args: '[]',
+                        envVars: '[]',
+                        startMode: 0,
+                        salt: '0x00',
+                        resizable: false
+                    },
+                };
+            },
+            methods: {
+                async fetchAPI(method, data) {
+                    data = data || {};
+                    const response = await fetch(`/prpc/${method}?json`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(data)
+                    });
+                    return response.json();
+                },
+
+                async rpcCall(method, data) {
+                    const response = await this.fetchAPI(method, data);
+                    this.consoleLog(method, response);
+                    return response;
+                },
+
+                toggleCollapsible(section) {
+                    this.collapsibleStates[section] = !this.collapsibleStates[section];
+                },
+
+                async updateInfo() {
+                    const data = await this.fetchAPI('Status.Info');
+                    this.workerInfoResponse = JSON.stringify(data, null, 2);
+                },
+
+                async initWorker() {
+                    await this.rpcCall('Worker.Init', { salt: "0x" });
+                    await this.updateInfo();
+                },
+
+                async loadApps() {
+                    const response = await this.fetchAPI('App.List');
+                    // sort the apps by sn
+                    response.apps.sort((a, b) => a.sn - b.sn);
+                    this.appsData = response.apps;
+                },
+
+                async consoleLog(tip, msg) {
+                    const timestamp = new Date().toLocaleString();
+                    this.consoleOutput += dedent`
+                        ${timestamp} - ${tip}:
+                        ${JSON.stringify(msg, null, 2)}
+                    `;
+                    this.$nextTick(() => {
+                        const consoleElement = document.querySelector('#consoleOutput');
+                        consoleElement.scrollTop = consoleElement.scrollHeight;
+                    });
+                },
+
+                async uploadBlob() {
+                    const fileInput = this.$refs.fileInput;
+                    if (fileInput.files.length > 0) {
+                        const file = fileInput.files[0];
+                        const data = await this.readFileAsArrayBuffer(file);
+                        const blobData = {
+                            hash: '0x',
+                            hash_algorithm: 'sha256',
+                            body: this.toHex(data)
+                        };
+                        await this.rpcCall('Blobs.Put', blobData);
+                        // other logic, if needed...
+                    }
+                },
+                readFileAsArrayBuffer(file) {
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                            resolve(reader.result);
+                        };
+                        reader.onerror = reject;
+                        reader.readAsArrayBuffer(file);
+                    });
+                },
+                toHex(buffer) {
+                    return '0x' + Array.from(new Uint8Array(buffer))
+                        .map(b => b.toString(16).padStart(2, '0'))
+                        .join('');
+                },
+
+                async deployApp() {
+                    try {
+                        const manifest = {
+                            runtime: "test", // assuming 'runtime' as a static value for demo purposes
+                            code_hash: this.deployForm.codeHash,
+                            hash_algorithm: "sha256", // assuming 'hash_algorithm' as static too
+                            args: JSON.parse(this.deployForm.args),
+                            env_vars: JSON.parse(this.deployForm.envVars),
+                            start_mode: this.deployForm.startMode,
+                            salt: this.deployForm.salt,
+                            resizable: this.deployForm.resizable
+                        };
+                        await this.rpcCall('App.Deploy', { manifest });
+                        this.loadApps();
+                    } catch (error) {
+                        console.error("Deploy App Error:", error);
+                        this.consoleLog("Deploy App Error", error);
+                    }
+                },
+                async stopApp(address) {
+                    try {
+                        await this.rpcCall('App.Stop', { address: address });
+                        this.loadApps();
+                    } catch (error) {
+                        this.consoleLog('Error stopping app', error);
+                    }
+                },
+
+                async startApp(address) {
+                    try {
+                        await this.rpcCall('App.Start', { address: address });
+                        this.loadApps();
+                    } catch (error) {
+                        this.consoleLog('Error starting app', error);
+                    }
+                },
+
+                async resizeApp(address) {
+                    try {
+                        let newSize = parseInt(prompt('Enter new size for app:'));
+                        await this.rpcCall('App.Resize', { address: address, instances: newSize });
+                        this.loadApps();
+                    } catch (error) {
+                        this.consoleLog('Error resizing app', error);
+                    }
+                },
+
+                async removeApp(address) {
+                    try {
+                        await this.rpcCall('App.Remove', { address: address });
+                        this.loadApps();
+                    } catch (error) {
+                        this.consoleLog('Error removing app', error);
+                    }
+                },
+
+                async clearApps() {
+                    await this.rpcCall('App.Clear', {});
+                    this.loadApps();
+                },
+
+                async copyConsoleOutput() {
+                    if (this.consoleOutput) {
+                        navigator.clipboard.writeText(this.consoleOutput).then(() => {
+                            console.log('Console output copied to the clipboard.');
+                        }, (err) => {
+                            console.error('Could not copy text: ', err);
+                        });
+                    }
+                },
+
+                async clearConsoleOutput() {
+                    this.consoleOutput = '';
+                },
+
+            },
+            mounted() {
+                this.updateInfo();
+                this.loadApps();
+            }
+        }).mount("#app");
+
+        function dedent(callSite, ...args) {
+            function format(str) {
+                let size = -1;
+                return str.replace(/\n(\s+)/g, (m, m1) => {
+                    if (size < 0)
+                        size = m1.replace(/\t/g, "    ").length;
+                    return "\n" + m1.slice(Math.min(m1.length, size));
+                });
+            }
+            if (typeof callSite === "string")
+                return format(callSite);
+
+            if (typeof callSite === "function")
+                return (...args) => format(callSite(...args));
+
+            let output = callSite
+                .slice(0, args.length + 1)
+                .map((text, i) => (i === 0 ? "" : args[i - 1]) + text)
+                .join("");
+
+            return format(output);
+        }
+    </script>
 </body>
 
 </html>
