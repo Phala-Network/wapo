@@ -163,7 +163,14 @@ impl AppRpc for Worker {
         let apps = self
             .list()
             .into_iter()
-            .map(|info| pb::AppInfo::new(info.address, info.running_instances as _))
+            .map(|info| {
+                pb::AppInfo::new(
+                    info.sn,
+                    info.address,
+                    info.running_instances as _,
+                    info.resizable,
+                )
+            })
             .collect();
         Ok(pb::AppListResponse { apps })
     }

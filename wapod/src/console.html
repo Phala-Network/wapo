@@ -317,7 +317,7 @@
                     env_vars: JSON.parse(document.getElementById('deployEnvVars').textContent),
                     start_mode: parseInt(document.getElementById('deployStartMode').value),
                     salt: document.getElementById('deploySalt').value,
-                    allow_multi_instances: document.getElementById('deployAllowMultiInstances').checked
+                    resizable: document.getElementById('deployResizable').checked
                 };
 
                 // Make the POST request to the Deploy endpoint.
@@ -383,8 +383,8 @@
                     <input type="text" id="deploySalt" value="0x">
                 </div>
                 <div class="form-group">
-                    <label for="deployAllowMultiInstances">Allow Multi Instances:</label>
-                    <input type="checkbox" id="deployAllowMultiInstances">
+                    <label for="deployResizable">Resizable:</label>
+                    <input type="checkbox" id="deployResizable">
                 </div>
                 <button type="submit">Deploy</button>
             </form>

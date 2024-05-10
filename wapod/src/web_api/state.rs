@@ -30,12 +30,15 @@ struct Instance {
 
 #[derive(Debug, Clone)]
 pub struct AppInfo {
+    pub sn: u64,
     pub address: Address,
     pub session: [u8; 32],
     pub running_instances: usize,
+    pub resizable: bool,
 }
 
 pub struct AppState {
+    sn: u64,
     pub session: [u8; 32],
     manifest: Manifest,
     hist_metrics: Metrics,
@@ -166,7 +169,10 @@ impl Worker {
             bail!("App already exists")
         }
         let session: [u8; 32] = rand::thread_rng().gen();
+
+        static NEXT_APP_SN: AtomicU64 = AtomicU64::new(0);
         let state = AppState {
+            sn: NEXT_APP_SN.fetch_add(1, Ordering::Relaxed),
             session,
             manifest,
             hist_metrics: Default::default(),
@@ -176,15 +182,16 @@ impl Worker {
         if immediate {
             worker.resize_app_instances(address, 1)?;
         }
-        let running_instances = worker
+        let app = worker
             .apps
             .get(&address)
-            .map(|app| app.instances.len())
-            .unwrap_or(0);
+            .ok_or(anyhow!("BUG: App not found after deployed"))?;
         Ok(AppInfo {
             address,
             session,
-            running_instances,
+            running_instances: app.instances.len(),
+            resizable: app.manifest.resizable,
+            sn: app.sn,
         })
     }
 
@@ -248,6 +255,8 @@ impl Worker {
                 address: *address,
                 session: state.session,
                 running_instances: state.instances.len(),
+                resizable: state.manifest.resizable,
+                sn: state.sn,
             })
             .collect()
     }
@@ -264,7 +273,7 @@ impl WorkerState {
             .apps
             .get_mut(&address)
             .ok_or(anyhow!("Instance not found"))?;
-        if !app.manifest.allow_multi_instances && !app.instances.is_empty() {
+        if !app.manifest.resizable && !app.instances.is_empty() {
             return Err(anyhow!("Instance already started"));
         }
         let config = service::InstanceStartConfig::builder()
@@ -335,11 +344,7 @@ impl WorkerState {
             .ok_or(anyhow!("App not found"))?;
         let vmid = ShortId(address);
         let current = app.instances.len();
-        let max_allowed = if app.manifest.allow_multi_instances {
-            count
-        } else {
-            1
-        };
+        let max_allowed = if app.manifest.resizable { count } else { 1 };
         info!(%vmid, current, count, max_allowed, "Changing number of instances");
         if count > current {
             let available_slots = self.available_slots();
