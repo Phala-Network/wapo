@@ -40,7 +40,6 @@
             transition: max-height 0.2s ease-out;
             background-color: #f1f1f1;
             margin-bottom: 10px;
-            /* Space between forms */
         }
 
         .form-group {
@@ -60,6 +59,12 @@
             width: 100%;
             padding: 8px;
             margin-top: 5px;
+            box-sizing: border-box;
+            /* This ensures padding is included in width */
+        }
+
+        *:focus {
+            outline: none;
         }
 
         .response {
@@ -150,6 +155,12 @@
         async function exitWorker() {
             console.log('Exiting worker...');
             await rpcCall('Worker.Exit');
+        }
+
+        async function clearApps() {
+            console.log('Clearing apps...');
+            await rpcCall('App.Clear');
+            await loadApps();
         }
 
         async function stopApp(address) {
@@ -285,12 +296,12 @@
                 <div class="form-group">
                     <label for="putFile">File:</label>
                     <input type="file" id="putFile" name="file">
-                    <button type="submit">Put Blob</button>
+                    <button type="submit">Upload Blob</button>
                 </div>
             </form>
         </div>
 
-        <button type="button" class="collapsible">Apps</button>
+        <button type="button" class="collapsible">Deploy App</button>
         <div class="content">
             <form id="appDeployForm">
                 <div class="form-group">
@@ -302,7 +313,7 @@
                     <input type="text" id="deployArgs" value="[]">
                 </div>
                 <div class="form-group">
-                    <label for="deployEnvVars">Env Vars (json object of string pairs):</label>
+                    <label for="deployEnvVars">Env Vars (list of string pairs):</label>
                     <textarea id="deployEnvVars">[]</textarea>
                 </div>
                 <div class="form-group">
@@ -322,8 +333,9 @@
         </div>
 
         <div id="deployedApps">
-            <h2>Deployed Apps</h2>
+            <h2>Apps</h2>
             <button onclick="loadApps()">Update</button>
+            <button onclick="clearApps()">Clear Apps</button>
             <table id="appsTable">
                 <thead>
                     <tr>

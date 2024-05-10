@@ -161,6 +161,11 @@ impl AppRpc for Worker {
             .collect();
         Ok(pb::AppListResponse { apps })
     }
+
+    async fn clear(&self) -> Result<()> {
+        self.clear();
+        Ok(())
+    }
 }
 
 impl StatusRpc for Worker {

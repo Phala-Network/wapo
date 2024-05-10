@@ -251,6 +251,10 @@ impl Worker {
             })
             .collect()
     }
+
+    pub fn clear(&self) {
+        self.lock().apps.clear();
+    }
 }
 
 impl WorkerState {

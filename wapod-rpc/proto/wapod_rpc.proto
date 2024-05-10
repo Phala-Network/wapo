@@ -48,6 +48,8 @@ service App {
   rpc Metrics(Addresses) returns (AppMetricsResponse) {}
   // List all deployed apps.
   rpc List(google.protobuf.Empty) returns (AppListResponse) {}
+  // Remove all deployed apps.
+  rpc Clear(google.protobuf.Empty) returns (google.protobuf.Empty) {}
 }
 
 // Basic information about a worker.

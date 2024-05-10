@@ -36,6 +36,7 @@ impl ModuleLoader {
     }
 
     pub fn load_module(&self, code_hash: &[u8], hash_alg: &str) -> Result<WasmModule> {
+        let todo = "Also cache on fs";
         let mut state = self
             .state
             .lock()

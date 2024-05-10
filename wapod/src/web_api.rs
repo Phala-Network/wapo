@@ -327,7 +327,7 @@ pub fn crate_worker_state(args: Args) -> Result<Worker> {
     });
     std::thread::spawn(move || {
         run.blocking_run(|evt| {
-            println!("event: {:?}", evt);
+            info!(target: "wapod", "event: {:?}", evt);
         });
     });
     Ok(Worker::new(spawner, args))
