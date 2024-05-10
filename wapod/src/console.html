@@ -8,24 +8,28 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            padding: 10px;
+            margin: 0;
+            padding: 5px;
         }
 
         .page {
             max-width: 800px;
-            margin: 0 auto;
+            margin: auto;
+            padding: 5px;
         }
 
         .collapsible {
             background-color: #777;
             color: white;
             cursor: pointer;
-            padding: 18px;
+            padding: 10px;
+            /* Reduced padding */
             width: 100%;
             border: none;
             text-align: left;
             outline: none;
-            font-size: 15px;
+            font-size: 14px;
+            /* Reduced font-size */
         }
 
         .active,
@@ -34,20 +38,25 @@
         }
 
         .content {
-            padding: 0 18px;
+            padding: 0 10px;
+            /* Reduced padding */
             max-height: 0;
             overflow: hidden;
             transition: max-height 0.2s ease-out;
             background-color: #f1f1f1;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
+            /* Reduced margin */
         }
 
         .form-group {
-            margin-bottom: 10px;
+            margin-bottom: 5px;
+            /* Reduced margin */
         }
 
         label {
             display: block;
+            margin-bottom: 2px;
+            /* Reduced margin */
         }
 
         input[type="text"],
@@ -57,19 +66,21 @@
         textarea,
         table {
             width: 100%;
-            padding: 8px;
-            margin-top: 5px;
+            padding: 6px;
+            /* Reduced padding */
+            margin-top: 3px;
+            /* Reduced margin */
             box-sizing: border-box;
-            /* This ensures padding is included in width */
         }
 
-        *:focus {
-            outline: none;
+        input[type="checkbox"] {
+            margin-top: 0;
+            /* Align with text baseline */
         }
 
         .response {
             height: 130px;
-            margin-top: 15px;
+            margin-top: 10px;
             border: 1px solid #eee;
             background-color: #f2f2f2;
         }
@@ -77,26 +88,62 @@
         table {
             border-collapse: collapse;
             margin-top: 10px;
-            margin-bottom: 20px;
-            font-size: 0.9em;
+            font-size: 0.85em;
+            /* Reduced font-size */
         }
 
         th,
         td {
             border-bottom: 1px solid #dddddd;
             text-align: left;
-            padding: 8px;
+            padding: 6px;
+            /* Reduced padding */
         }
 
         tr:nth-child(even) {
             background-color: #f2f2f2;
         }
 
+        button,
+        input[type="checkbox"],
         .btn-small {
-            padding: 5px 10px;
+            padding: 6px 12px;
             font-size: 0.8em;
-            margin-right: 5px;
-            /* Space between buttons */
+            margin: 5px 5px 5px 0;
+            /* Spacing around button for a tight layout */
+            display: inline-block;
+            /* Display buttons inline */
+            vertical-align: middle;
+            /* Align buttons middle to the line */
+        }
+
+        .form-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .form-group label {
+            margin-right: 10px;
+            white-space: nowrap;
+            /* Prevent the label from wrapping */
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="file"],
+        .form-group input[type="number"],
+        .form-group textarea {
+            flex-grow: 1;
+            /* Let input fields take the available space */
+        }
+
+        .shortened-address {
+            max-width: 120px;
+            /* Adjust the width to your preference */
+            display: inline-block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
     </style>
     <script>
@@ -197,7 +244,11 @@
                 let instancesCell = row.insertCell(1);
                 let actionsCell = row.insertCell(2);
 
-                addressCell.textContent = app.address;
+                let addressSpan = document.createElement('span');
+                addressSpan.className = 'shortened-address';
+                addressSpan.textContent = app.address;
+                addressCell.appendChild(addressSpan);
+
                 instancesCell.textContent = app.instances;
 
                 let stopButton = document.createElement('button');
@@ -220,10 +271,15 @@
                 removeButton.className = 'btn-small';
                 removeButton.addEventListener('click', () => removeApp(app.address));
 
-                actionsCell.appendChild(stopButton);
-                actionsCell.appendChild(startButton);
-                actionsCell.appendChild(resizeButton);
-                actionsCell.appendChild(removeButton);
+                let actionsDiv = document.createElement('div');
+                actionsDiv.className = 'form-group';
+
+                actionsDiv.appendChild(stopButton);
+                actionsDiv.appendChild(startButton);
+                actionsDiv.appendChild(resizeButton);
+                actionsDiv.appendChild(removeButton);
+
+                actionsCell.appendChild(actionsDiv);
             });
         }
 
@@ -285,9 +341,11 @@
         <button type="button" class="collapsible">Worker Info</button>
         <div class="content">
             <textarea class="response" id="responseWorkerInfo"></textarea>
-            <button onclick="updateInfo()">Update</button>
-            <button onclick="initWorker()">Init Worker</button>
-            <button onclick="exitWorker()">Exit Worker</button>
+            <div class="form-group">
+                <button onclick="updateInfo()">Update</button>
+                <button onclick="initWorker()">Init Worker</button>
+                <button onclick="exitWorker()">Exit Worker</button>
+            </div>
         </div>
 
         <button type="button" class="collapsible">Blobs</button>
