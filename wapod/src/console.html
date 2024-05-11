@@ -294,6 +294,7 @@
                         <div class="form-group">
                             <label for="deployCodeHash">Code Hash:</label>
                             <input type="text" v-model="deployForm.codeHash" required>
+                            <input type="file" id="codeHashFile" ref="hashFileInput" @change="computeFileHash">
                         </div>
                         <div class="form-group">
                             <label for="deployArgs">Args:</label>
@@ -572,6 +573,22 @@
                     if (toastIndex !== -1) {
                         this.toasts[toastIndex].type = success ? 'success' : 'error';
                         setTimeout(() => this.removeToast(id), success ? 1000 : 5000);
+                    }
+                },
+
+                async computeFileHash() {
+                    const fileInput = this.$refs.hashFileInput;
+                    if (fileInput.files.length > 0) {
+                        const file = fileInput.files[0];
+
+                        const data = await this.readFileAsArrayBuffer(file);
+                        const blobData = {
+                            hash: '0x',
+                            hash_algorithm: 'sha256',
+                            body: this.toHex(data)
+                        };
+                        const reply = await this.rpcCall('Blobs.Put', blobData);
+                        this.deployForm.codeHash = reply.hash;
                     }
                 },
             },
