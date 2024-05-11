@@ -16,5 +16,5 @@ pub type VmId = [u8; 32];
 pub use run::{InstanceConfig, InstanceConfigBuilder, WasmEngine, WasmModule, WasmRun};
 pub use wasmtime;
 
-pub use service::IncomingHttpRequest;
+pub use service::{IncomingHttpRequest, VmStatus, VmStatusReceiver};
 pub use wapo_env::OcallError;

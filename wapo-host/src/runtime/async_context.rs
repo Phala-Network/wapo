@@ -190,9 +190,7 @@ where
 
     TLS_TASK_ENV.with(move |tls_task_env| unsafe {
         let borrow = tls_task_env.borrow();
-        let env = borrow
-            .as_ref()
-            .expect("BUG: TLS TaskEnv not set.");
+        let env = borrow.as_ref().expect("BUG: TLS TaskEnv not set.");
         let parent = cx_ptr.as_mut().waker();
         let waker = relay_waker(env, parent, guest_waker);
         let mut cx = task::Context::from_waker(&waker);

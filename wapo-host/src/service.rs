@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use scopeguard::ScopeGuard;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::ops::Deref;
@@ -22,13 +23,30 @@ use crate::{
     ShortId, VmId,
 };
 
+use tokio::sync::watch;
+
+#[derive(Debug)]
+pub enum VmStatus {
+    LoadingCode,
+    CreatingInstance,
+    Running,
+    Stopped { reason: String },
+}
+
+pub type VmStatusReceiver = watch::Receiver<VmStatus>;
+
 pub struct VmHandle {
     cmd_sender: CommandSender,
     stop_signal: Option<OneshotReceiver<()>>,
     meter: Arc<Meter>,
+    status: VmStatusReceiver,
 }
 
 impl VmHandle {
+    pub fn subscribe_status(&self) -> VmStatusReceiver {
+        self.status.clone()
+    }
+
     pub async fn stop(&mut self) -> Result<()> {
         info!(target: "wapo", "Stopping instance...");
         self.cmd_sender.inner.ctl_tx.send(ControlCommand::Stop)?;
@@ -244,6 +262,12 @@ impl ServiceHandle {
         let (cmd_tx, mut cmd_rx) = channel(128);
         let (ctl_cmd_tx, mut ctl_cmd_rx) = unbounded_channel();
         let (stop_signal_tx, stop_signal_rx) = tokio::sync::oneshot::channel();
+        let (status_tx, status) = watch::channel(VmStatus::LoadingCode);
+        let status_guard = scopeguard::guard(status_tx, |tx| {
+            let _ = tx.send(VmStatus::Stopped {
+                reason: "Unknown error".into(),
+            });
+        });
 
         let module_loader = self.module_loader.clone();
         let meter = Arc::new(Meter::default());
@@ -259,17 +283,22 @@ impl ServiceHandle {
                     }
                 }};
             }
-        let result = module_loader
-            .load_module(&wasm_hash, &wasm_hash_alg)
-            .await;
-        let module = match result {
-            Ok(m) => m,
-            Err(err) => {
-                error!(target: "wapo", ?err, "Failed to load module");
-                return ExitReason::FailedToStart;
-            }
+            let result = module_loader
+                .load_module(&wasm_hash, &wasm_hash_alg)
+                .await;
+            let module = match result {
+                Ok(m) => m,
+                Err(err) => {
+                    error!(target: "wapo", ?err, "Failed to load module");
+                    _ = ScopeGuard::into_inner(status_guard).send(VmStatus::Stopped {
+                        reason: format!("Failed to load module: {err}"),
+                    });
+                    return ExitReason::FailedToStart;
+                }
+            };
 
-        };
+            _ = status_guard.send(VmStatus::CreatingInstance);
+
             info!(target: "wapo", "Starting instance...");
             let config = InstanceConfig::builder()
                 .id(id)
@@ -283,6 +312,9 @@ impl ServiceHandle {
                 Ok(i) => i,
                 Err(err) => {
                     error!(target: "wapo", "Failed to create instance: {err:?}");
+                    _ = ScopeGuard::into_inner(status_guard).send(VmStatus::Stopped {
+                        reason: format!("Failed to create instance: {err}"),
+                    });
                     return ExitReason::FailedToStart;
                 }
             };
@@ -293,7 +325,8 @@ impl ServiceHandle {
                 meter_cloned.stop();
             }
 
-            loop {
+            _ = status_guard.send(VmStatus::Running);
+            let reason = loop {
                 tokio::select! {
                     rv = &mut wasm_run => {
                         match rv {
@@ -337,7 +370,11 @@ impl ServiceHandle {
                         }
                     }
                 }
-            }
+            };
+            _ = ScopeGuard::into_inner(status_guard).send(VmStatus::Stopped {
+                reason: format!("{reason:?}"),
+            });
+            reason
         });
         let report_tx = self.report_tx.clone();
         let task_handle = self.spawn(async move {
@@ -368,6 +405,7 @@ impl ServiceHandle {
             cmd_sender,
             stop_signal: Some(stop_signal_rx),
             meter,
+            status,
         };
         Ok((vm_handle, task_handle))
     }

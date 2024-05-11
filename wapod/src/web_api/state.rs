@@ -3,8 +3,8 @@ use anyhow::{anyhow, bail, Context, Result};
 use rand::Rng as _;
 use sp_core::hashing::blake2_256;
 use tracing::{field::display, info, warn, Instrument};
-use wapo_host::ShortId;
 use wapo_host::{blobs::BlobLoader, Metrics};
+use wapo_host::{ShortId, VmStatus, VmStatusReceiver};
 use wapod_rpc::prpc as pb;
 
 use std::collections::HashMap;
@@ -157,11 +157,26 @@ impl Worker {
         count: usize,
         demand: bool,
     ) -> Result<()> {
-        let handles = self.lock().resize_app_instances(address, count, demand)?;
-        let total = handles.len();
-        for (i, mut handle) in handles.into_iter().enumerate() {
+        let (created, removed) = self.lock().resize_app_instances(address, count, demand)?;
+        let total = removed.len();
+        for (i, mut handle) in removed.into_iter().enumerate() {
             info!("Stopping instances ({}/{total})...", i + 1);
             handle.stop().await?;
+        }
+        for (i, mut status) in created.into_iter().enumerate() {
+            info!("Waiting instance ({}/{count}) to start", i + 1);
+            loop {
+                if status.changed().await.is_err() {
+                    anyhow::bail!("Failed to start instance: {:?}", *status.borrow());
+                }
+                match &*status.borrow_and_update() {
+                    VmStatus::Running => break,
+                    VmStatus::Stopped { reason } => {
+                        anyhow::bail!("Instance stopped unexpectedly: {reason}");
+                    }
+                    _ => {}
+                }
+            }
         }
         Ok(())
     }
@@ -170,31 +185,34 @@ impl Worker {
         let immediate = manifest.start_mode == 0;
         let address = sp_core::blake2_256(&scale::Encode::encode(&manifest));
         tracing::Span::current().record("addr", display(ShortId(&address)));
-        let mut worker = self.lock();
-        if worker.apps.contains_key(&address) {
-            bail!("App already exists")
-        }
-        let session: [u8; 32] = rand::thread_rng().gen();
+        {
+            let mut worker = self.lock();
+            if worker.apps.contains_key(&address) {
+                bail!("App already exists")
+            }
+            let session: [u8; 32] = rand::thread_rng().gen();
 
-        static NEXT_APP_SN: AtomicU64 = AtomicU64::new(0);
-        let state = AppState {
-            sn: NEXT_APP_SN.fetch_add(1, Ordering::Relaxed),
-            session,
-            manifest,
-            hist_metrics: Default::default(),
-            instances: vec![],
-        };
-        worker.apps.insert(address, state);
-        if immediate {
-            worker.resize_app_instances(address, 1, false)?;
+            static NEXT_APP_SN: AtomicU64 = AtomicU64::new(0);
+            let state = AppState {
+                sn: NEXT_APP_SN.fetch_add(1, Ordering::Relaxed),
+                session,
+                manifest,
+                hist_metrics: Default::default(),
+                instances: vec![],
+            };
+            worker.apps.insert(address, state);
         }
+        if immediate {
+            self.resize_app_instances(address, 1, false).await?;
+        }
+        let worker = self.lock();
         let app = worker
             .apps
             .get(&address)
             .ok_or(anyhow!("BUG: App not found after deployed"))?;
         Ok(AppInfo {
             address,
-            session,
+            session: app.session,
             running_instances: app.instances.len(),
             resizable: app.manifest.resizable,
             sn: app.sn,
@@ -211,9 +229,9 @@ impl Worker {
         for (i, instance) in app.instances.into_iter().enumerate() {
             let mut handle = instance.vm_handle;
             if !handle.is_stopped() {
-                info!("Stopping instance {vmid}, ({}/{n})...", i + 1);
+                info!("Stopping instance ({}/{n})...", i + 1);
                 if let Err(err) = handle.stop().await {
-                    warn!("Failed to stop {vmid}: {err:?}");
+                    warn!("Failed to stop instance: {err:?}");
                 }
             }
         }
@@ -275,7 +293,7 @@ impl Worker {
 }
 
 impl WorkerState {
-    fn start_app(&mut self, address: Address) -> Result<()> {
+    fn start_app(&mut self, address: Address) -> Result<VmStatusReceiver> {
         let vmid = ShortId(address);
         let app = self
             .apps
@@ -298,6 +316,7 @@ impl WorkerState {
                 config,
             )
             .context("Failed to start instance")?;
+        let status = vm_handle.subscribe_status();
         let instance = Instance {
             sequence_number: {
                 static NEXT_RUN_SN: AtomicU64 = AtomicU64::new(0);
@@ -345,7 +364,7 @@ impl WorkerState {
             }
             .instrument(tracing::info_span!(parent: None, "wapo", id = %vmid)),
         );
-        Ok(())
+        Ok(status)
     }
 
     fn resize_app_instances(
@@ -353,7 +372,7 @@ impl WorkerState {
         address: Address,
         count: usize,
         demand: bool,
-    ) -> Result<Vec<VmHandle>> {
+    ) -> Result<(Vec<VmStatusReceiver>, Vec<VmHandle>)> {
         let app = self
             .apps
             .get_mut(&address)
@@ -361,6 +380,8 @@ impl WorkerState {
         let current = app.instances.len();
         let max_allowed = if app.manifest.resizable { count } else { 1 };
         info!(current, count, max_allowed, "Changing number of instances");
+        let mut created = vec![];
+        let mut removed = vec![];
         if count > current {
             let on_demand = app.manifest.start_mode == 1;
             if on_demand && !demand {
@@ -371,19 +392,18 @@ impl WorkerState {
             info!(available_slots, creating, "Creating instances");
             for i in 0..creating {
                 info!("Starting instance ({}/{creating})...", i + 1);
-                self.start_app(address)?;
+                created.push(self.start_app(address)?);
             }
         } else if count < current {
             let stop_count = current - count;
             info!(stop_count, "Stopping instances");
-            let handles = app
+            removed = app
                 .instances
                 .drain(count..)
                 .map(|run| run.vm_handle)
                 .collect();
-            return Ok(handles);
         }
-        Ok(vec![])
+        Ok((created, removed))
     }
 
     fn available_slots(&self) -> usize {
