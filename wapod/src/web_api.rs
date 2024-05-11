@@ -16,6 +16,7 @@ use tracing::{info, instrument, warn};
 
 use sp_core::crypto::AccountId32;
 
+use wapo_host::service::Report;
 use wapo_host::{crate_outgoing_request_channel, ShortId};
 use wapod_rpc::prpc::server::{ComposedService, Service};
 use wapod_rpc::prpc::{
@@ -326,8 +327,10 @@ pub fn crate_worker_state(args: Args) -> Result<Worker> {
         }
     });
     std::thread::spawn(move || {
-        run.blocking_run(|evt| {
-            info!(target: "wapod", "event: {:?}", evt);
+        run.blocking_run(|evt| match evt {
+            Report::VmTerminated { id, reason } => {
+                info!(target: "wapod", id=%ShortId(id), ?reason, "Instance terminated");
+            }
         });
     });
     Ok(Worker::new(spawner, args))

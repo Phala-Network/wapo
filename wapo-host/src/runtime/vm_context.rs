@@ -43,7 +43,8 @@ pub struct ShortId<T>(pub T);
 impl<T: AsRef<[u8]>> fmt::Display for ShortId<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let len = self.0.as_ref().len();
-        hex_fmt::HexFmt(&self.0.as_ref()[..len.min(6)]).fmt(f)
+        let slice = hex_fmt::HexFmt(&self.0.as_ref()[..len.min(6)]);
+        write!(f, "{}..", slice)
     }
 }
 

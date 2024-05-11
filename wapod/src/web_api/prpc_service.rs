@@ -15,7 +15,7 @@ use rpc::prpc::{
     app_server::AppRpc, blobs_server::BlobsRpc, status_server::StatusRpc, worker_server::WorkerRpc,
 };
 use scale::Encode;
-use tracing::{error, info, warn};
+use tracing::{error, field::Empty, info, warn};
 use wapo_host::ShortId;
 use wapod_rpc as rpc;
 
@@ -80,6 +80,7 @@ impl BlobsRpc for Worker {
 }
 
 impl AppRpc for Worker {
+    #[tracing::instrument(name="app.deploy", skip_all, fields(addr=Empty))]
     async fn deploy(&self, request: pb::DeployArgs) -> Result<pb::DeployResponse> {
         if self.session().is_none() {
             return Err(RpcError::BadRequest("No worker session".into()));
@@ -91,7 +92,7 @@ impl AppRpc for Worker {
             .deploy_app(manifest)
             .await
             .context("Failed to deploy app")?;
-        info!("Deployed app: {}", hex_fmt::HexFmt(&info.address));
+        info!("App deployed, address={}", hex_fmt::HexFmt(&info.address));
         Ok(pb::DeployResponse {
             address: info.address.to_vec(),
             session: info.session.to_vec(),

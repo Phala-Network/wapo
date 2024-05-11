@@ -2,7 +2,7 @@ use anyhow::{anyhow, bail, Context, Result};
 
 use rand::Rng as _;
 use sp_core::hashing::blake2_256;
-use tracing::{info, warn};
+use tracing::{field::display, info, warn, Instrument};
 use wapo_host::ShortId;
 use wapo_host::{blobs::BlobLoader, Metrics};
 use wapod_rpc::prpc as pb;
@@ -169,6 +169,7 @@ impl Worker {
     pub async fn deploy_app(&self, manifest: Manifest) -> Result<AppInfo> {
         let immediate = manifest.start_mode == 0;
         let address = sp_core::blake2_256(&scale::Encode::encode(&manifest));
+        tracing::Span::current().record("addr", display(ShortId(&address)));
         let mut worker = self.lock();
         if worker.apps.contains_key(&address) {
             bail!("App already exists")
@@ -308,39 +309,42 @@ impl WorkerState {
         app.instances.push(instance);
         // Clean up the instance when it stops.
         let weak_self = self.weak_self.clone();
-        self.service.spawn(async move {
-            let todo = "Restart the instance if it stopped unexpectedly";
-            if let Ok(reason) = join_handle.await {
-                info!("VM {vmid} stopped: {reason}");
-            } else {
-                warn!("VM {vmid} stopped unexpectedly");
+        self.service.spawn(
+            async move {
+                let todo = "Restart the instance if it stopped unexpectedly";
+                if let Ok(reason) = join_handle.await {
+                    info!(?reason, "App stopped");
+                } else {
+                    warn!("App stopped unexpectedly");
+                }
+                if let Some(inner) = weak_self.upgrade() {
+                    let mut inner = inner.lock().expect("Worker lock poisoned");
+                    let Some(app) = inner.apps.get_mut(&address) else {
+                        info!("App was removed before stopping");
+                        return;
+                    };
+                    let mut found = None;
+                    app.instances = app
+                        .instances
+                        .drain(..)
+                        .filter_map(|instance| {
+                            if instance.sequence_number == sn {
+                                found = Some(instance);
+                                None
+                            } else {
+                                Some(instance)
+                            }
+                        })
+                        .collect();
+                    let Some(instance) = found else {
+                        warn!("Instance was removed before stopping");
+                        return;
+                    };
+                    app.hist_metrics += instance.vm_handle.meter().to_metrics();
+                }
             }
-            if let Some(inner) = weak_self.upgrade() {
-                let mut inner = inner.lock().expect("Worker lock poisoned");
-                let Some(app) = inner.apps.get_mut(&address) else {
-                    info!("App was removed before stopping");
-                    return;
-                };
-                let mut found = None;
-                app.instances = app
-                    .instances
-                    .drain(..)
-                    .filter_map(|instance| {
-                        if instance.sequence_number == sn {
-                            found = Some(instance);
-                            None
-                        } else {
-                            Some(instance)
-                        }
-                    })
-                    .collect();
-                let Some(instance) = found else {
-                    warn!("Instance was removed before stopping");
-                    return;
-                };
-                app.hist_metrics += instance.vm_handle.meter().to_metrics();
-            }
-        });
+            .instrument(tracing::info_span!(parent: None, "wapo", id = %vmid)),
+        );
         Ok(())
     }
 

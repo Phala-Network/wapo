@@ -35,6 +35,7 @@ impl VmHandle {
         if let Some(stop_signal) = self.stop_signal.take() {
             stop_signal.await?;
         }
+        info!(target: "wapo", "Stopped");
         Ok(())
     }
 
@@ -226,7 +227,7 @@ pub struct InstanceStartConfig {
 }
 
 impl ServiceHandle {
-    #[tracing::instrument(parent=None, name="wapo", fields(id = %ShortId(config.id)), skip_all)]
+    #[tracing::instrument(name="wapo", fields(id = %ShortId(config.id)), skip_all)]
     pub fn start(
         &self,
         wasm_hash: &[u8],
@@ -244,9 +245,11 @@ impl ServiceHandle {
         let (ctl_cmd_tx, mut ctl_cmd_rx) = unbounded_channel();
         let (stop_signal_tx, stop_signal_rx) = tokio::sync::oneshot::channel();
 
-        let module = self.module_loader.load_module(wasm_hash, wasm_hash_alg)?;
+        let module_loader = self.module_loader.clone();
         let meter = Arc::new(Meter::default());
         let meter_cloned = meter.clone();
+        let wasm_hash = wasm_hash.to_vec();
+        let wasm_hash_alg = wasm_hash_alg.to_string();
         let handle = self.spawn(async move {
             macro_rules! push_msg {
                 ($expr: expr, $level: ident, $msg: expr) => {{
@@ -256,6 +259,18 @@ impl ServiceHandle {
                     }
                 }};
             }
+        let result = module_loader
+            .load_module(&wasm_hash, &wasm_hash_alg)
+            .in_current_span()
+            .await;
+        let module = match result {
+            Ok(m) => m,
+            Err(err) => {
+                error!(target: "wapo", ?err, "Failed to load module");
+                return ExitReason::FailedToStart;
+            }
+
+        };
             info!(target: "wapo", "Starting instance...");
             let config = InstanceConfig::builder()
                 .id(id)
