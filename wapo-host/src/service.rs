@@ -227,7 +227,7 @@ pub struct InstanceStartConfig {
 }
 
 impl ServiceHandle {
-    #[tracing::instrument(name="wapo", fields(id = %ShortId(config.id)), skip_all)]
+    #[tracing::instrument(parent=None, name="wapo", fields(id = %ShortId(config.id)), skip_all)]
     pub fn start(
         &self,
         wasm_hash: &[u8],
@@ -261,7 +261,6 @@ impl ServiceHandle {
             }
         let result = module_loader
             .load_module(&wasm_hash, &wasm_hash_alg)
-            .in_current_span()
             .await;
         let module = match result {
             Ok(m) => m,

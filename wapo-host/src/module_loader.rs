@@ -86,9 +86,9 @@ impl ModuleLoader {
         let owned_code_hash = code_hash.to_vec();
         let owned_hash_alg = hash_alg.to_string();
 
-        // let span = tracing::info_span!("compile", code = %ShortId(code_hash));
+        let span = tracing::Span::current();
         let module = tokio::task::spawn_blocking(move || {
-            // let _grd = span.enter();
+            let _grd = span.enter();
 
             info!(target: "wapo", "Loading module code...");
             let wasm_code = blob_loader

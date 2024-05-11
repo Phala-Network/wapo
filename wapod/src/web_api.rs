@@ -194,7 +194,7 @@ async fn info(state: &State<Worker>) -> String {
     .to_string()
 }
 
-#[instrument(target="prpc", name="prpc", fields(%id), skip_all)]
+#[instrument(target="prpc", name="user", fields(%id), skip_all)]
 #[post("/<method>?<json>", data = "<data>")]
 async fn prpc_post(
     state: &State<Worker>,
@@ -209,7 +209,7 @@ async fn prpc_post(
     handle_prpc::<UserService>(state, method, Some(data), limits, content_type, json).await
 }
 
-#[instrument(target="prpc", name="prpc", fields(%id), skip_all)]
+#[instrument(target="prpc", name="user", fields(%id), skip_all)]
 #[get("/<method>")]
 async fn prpc_get(
     state: &State<Worker>,
@@ -222,7 +222,7 @@ async fn prpc_get(
     handle_prpc::<UserService>(state, method, None, limits, content_type, true).await
 }
 
-#[instrument(target="prpc", name="prpc-admin", fields(%id), skip_all)]
+#[instrument(target="prpc", name="admin", fields(%id), skip_all)]
 #[post("/<method>?<json>", data = "<data>")]
 async fn prpc_admin_post(
     state: &State<Worker>,
@@ -237,7 +237,7 @@ async fn prpc_admin_post(
     handle_prpc::<AdminService>(state, method, Some(data), limits, content_type, json).await
 }
 
-#[instrument(target="prpc", name="prpc-admin", fields(%id), skip_all)]
+#[instrument(target="prpc", name="admin", fields(%id), skip_all)]
 #[get("/<method>")]
 async fn prpc_admin_get(
     state: &State<Worker>,
