@@ -19,10 +19,7 @@ use sp_core::crypto::AccountId32;
 use wapo_host::service::Report;
 use wapo_host::{crate_outgoing_request_channel, ShortId};
 use wapod_rpc::prpc::server::{ComposedService, Service};
-use wapod_rpc::prpc::{
-    app_server::AppServer, blobs_server::BlobsServer, status_server::StatusServer,
-    worker_server::WorkerServer,
-};
+use wapod_rpc::prpc::{operation_server::OperationServer, user_server::UserServer};
 
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -41,16 +38,8 @@ use state::Worker;
 mod prpc_service;
 mod state;
 
-type UserService = ComposedService<Worker, (StatusServer<Worker>,)>;
-type AdminService = ComposedService<
-    Worker,
-    (
-        StatusServer<Worker>,
-        WorkerServer<Worker>,
-        AppServer<Worker>,
-        BlobsServer<Worker>,
-    ),
->;
+type UserService = ComposedService<Worker, (UserServer<Worker>,)>;
+type AdminService = ComposedService<Worker, (OperationServer<Worker>,)>;
 
 enum ReadDataError {
     IoError,

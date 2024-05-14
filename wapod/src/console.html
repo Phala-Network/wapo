@@ -396,7 +396,7 @@
                     const toastId = this.addToast(`Calling ${method}`);
                     try {
                         data = data || {};
-                        const response = await fetch(`/prpc/${method}?json`, {
+                        const response = await fetch(`/prpc/Operation.${method}?json`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json'
@@ -422,17 +422,17 @@
                 },
 
                 async updateInfo() {
-                    const data = await this.fetchAPI('Status.Info');
+                    const data = await this.fetchAPI('Info');
                     this.workerInfoResponse = JSON.stringify(data, null, 2);
                 },
 
                 async initWorker() {
-                    await this.rpcCall('Worker.Init', { salt: "0x" });
+                    await this.rpcCall('WorkerInit', { salt: "0x" });
                     await this.updateInfo();
                 },
 
                 async loadApps() {
-                    const response = await this.fetchAPI('App.List');
+                    const response = await this.fetchAPI('AppList');
                     // sort the apps by sn
                     response.apps.sort((a, b) => a.sn - b.sn);
                     this.appsData = response.apps;
@@ -460,7 +460,7 @@
                             hash_algorithm: 'sha256',
                             body: this.toHex(data)
                         };
-                        await this.rpcCall('Blobs.Put', blobData);
+                        await this.rpcCall('BlobPut', blobData);
                         // other logic, if needed...
                     }
                 },
@@ -492,7 +492,7 @@
                             salt: this.deployForm.salt,
                             resizable: this.deployForm.resizable
                         };
-                        await this.rpcCall('App.Deploy', { manifest });
+                        await this.rpcCall('AppDeploy', { manifest });
                         this.loadApps();
                     } catch (error) {
                         console.error("Deploy App Error:", error);
@@ -501,7 +501,7 @@
                 },
                 async stopApp(address) {
                     try {
-                        await this.rpcCall('App.Stop', { address: address });
+                        await this.rpcCall('AppStop', { address: address });
                         this.loadApps();
                     } catch (error) {
                         this.consoleLog('Error stopping app', error);
@@ -510,7 +510,7 @@
 
                 async startApp(address) {
                     try {
-                        await this.rpcCall('App.Start', { address: address });
+                        await this.rpcCall('AppStart', { address: address });
                         this.loadApps();
                     } catch (error) {
                         this.consoleLog('Error starting app', error);
@@ -520,7 +520,7 @@
                 async resizeApp(address) {
                     try {
                         let newSize = parseInt(prompt('Enter new size for app:'));
-                        await this.rpcCall('App.Resize', { address: address, instances: newSize });
+                        await this.rpcCall('AppResize', { address: address, instances: newSize });
                         this.loadApps();
                     } catch (error) {
                         this.consoleLog('Error resizing app', error);
@@ -529,7 +529,7 @@
 
                 async removeApp(address) {
                     try {
-                        await this.rpcCall('App.Remove', { address: address });
+                        await this.rpcCall('AppRemove', { address: address });
                         this.loadApps();
                     } catch (error) {
                         this.consoleLog('Error removing app', error);
@@ -537,7 +537,7 @@
                 },
 
                 async clearApps() {
-                    await this.rpcCall('App.Clear', {});
+                    await this.rpcCall('AppClear', {});
                     this.loadApps();
                 },
 
@@ -587,7 +587,7 @@
                             hash_algorithm: 'sha256',
                             body: this.toHex(data)
                         };
-                        const reply = await this.rpcCall('Blobs.Put', blobData);
+                        const reply = await this.rpcCall('BlobPut', blobData);
                         this.deployForm.codeHash = reply.hash;
                     }
                 },

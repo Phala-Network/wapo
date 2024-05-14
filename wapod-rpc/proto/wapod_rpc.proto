@@ -6,50 +6,45 @@ import "google/protobuf/empty.proto";
 package wapod;
 
 // The wapod public RPC.
-service Status {
+service User {
   // Get basic information about the worker state.
   rpc Info(google.protobuf.Empty) returns (WorkerInfo) {}
 }
 
 // The wapod admin RPC.
-service Worker {
+service Operation {
+  // Get basic information about the worker state.
+  rpc Info(google.protobuf.Empty) returns (WorkerInfo) {}
   // Initialize the worker.
-  rpc Init(InitArgs) returns (InitResponse) {}
+  rpc WorkerInit(InitArgs) returns (InitResponse) {}
   // Top the worker.
-  rpc Exit(google.protobuf.Empty) returns (google.protobuf.Empty) {}
-}
-
-service Blobs {
+  rpc WorkerExit(google.protobuf.Empty) returns (google.protobuf.Empty) {}
   // Put a blob to the worker's blobs directory.
-  rpc Put(Blob) returns (Blob) {}
+  rpc BlobPut(Blob) returns (Blob) {}
   // Remove a blob from the blobs directory.
-  rpc Remove(Blob) returns (google.protobuf.Empty) {}
+  rpc BlobRemove(Blob) returns (google.protobuf.Empty) {}
   // Check if a blob exists in the worker's blobs directory.
-  rpc Exists(Blob) returns (Boolean) {}
-}
-
-// The instances management RPC.
-service App {
+  rpc BlobExists(Blob) returns (Boolean) {}
   // Deploy a new WASM instance.
-  rpc Deploy(DeployArgs) returns (DeployResponse) {}
+  rpc AppDeploy(DeployArgs) returns (DeployResponse) {}
   // Remove an instance from the worker.
-  rpc Remove(Address) returns (google.protobuf.Empty) {}
+  rpc AppRemove(Address) returns (google.protobuf.Empty) {}
   // Start an instance from the worker. On-demand instance will reject this
   // request.
-  rpc Start(Address) returns (google.protobuf.Empty) {}
+  rpc AppStart(Address) returns (google.protobuf.Empty) {}
   // Stop an instance from the worker.
-  rpc Stop(Address) returns (google.protobuf.Empty) {}
+  rpc AppStop(Address) returns (google.protobuf.Empty) {}
   // Set the number of instances of an app. Returns the actual number of
   // instances after the operation. It might be less than the requested number
   // if the worker's capacity is not enough or the app doesn't support multiple
   // instances.
-  rpc Resize(ResizeArgs) returns (Number) {}
+  rpc AppResize(ResizeArgs) returns (Number) {}
   // Get metrics for each instance
-  rpc Metrics(Addresses) returns (AppMetricsResponse) {}
+  rpc AppMetrics(Addresses) returns (AppMetricsResponse) {}
   // List all deployed apps.
-  rpc List(google.protobuf.Empty) returns (AppListResponse) {}
+  rpc AppList(google.protobuf.Empty) returns (AppListResponse) {}
   // Remove all deployed apps.
-  rpc Clear(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  rpc AppsClear(google.protobuf.Empty) returns (google.protobuf.Empty) {}
 }
 
 // Basic information about a worker.
