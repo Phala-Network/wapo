@@ -35,11 +35,13 @@ use crate::{worker_key, Args};
 
 use state::Worker;
 
+use prpc_service::Call;
+
 mod prpc_service;
 mod state;
 
-type UserService = ComposedService<Worker, (UserServer<Worker>,)>;
-type AdminService = ComposedService<Worker, (OperationServer<Worker>,)>;
+type UserService = ComposedService<Call, (UserServer<Call>,)>;
+type AdminService = ComposedService<Call, (OperationServer<Call>,)>;
 
 enum ReadDataError {
     IoError,

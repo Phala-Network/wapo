@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use anyhow::Context;
 use rand::Rng;
 use rocket::{
@@ -23,7 +25,29 @@ use crate::worker_key::load_or_generate_key;
 
 use super::{read_data, Worker};
 
-impl OperationRpc for Worker {
+pub struct Call {
+    worker: Worker,
+    caller: Option<()>,
+}
+
+impl Deref for Call {
+    type Target = Worker;
+
+    fn deref(&self) -> &Self::Target {
+        &self.worker
+    }
+}
+
+impl Call {
+    pub fn new(worker: Worker) -> Self {
+        Self {
+            worker,
+            caller: None,
+        }
+    }
+}
+
+impl OperationRpc for Call {
     async fn worker_init(&self, request: pb::InitArgs) -> Result<pb::InitResponse> {
         if request.salt.len() > 64 {
             return Err(RpcError::BadRequest("Salt too long".into()));
@@ -182,7 +206,7 @@ impl OperationRpc for Worker {
     }
 }
 
-impl UserRpc for Worker {
+impl UserRpc for Call {
     async fn info(&self) -> Result<WorkerInfo> {
         Ok(Worker::info(self).await)
     }
@@ -197,7 +221,7 @@ pub async fn handle_prpc<S>(
     json: bool,
 ) -> Result<Vec<u8>, Custom<Vec<u8>>>
 where
-    S: From<Worker> + PrpcService,
+    S: From<Call> + PrpcService,
 {
     let data = match data {
         Some(data) => {
@@ -208,8 +232,9 @@ where
     };
     let json = json || content_type.map(|t| t.is_json()).unwrap_or(false);
     let worker = (*worker).clone();
+    let call = Call::new(worker);
     let data = data.to_vec();
-    let result = dispatch_prpc(method.into(), data, json, S::from(worker)).await;
+    let result = dispatch_prpc(method.into(), data, json, S::from(call)).await;
     let (status_code, output) = result;
     if status_code == 200 {
         Ok(output)
