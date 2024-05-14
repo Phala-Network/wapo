@@ -259,7 +259,6 @@ impl Worker {
         let Some(app) = self.lock().apps.remove(&address) else {
             bail!("App not found")
         };
-        let vmid = ShortId(address);
         let n = app.instances.len();
         for (i, instance) in app.instances.into_iter().enumerate() {
             let mut handle = instance.vm_handle;

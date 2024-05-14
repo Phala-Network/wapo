@@ -251,6 +251,40 @@
         .toast.error {
             background-color: red;
         }
+
+        .modal {
+            display: block;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 30%;
+        }
+
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
     </style>
 </head>
 
@@ -352,6 +386,7 @@
                                     <button class="btn-small" @click="startApp(app.address)">Start</button>
                                     <button class="btn-small" @click="resizeApp(app.address)">Resize</button>
                                     <button class="btn-small" @click="removeApp(app.address)">Remove</button>
+                                    <button class="btn-small" @click="showQuery(app.address)">Query</button>
                                 </div>
                             </td>
                         </tr>
@@ -360,267 +395,358 @@
             </div>
         </div>
 
-        <div class="console-controls">
+        <div id="queryAppModal" class="modal" v-show="queryForm.show">
+            <div class="modal-content">
+                <span class="close-button" @click="closeQuery">&times;</span>
+                <h2>Query</h2>
+                <div>
+                    <label>Address:</label>
+                    <input type="text" v-model="queryForm.address" />
+                </div>
+                <div>
+                    <label>Query Path:</label>
+                    <input type="text" v-model="queryForm.path" />
+                </div>
+                <div>
+                    <label>Query Payload:</label>
+                    <textarea v-model="queryForm.payload"></textarea>
+                </div>
+                <button @click="queryApp">Query</button>
+            </div>
+        </div>
+
+        <div id="consoleControls" class="console-controls">
             <div class="form-group">
                 <button @click="copyConsoleOutput">Copy</button>
                 <button @click="clearConsoleOutput">Clear</button>
             </div>
         </div>
-        <textarea id="consoleOutput" v-model="consoleOutput"></textarea>
+        <textarea id="consoleOutput" ref="consoleOutput" v-model="consoleOutput" disabled></textarea>
     </div>
 
-    <script src="https://unpkg.com/vue@3.4.27"></script>
-    <script>
-        Vue.createApp({
-            data() {
-                return {
-                    showDeployApp: false,
-                    activeTab: 'workerInfo',
-                    workerInfoResponse: '',
-                    consoleOutput: '',
-                    appsData: [],
-                    deployForm: {
-                        codeHash: '',
-                        args: '[]',
-                        envVars: '[]',
-                        startMode: 0,
-                        salt: '0x00',
-                        resizable: false
-                    },
-                    toasts: [],
-                    nextToastId: 0,
-                };
+</body>
+
+<script src="https://unpkg.com/vue@3.4.27/dist/vue.global.prod.js"></script>
+<script>
+    Vue.createApp({
+        data() {
+            return {
+                showDeployApp: false,
+                activeTab: 'workerInfo',
+                workerInfoResponse: '',
+                consoleOutput: '',
+                appsData: [],
+                deployForm: {
+                    codeHash: '',
+                    args: '[]',
+                    envVars: '[]',
+                    startMode: 0,
+                    salt: '0x00',
+                    resizable: false
+                },
+                queryForm: {
+                    path: '/',
+                    payload: '0x',
+                    address: '',
+                    show: false,
+                },
+                toasts: [],
+                nextToastId: 0,
+            };
+        },
+        methods: {
+            async fetchAPI(method, data) {
+                const toastId = this.addToast(`Calling ${method}`);
+                try {
+                    data = data || {};
+                    const response = await fetch(`/prpc/Operation.${method}?json`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(data)
+                    });
+                    const success = response.ok;
+                    this.updateToast(toastId, success);
+                    return response.json();
+                } catch (err) {
+                    this.updateToast(toastId, false);
+                }
             },
-            methods: {
-                async fetchAPI(method, data) {
-                    const toastId = this.addToast(`Calling ${method}`);
-                    try {
-                        data = data || {};
-                        const response = await fetch(`/prpc/Operation.${method}?json`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify(data)
-                        });
-                        const success = response.ok;
-                        this.updateToast(toastId, success);
-                        return response.json();
-                    } catch (err) {
-                        this.updateToast(toastId, false);
-                    }
-                },
 
-                async rpcCall(method, data) {
-                    const response = await this.fetchAPI(method, data);
-                    this.consoleLog(method, response);
-                    return response;
-                },
+            async rpcCall(method, data) {
+                const response = await this.fetchAPI(method, data);
+                this.consoleLog(method, response);
+                return response;
+            },
 
-                toggleCollapsible(section) {
-                    this.collapsibleStates[section] = !this.collapsibleStates[section];
-                },
+            toggleCollapsible(section) {
+                this.collapsibleStates[section] = !this.collapsibleStates[section];
+            },
 
-                async updateInfo() {
-                    const data = await this.fetchAPI('Info');
-                    this.workerInfoResponse = JSON.stringify(data, null, 2);
-                },
+            async updateInfo() {
+                const data = await this.fetchAPI('Info');
+                this.workerInfoResponse = JSON.stringify(data, null, 2);
+            },
 
-                async initWorker() {
-                    await this.rpcCall('WorkerInit', { salt: "0x" });
-                    await this.updateInfo();
-                },
+            async initWorker() {
+                await this.rpcCall('WorkerInit', { salt: "0x" });
+                await this.updateInfo();
+            },
 
-                async loadApps() {
-                    const response = await this.fetchAPI('AppList');
-                    // sort the apps by sn
-                    response.apps.sort((a, b) => a.sn - b.sn);
-                    this.appsData = response.apps;
-                },
+            async loadApps() {
+                const response = await this.fetchAPI('AppList');
+                // sort the apps by sn
+                response.apps.sort((a, b) => a.sn - b.sn);
+                this.appsData = response.apps;
+            },
 
-                async consoleLog(tip, msg) {
-                    const timestamp = new Date().toLocaleString();
-                    this.consoleOutput += dedent`
+            async consoleLog(tip, msg) {
+                const timestamp = new Date().toLocaleString();
+                this.consoleOutput += dedent`
                         ${timestamp} - ${tip}:
                         ${JSON.stringify(msg, null, 2)}
                     `;
-                    this.$nextTick(() => {
-                        const consoleElement = document.querySelector('#consoleOutput');
-                        consoleElement.scrollTop = consoleElement.scrollHeight;
-                    });
-                },
-
-                async uploadBlob() {
-                    const fileInput = this.$refs.fileInput;
-                    if (fileInput.files.length > 0) {
-                        const file = fileInput.files[0];
-                        const data = await this.readFileAsArrayBuffer(file);
-                        const blobData = {
-                            hash: '0x',
-                            hash_algorithm: 'sha256',
-                            body: this.toHex(data)
-                        };
-                        await this.rpcCall('BlobPut', blobData);
-                        // other logic, if needed...
-                    }
-                },
-                readFileAsArrayBuffer(file) {
-                    return new Promise((resolve, reject) => {
-                        const reader = new FileReader();
-                        reader.onload = () => {
-                            resolve(reader.result);
-                        };
-                        reader.onerror = reject;
-                        reader.readAsArrayBuffer(file);
-                    });
-                },
-                toHex(buffer) {
-                    return '0x' + Array.from(new Uint8Array(buffer))
-                        .map(b => b.toString(16).padStart(2, '0'))
-                        .join('');
-                },
-
-                async deployApp() {
-                    try {
-                        const manifest = {
-                            runtime: "test", // assuming 'runtime' as a static value for demo purposes
-                            code_hash: this.deployForm.codeHash,
-                            hash_algorithm: "sha256", // assuming 'hash_algorithm' as static too
-                            args: JSON.parse(this.deployForm.args),
-                            env_vars: JSON.parse(this.deployForm.envVars),
-                            start_mode: this.deployForm.startMode,
-                            salt: this.deployForm.salt,
-                            resizable: this.deployForm.resizable
-                        };
-                        await this.rpcCall('AppDeploy', { manifest });
-                        this.loadApps();
-                    } catch (error) {
-                        console.error("Deploy App Error:", error);
-                        this.consoleLog("Deploy App Error", error);
-                    }
-                },
-                async stopApp(address) {
-                    try {
-                        await this.rpcCall('AppStop', { address: address });
-                        this.loadApps();
-                    } catch (error) {
-                        this.consoleLog('Error stopping app', error);
-                    }
-                },
-
-                async startApp(address) {
-                    try {
-                        await this.rpcCall('AppStart', { address: address });
-                        this.loadApps();
-                    } catch (error) {
-                        this.consoleLog('Error starting app', error);
-                    }
-                },
-
-                async resizeApp(address) {
-                    try {
-                        let newSize = parseInt(prompt('Enter new size for app:'));
-                        await this.rpcCall('AppResize', { address: address, instances: newSize });
-                        this.loadApps();
-                    } catch (error) {
-                        this.consoleLog('Error resizing app', error);
-                    }
-                },
-
-                async removeApp(address) {
-                    try {
-                        await this.rpcCall('AppRemove', { address: address });
-                        this.loadApps();
-                    } catch (error) {
-                        this.consoleLog('Error removing app', error);
-                    }
-                },
-
-                async clearApps() {
-                    await this.rpcCall('AppClear', {});
-                    this.loadApps();
-                },
-
-                async copyConsoleOutput() {
-                    if (this.consoleOutput) {
-                        navigator.clipboard.writeText(this.consoleOutput).then(() => {
-                            console.log('Console output copied to the clipboard.');
-                        }, (err) => {
-                            console.error('Could not copy text: ', err);
-                        });
-                    }
-                },
-
-                async clearConsoleOutput() {
-                    this.consoleOutput = '';
-                },
-
-                addToast(message) {
-                    const id = this.nextToastId++;
-                    this.toasts.push({ id, message, type: 'pending', show: true });
-                    return id;
-                },
-
-                removeToast(id) {
-                    const toastIndex = this.toasts.findIndex(toast => toast.id === id);
-                    if (toastIndex !== -1) {
-                        this.toasts.splice(toastIndex, 1);
-                    }
-                },
-
-                updateToast(id, success) {
-                    const toastIndex = this.toasts.findIndex(toast => toast.id === id);
-                    if (toastIndex !== -1) {
-                        this.toasts[toastIndex].type = success ? 'success' : 'error';
-                        setTimeout(() => this.removeToast(id), success ? 1000 : 5000);
-                    }
-                },
-
-                async computeFileHash() {
-                    const fileInput = this.$refs.hashFileInput;
-                    if (fileInput.files.length > 0) {
-                        const file = fileInput.files[0];
-
-                        const data = await this.readFileAsArrayBuffer(file);
-                        const blobData = {
-                            hash: '0x',
-                            hash_algorithm: 'sha256',
-                            body: this.toHex(data)
-                        };
-                        const reply = await this.rpcCall('BlobPut', blobData);
-                        this.deployForm.codeHash = reply.hash;
-                    }
-                },
-            },
-            mounted() {
-                this.updateInfo();
-                this.loadApps();
-            }
-        }).mount("#app");
-
-        function dedent(callSite, ...args) {
-            function format(str) {
-                let size = -1;
-                return str.replace(/\n(\s+)/g, (m, m1) => {
-                    if (size < 0)
-                        size = m1.replace(/\t/g, "    ").length;
-                    return "\n" + m1.slice(Math.min(m1.length, size));
+                this.$nextTick(() => {
+                    const consoleElement = document.querySelector('#consoleOutput');
+                    consoleElement.scrollTop = consoleElement.scrollHeight;
                 });
-            }
-            if (typeof callSite === "string")
-                return format(callSite);
+            },
 
-            if (typeof callSite === "function")
-                return (...args) => format(callSite(...args));
+            async uploadBlob() {
+                const fileInput = this.$refs.fileInput;
+                if (fileInput.files.length > 0) {
+                    const file = fileInput.files[0];
+                    const data = await this.readFileAsArrayBuffer(file);
+                    const blobData = {
+                        hash: '0x',
+                        hash_algorithm: 'sha256',
+                        body: this.toHex(data)
+                    };
+                    await this.rpcCall('BlobPut', blobData);
+                    // other logic, if needed...
+                }
+            },
+            readFileAsArrayBuffer(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        resolve(reader.result);
+                    };
+                    reader.onerror = reject;
+                    reader.readAsArrayBuffer(file);
+                });
+            },
+            toHex(buffer) {
+                return '0x' + Array.from(new Uint8Array(buffer))
+                    .map(b => b.toString(16).padStart(2, '0'))
+                    .join('');
+            },
 
-            let output = callSite
-                .slice(0, args.length + 1)
-                .map((text, i) => (i === 0 ? "" : args[i - 1]) + text)
-                .join("");
+            async deployApp() {
+                try {
+                    const manifest = {
+                        runtime: "test", // assuming 'runtime' as a static value for demo purposes
+                        code_hash: this.deployForm.codeHash,
+                        hash_algorithm: "sha256", // assuming 'hash_algorithm' as static too
+                        args: JSON.parse(this.deployForm.args),
+                        env_vars: JSON.parse(this.deployForm.envVars),
+                        start_mode: this.deployForm.startMode,
+                        salt: this.deployForm.salt,
+                        resizable: this.deployForm.resizable
+                    };
+                    await this.rpcCall('AppDeploy', { manifest });
+                    this.loadApps();
+                } catch (error) {
+                    console.error("Deploy App Error:", error);
+                    this.consoleLog("Deploy App Error", error);
+                }
+            },
+            async stopApp(address) {
+                try {
+                    await this.rpcCall('AppStop', { address: address });
+                    this.loadApps();
+                } catch (error) {
+                    this.consoleLog('Error stopping app', error);
+                }
+            },
 
-            return format(output);
+            async startApp(address) {
+                try {
+                    await this.rpcCall('AppStart', { address: address });
+                    this.loadApps();
+                } catch (error) {
+                    this.consoleLog('Error starting app', error);
+                }
+            },
+
+            async resizeApp(address) {
+                try {
+                    let newSize = parseInt(prompt('Enter new size for app:'));
+                    await this.rpcCall('AppResize', { address: address, instances: newSize });
+                    this.loadApps();
+                } catch (error) {
+                    this.consoleLog('Error resizing app', error);
+                }
+            },
+
+            async removeApp(address) {
+                try {
+                    await this.rpcCall('AppRemove', { address: address });
+                    this.loadApps();
+                } catch (error) {
+                    this.consoleLog('Error removing app', error);
+                }
+            },
+
+            async clearApps() {
+                await this.rpcCall('AppClear', {});
+                this.loadApps();
+            },
+
+            async copyConsoleOutput() {
+                if (this.consoleOutput) {
+                    navigator.clipboard.writeText(this.consoleOutput).then(() => {
+                        console.log('Console output copied to the clipboard.');
+                    }, (err) => {
+                        console.error('Could not copy text: ', err);
+                    });
+                }
+            },
+
+            async clearConsoleOutput() {
+                this.consoleOutput = '';
+            },
+
+            addToast(message) {
+                const id = this.nextToastId++;
+                this.toasts.push({ id, message, type: 'pending', show: true });
+                return id;
+            },
+
+            removeToast(id) {
+                const toastIndex = this.toasts.findIndex(toast => toast.id === id);
+                if (toastIndex !== -1) {
+                    this.toasts.splice(toastIndex, 1);
+                }
+            },
+
+            updateToast(id, success) {
+                const toastIndex = this.toasts.findIndex(toast => toast.id === id);
+                if (toastIndex !== -1) {
+                    this.toasts[toastIndex].type = success ? 'success' : 'error';
+                    setTimeout(() => this.removeToast(id), success ? 1000 : 5000);
+                }
+            },
+
+            async computeFileHash() {
+                const fileInput = this.$refs.hashFileInput;
+                if (fileInput.files.length > 0) {
+                    const file = fileInput.files[0];
+
+                    const data = await this.readFileAsArrayBuffer(file);
+                    const blobData = {
+                        hash: '0x',
+                        hash_algorithm: 'sha256',
+                        body: this.toHex(data)
+                    };
+                    const reply = await this.rpcCall('BlobPut', blobData);
+                    this.deployForm.codeHash = reply.hash;
+                }
+            },
+            async showQuery(address) {
+                this.queryForm.address = address;
+                this.queryForm.show = true;
+            },
+            async queryApp() {
+                try {
+                    if (!this.queryForm.payload.startsWith('0x')) {
+                        this.queryForm.payload = hexEncode(this.queryForm.payload);
+                    }
+                    const queryArgs = {
+                        address: this.queryForm.address,
+                        path: this.queryForm.path,
+                        payload: this.queryForm.payload
+                    };
+
+                    const { output } = await this.rpcCall('AppQuery', queryArgs);
+                    this.consoleLog("Output", hexDecodeStr(output));
+                    this.closeQuery();
+                } catch (error) {
+                    this.consoleLog('Error querying app', error);
+                }
+            },
+            closeQuery() {
+                console.log('closeQuery');
+                this.queryForm.show = false;
+            },
+        },
+        mounted() {
+            this.updateInfo();
+            this.loadApps();
         }
-    </script>
-</body>
+    }).mount("#app");
+
+    // Remaining part of your existing script logic, do not duplicate methods
+
+    function dedent(callSite, ...args) {
+        function format(str) {
+            let size = -1;
+            return str.replace(/\n(\s+)/g, (m, m1) => {
+                if (size < 0)
+                    size = m1.replace(/\t/g, "    ").length;
+                return "\n" + m1.slice(Math.min(m1.length, size));
+            });
+        }
+        if (typeof callSite === "string")
+            return format(callSite);
+
+        if (typeof callSite === "function")
+            return (...args) => format(callSite(...args));
+
+        let output = callSite
+            .slice(0, args.length + 1)
+            .map((text, i) => (i === 0 ? "" : args[i - 1]) + text)
+            .join("");
+
+        return format(output);
+    }
+
+    function hexDecode(hexString) {
+        // Remove the "0x" prefix if present
+        if (hexString.startsWith('0x')) {
+            hexString = hexString.slice(2);
+        }
+
+        // Ensure the hex string has an even number of characters for valid byte pairs
+        if (hexString.length % 2 !== 0) {
+            throw new Error('Invalid hex string, it must have an even number of characters');
+        }
+
+        // Convert the hex string to a byte array
+        return new Uint8Array(hexString.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+    }
+    function hexDecodeStr(hexString) {
+        const bytes = hexDecode(hexString);
+        // Decode the byte array using TextDecoder which supports UTF-8
+        const decoder = new TextDecoder();
+        return decoder.decode(bytes);
+    }
+
+    function hexEncode(utf8String) {
+        // Encode the UTF-8 string using TextEncoder to get the bytes
+        const encoder = new TextEncoder();
+        const bytes = encoder.encode(utf8String);
+
+        // Convert the bytes to a hexadecimal string
+        let hexString = '';
+        for (const byte of bytes) {
+            hexString += byte.toString(16).padStart(2, '0');
+        }
+
+        return '0x' + hexString;
+    }
+
+</script>
 
 </html>
