@@ -1,54 +1,101 @@
-
 syntax = "proto3";
 
 import "google/protobuf/empty.proto";
 
 package wapod;
 
-// The wapod public RPC.
+// The wapod public RPC service.
 service User {
   // Get basic information about the worker state.
-  rpc Info(google.protobuf.Empty) returns (WorkerInfo) {}
-  // Send a query request to given app
-  rpc Query(QueryArgs) returns (QueryResposne) {}
+  rpc Info(google.protobuf.Empty) returns (WorkerInfo) {
+    // Retrieves the basic information about the worker, including the public
+    // key, number of deployed apps, running instances, maximum instances,
+    // instance memory size, and the worker's session ID.
+  }
+  // Send a query request to a given app.
+  rpc Query(QueryArgs) returns (QueryResponse) {
+    // Sends a query request to the specified app, with the provided path and
+    // payload. Returns the response payload from the app.
+  }
 }
 
-// The wapod admin RPC.
+// The wapod admin RPC service.
 service Operation {
   // Get basic information about the worker state.
-  rpc Info(google.protobuf.Empty) returns (WorkerInfo) {}
+  rpc Info(google.protobuf.Empty) returns (WorkerInfo) {
+    // Retrieves the basic information about the worker, including the public
+    // key, number of deployed apps, running instances, maximum instances,
+    // instance memory size, and the worker's session ID.
+  }
   // Initialize the worker.
-  rpc WorkerInit(InitArgs) returns (InitResponse) {}
-  // Top the worker.
-  rpc WorkerExit(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  rpc WorkerInit(InitArgs) returns (InitResponse) {
+    // Initializes the worker with the provided initialization arguments,
+    // including the previous metrics nonce reported to the chain. Returns the
+    // new worker session and the seed used to derive the session.
+  }
+  // Terminate the worker.
+  rpc WorkerExit(google.protobuf.Empty) returns (google.protobuf.Empty) {
+    // Terminates the worker.
+  }
   // Put a blob to the worker's blobs directory.
-  rpc BlobPut(Blob) returns (Blob) {}
+  rpc BlobPut(Blob) returns (Blob) {
+    // Stores the provided blob in the worker's blobs directory.
+  }
   // Remove a blob from the blobs directory.
-  rpc BlobRemove(Blob) returns (google.protobuf.Empty) {}
+  rpc BlobRemove(Blob) returns (google.protobuf.Empty) {
+    // Removes the provided blob from the worker's blobs directory.
+  }
   // Check if a blob exists in the worker's blobs directory.
-  rpc BlobExists(Blob) returns (Boolean) {}
+  rpc BlobExists(Blob) returns (Boolean) {
+    // Checks if the provided blob exists in the worker's blobs directory.
+  }
   // Deploy a new WASM instance.
-  rpc AppDeploy(DeployArgs) returns (DeployResponse) {}
+  rpc AppDeploy(DeployArgs) returns (DeployResponse) {
+    // Deploys a new WASM instance with the provided manifest, which includes
+    // the runtime, code hash, arguments, environment variables, start mode,
+    // salt, and whether the app is resizable. Returns the address and session
+    // ID of the deployed instance.
+  }
   // Remove an instance from the worker.
-  rpc AppRemove(Address) returns (google.protobuf.Empty) {}
-  // Start an instance from the worker. On-demand instance will reject this
-  // request.
-  rpc AppStart(Address) returns (google.protobuf.Empty) {}
+  rpc AppRemove(Address) returns (google.protobuf.Empty) {
+    // Removes the app instance at the provided address from the worker.
+  }
+  // Start an instance from the worker.
+  rpc AppStart(Address) returns (google.protobuf.Empty) {
+    // Starts the app instance at the provided address. On-demand instances will
+    // reject this request.
+  }
   // Stop an instance from the worker.
-  rpc AppStop(Address) returns (google.protobuf.Empty) {}
-  // Set the number of instances of an app. Returns the actual number of
-  // instances after the operation. It might be less than the requested number
-  // if the worker's capacity is not enough or the app doesn't support multiple
-  // instances.
-  rpc AppResize(ResizeArgs) returns (Number) {}
-  // Get metrics for each instance
-  rpc AppMetrics(Addresses) returns (AppMetricsResponse) {}
+  rpc AppStop(Address) returns (google.protobuf.Empty) {
+    // Stops the app instance at the provided address.
+  }
+  // Set the number of instances of an app.
+  rpc AppResize(ResizeArgs) returns (Number) {
+    // Sets the number of instances for the app at the provided address. Returns
+    // the actual number of instances after the operation, which may be less
+    // than the requested number due to the worker's capacity or the app's
+    // support for multiple instances.
+  }
+  // Get metrics for each instance.
+  rpc AppMetrics(Addresses) returns (AppMetricsResponse) {
+    // Retrieves the metrics for the app instances at the provided addresses.
+    // Returns the encoded metrics payload and the signature of the payload.
+  }
   // List all deployed apps.
-  rpc AppList(google.protobuf.Empty) returns (AppListResponse) {}
+  rpc AppList(google.protobuf.Empty) returns (AppListResponse) {
+    // Returns a list of information about all the deployed apps, including the
+    // sequence number, address, number of running instances, whether the number
+    // of instances is resizable, and the start mode.
+  }
   // Remove all deployed apps.
-  rpc AppsClear(google.protobuf.Empty) returns (google.protobuf.Empty) {}
-  // Send a query request to given app
-  rpc AppQuery(QueryArgs) returns (QueryResposne) {}
+  rpc AppsClear(google.protobuf.Empty) returns (google.protobuf.Empty) {
+    // Removes all deployed apps from the worker.
+  }
+  // Send a query request to a given app.
+  rpc AppQuery(QueryArgs) returns (QueryResponse) {
+    // Sends a query request to the app at the provided address, with the
+    // specified path and payload. Returns the response payload from the app.
+  }
 }
 
 // Basic information about a worker.
@@ -59,11 +106,11 @@ message WorkerInfo {
   uint64 deployed_apps = 2;
   // The number of running instances.
   uint64 running_instances = 3;
-  // The number of maximum instances.
+  // The maximum number of instances.
   uint64 max_instances = 4;
-  // The size limit of memory of each instance.
+  // The size limit of memory for each instance.
   uint64 instance_memory_size = 5;
-  // The session id of the worker.
+  // The session ID of the worker.
   bytes session = 6;
 }
 
@@ -79,14 +126,14 @@ message Blob {
 
 // Request to deploy an instance.
 message DeployArgs {
-  // Manifest of an instance.
+  // Manifest of the app to be deployed.
   Manifest manifest = 1;
 }
 
 message DeployResponse {
   // The address of the deployed instance.
   bytes address = 1;
-  // The session id of the deployed instance.
+  // The session ID of the deployed instance.
   bytes session = 2;
 }
 
@@ -106,7 +153,7 @@ message Manifest {
   uint32 start_mode = 6;
   // The salt used to derive the app's address.
   bytes salt = 7;
-  // Whether allow to run multiple instances of the app in a single worker.
+  // Whether the app can run multiple instances in a single worker.
   bool resizable = 8;
 }
 
@@ -143,8 +190,9 @@ message AppListResponse {
 }
 
 message AppInfo {
-  // The sequence number
+  // The sequence number of the app.
   uint64 sn = 1;
+  // The address of the app.
   // @codec scale crate::types::Address
   bytes address = 2;
   // The number of running instances of the app.
@@ -184,10 +232,13 @@ message QueryArgs {
   // The address of the app to query.
   // @codec scale crate::types::Address
   bytes address = 1;
+  // The path of the query.
   string path = 2;
+  // The payload of the query.
   bytes payload = 3;
 }
 
-message QueryResposne {
-  bytes payload = 1;
+message QueryResponse {
+  // The response payload from the app.
+  bytes output = 1;
 }
