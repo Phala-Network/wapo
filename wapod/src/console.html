@@ -135,7 +135,7 @@
         button,
         input[type="checkbox"],
         .btn-small {
-            padding: 6px 12px;
+            padding: 6px 3;
             font-size: 0.8em;
             margin: 5px 5px 5px 0;
             /* Spacing around button for a tight layout */
@@ -397,11 +397,11 @@
                             <td>{{ app.instances }}</td>
                             <td>
                                 <div class="form-group app-op-buttons">
-                                    <button class="btn-small" @click="stopApp(app.address)">Stop</button>
-                                    <button class="btn-small" @click="startApp(app.address)">Start</button>
-                                    <button class="btn-small" @click="resizeApp(app.address)">Resize</button>
-                                    <button class="btn-small" @click="removeApp(app.address)">Remove</button>
-                                    <button class="btn-small" @click="showQuery(app.address)">Query</button>
+                                    <button class="btn-small" @click="startApp(app.address)">▶</button>
+                                    <button class="btn-small" @click="stopApp(app.address)">◾</button>
+                                    <button class="btn-small" @click="resizeApp(app.address)">➕</button>
+                                    <button class="btn-small" @click="removeApp(app.address)">❌</button>
+                                    <button class="btn-small" @click="showQuery(app.address)">💬</button>
                                 </div>
                             </td>
                         </tr>
