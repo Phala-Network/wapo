@@ -2,6 +2,7 @@ use anyhow::{anyhow, bail, Context, Result};
 
 use rand::Rng as _;
 use sp_core::hashing::blake2_256;
+use tokio::sync::oneshot;
 use tracing::{field::display, info, warn, Instrument};
 use wapo_host::{blobs::BlobLoader, Metrics};
 use wapo_host::{ShortId, VmStatus, VmStatusReceiver};
@@ -141,6 +142,40 @@ impl Worker {
 
     pub fn blob_loader(&self) -> BlobLoader {
         self.lock().blob_loader.clone()
+    }
+
+    pub async fn query(
+        &self,
+        origin: Option<[u8; 32]>,
+        address: Address,
+        path: String,
+        payload: Vec<u8>,
+    ) -> Result<Vec<u8>> {
+        let cmd_sender = {
+            let state = self.lock();
+            let app = state
+                .apps
+                .get(&address)
+                .ok_or(anyhow::Error::msg("App not found"))?;
+            let instance = match app.instances.get(0) {
+                Some(instance) => instance,
+                None => {
+                    bail!("Instance not found");
+                }
+            };
+            instance.vm_handle.command_sender().clone()
+        };
+        let (reply_tx, rx) = oneshot::channel();
+        cmd_sender
+            .send(Command::PushQuery {
+                path,
+                origin,
+                payload,
+                reply_tx,
+            })
+            .await
+            .context("Failed to send query to instance")?;
+        rx.await.context("Failed to receive query response")
     }
 
     pub async fn start_app(&self, address: Address, demand: bool) -> Result<()> {

@@ -27,7 +27,7 @@ use super::{read_data, Worker};
 
 pub struct Call {
     worker: Worker,
-    caller: Option<()>,
+    caller: Option<[u8; 32]>,
 }
 
 impl Deref for Call {
@@ -40,6 +40,7 @@ impl Deref for Call {
 
 impl Call {
     pub fn new(worker: Worker) -> Self {
+        let todo = "fill caller";
         Self {
             worker,
             caller: None,
@@ -48,7 +49,7 @@ impl Call {
 }
 
 impl OperationRpc for Call {
-    async fn worker_init(&self, request: pb::InitArgs) -> Result<pb::InitResponse> {
+    async fn worker_init(self, request: pb::InitArgs) -> Result<pb::InitResponse> {
         if request.salt.len() > 64 {
             return Err(RpcError::BadRequest("Salt too long".into()));
         }
@@ -60,11 +61,11 @@ impl OperationRpc for Call {
         })
     }
 
-    async fn worker_exit(&self) -> Result<()> {
+    async fn worker_exit(self) -> Result<()> {
         std::process::exit(0);
     }
 
-    async fn blob_put(&self, request: pb::Blob) -> Result<pb::Blob> {
+    async fn blob_put(self, request: pb::Blob) -> Result<pb::Blob> {
         let loader = self.blob_loader();
         let hash = loader
             .put(
@@ -84,14 +85,14 @@ impl OperationRpc for Call {
         })
     }
 
-    async fn blob_exists(&self, request: pb::Blob) -> Result<pb::Boolean> {
+    async fn blob_exists(self, request: pb::Blob) -> Result<pb::Boolean> {
         let loader = self.blob_loader();
         Ok(pb::Boolean {
             value: loader.exists(&request.hash),
         })
     }
 
-    async fn blob_remove(&self, request: pb::Blob) -> Result<()> {
+    async fn blob_remove(self, request: pb::Blob) -> Result<()> {
         let loader = self.blob_loader();
         loader
             .remove(&request.hash)
@@ -99,7 +100,7 @@ impl OperationRpc for Call {
     }
 
     #[tracing::instrument(name="app.deploy", skip_all, fields(addr=Empty))]
-    async fn app_deploy(&self, request: pb::DeployArgs) -> Result<pb::DeployResponse> {
+    async fn app_deploy(self, request: pb::DeployArgs) -> Result<pb::DeployResponse> {
         if self.session().is_none() {
             return Err(RpcError::BadRequest("No worker session".into()));
         }
@@ -118,24 +119,24 @@ impl OperationRpc for Call {
     }
 
     #[tracing::instrument(name="app.remove", fields(id = %ShortId(&request.address)), skip_all)]
-    async fn app_remove(&self, request: pb::Address) -> Result<()> {
+    async fn app_remove(self, request: pb::Address) -> Result<()> {
         self.remove_app(request.decode_address()?).await?;
         Ok(())
     }
 
     #[tracing::instrument(name="app.start", fields(id = %ShortId(&request.address)), skip_all)]
-    async fn app_start(&self, request: pb::Address) -> Result<()> {
+    async fn app_start(self, request: pb::Address) -> Result<()> {
         self.start_app(request.decode_address()?, false).await?;
         Ok(())
     }
 
     #[tracing::instrument(name="app.stop", fields(id = %ShortId(&request.address)), skip_all)]
-    async fn app_stop(&self, request: pb::Address) -> Result<()> {
+    async fn app_stop(self, request: pb::Address) -> Result<()> {
         self.stop_app(request.decode_address()?).await?;
         Ok(())
     }
 
-    async fn app_metrics(&self, request: pb::Addresses) -> Result<pb::AppMetricsResponse> {
+    async fn app_metrics(self, request: pb::Addresses) -> Result<pb::AppMetricsResponse> {
         let addresses = request.decode_addresses()?;
         let addresses = if addresses.is_empty() {
             None
@@ -168,7 +169,7 @@ impl OperationRpc for Call {
     }
 
     #[tracing::instrument(name="app.resize", fields(id = %ShortId(&request.address)), skip_all)]
-    async fn app_resize(&self, request: pb::ResizeArgs) -> Result<pb::Number> {
+    async fn app_resize(self, request: pb::ResizeArgs) -> Result<pb::Number> {
         info!(new_size = request.instances, "Resizing app");
         let address = request.decode_address()?;
         self.resize_app_instances(address, request.instances as usize, false)
@@ -179,7 +180,7 @@ impl OperationRpc for Call {
         })
     }
 
-    async fn app_list(&self) -> Result<pb::AppListResponse> {
+    async fn app_list(self) -> Result<pb::AppListResponse> {
         let apps = self
             .list()
             .into_iter()
@@ -196,19 +197,45 @@ impl OperationRpc for Call {
         Ok(pb::AppListResponse { apps })
     }
 
-    async fn apps_clear(&self) -> Result<()> {
+    async fn apps_clear(self) -> Result<()> {
         self.clear();
         Ok(())
     }
 
-    async fn info(&self) -> Result<WorkerInfo> {
+    async fn info(self) -> Result<WorkerInfo> {
         UserRpc::info(self).await
+    }
+
+    async fn app_query(self, request: pb::QueryArgs) -> Result<pb::QueryResponse> {
+        let output = self
+            .worker
+            .query(
+                self.caller,
+                request.decode_address()?,
+                request.path,
+                request.payload,
+            )
+            .await?;
+        Ok(pb::QueryResponse { output })
     }
 }
 
 impl UserRpc for Call {
-    async fn info(&self) -> Result<WorkerInfo> {
-        Ok(Worker::info(self).await)
+    async fn info(self) -> Result<WorkerInfo> {
+        Ok(self.worker.info().await)
+    }
+
+    async fn query(self, request: pb::QueryArgs) -> Result<pb::QueryResponse> {
+        let output = self
+            .worker
+            .query(
+                self.caller,
+                request.decode_address()?,
+                request.path,
+                request.payload,
+            )
+            .await?;
+        Ok(pb::QueryResponse { output })
     }
 }
 

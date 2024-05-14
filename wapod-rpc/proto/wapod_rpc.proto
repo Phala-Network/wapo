@@ -181,6 +181,8 @@ message ResizeArgs {
 }
 
 message QueryArgs {
+  // The address of the app to query.
+  // @codec scale crate::types::Address
   bytes address = 1;
   string path = 2;
   bytes payload = 3;
