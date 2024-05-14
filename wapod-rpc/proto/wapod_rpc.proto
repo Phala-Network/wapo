@@ -9,6 +9,8 @@ package wapod;
 service User {
   // Get basic information about the worker state.
   rpc Info(google.protobuf.Empty) returns (WorkerInfo) {}
+  // Send a query request to given app
+  rpc Query(QueryArgs) returns (QueryResposne) {}
 }
 
 // The wapod admin RPC.
@@ -45,6 +47,8 @@ service Operation {
   rpc AppList(google.protobuf.Empty) returns (AppListResponse) {}
   // Remove all deployed apps.
   rpc AppsClear(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  // Send a query request to given app
+  rpc AppQuery(QueryArgs) returns (QueryResposne) {}
 }
 
 // Basic information about a worker.
@@ -174,4 +178,14 @@ message ResizeArgs {
   bytes address = 1;
   // The number of instances to set.
   uint64 instances = 2;
+}
+
+message QueryArgs {
+  bytes address = 1;
+  string path = 2;
+  bytes payload = 3;
+}
+
+message QueryResposne {
+  bytes payload = 1;
 }
