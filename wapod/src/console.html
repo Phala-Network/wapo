@@ -343,7 +343,8 @@
                         <div class="form-group">
                             <label for="deployCodeHash">Code Hash:</label>
                             <input type="text" v-model="deployForm.codeHash" required>
-                            <input type="file" id="codeHashFile" ref="hashFileInput" @change="computeFileHash">
+                            <input type="file" id="codeHashFile" ref="hashFileInput" @click="clearFile"
+                                @change="computeFileHash">
                         </div>
                         <div class="form-group">
                             <label for="deployArgs">Args:</label>
@@ -670,6 +671,10 @@
                     this.deployForm.codeHash = reply.hash;
                 }
             },
+            clearFile() {
+                this.$refs.hashFileInput.value = '';
+            },
+
             async showQuery(address) {
                 this.queryForm.address = address;
                 this.queryForm.show = true;
