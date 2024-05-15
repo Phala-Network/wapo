@@ -305,11 +305,13 @@ impl Worker {
             .map(|app| app.instances.len())
     }
 
-    pub fn list(&self) -> Vec<AppInfo> {
+    pub fn list(&self, start: usize, count: usize) -> Vec<AppInfo> {
         let inner = self.lock();
         inner
             .apps
             .iter()
+            .skip(start)
+            .take(count)
             .map(|(address, state)| AppInfo {
                 address: *address,
                 session: state.session,

@@ -82,7 +82,7 @@ service Operation {
     // Returns the encoded metrics payload and the signature of the payload.
   }
   // List all deployed apps.
-  rpc AppList(google.protobuf.Empty) returns (AppListResponse) {
+  rpc AppList(AppListArgs) returns (AppListResponse) {
     // Returns a list of information about all the deployed apps, including the
     // sequence number, address, number of running instances, whether the number
     // of instances is resizable, and the start mode.
@@ -241,4 +241,12 @@ message QueryArgs {
 message QueryResponse {
   // The response payload from the app.
   bytes output = 1;
+}
+
+// Request to list deployed apps.
+message AppListArgs {
+  // The pagination start.
+  uint32 start = 1;
+  // The maximum number of apps to list.
+  uint32 count = 2;
 }

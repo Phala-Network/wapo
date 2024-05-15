@@ -180,9 +180,14 @@ impl OperationRpc for Call {
         })
     }
 
-    async fn app_list(self) -> Result<pb::AppListResponse> {
+    async fn app_list(self, request: pb::AppListArgs) -> Result<pb::AppListResponse> {
+        let count = if request.count > 0 {
+            request.count as _
+        } else {
+            usize::MAX
+        };
         let apps = self
-            .list()
+            .list(request.start as _, count)
             .into_iter()
             .map(|info| {
                 pb::AppInfo::new(
