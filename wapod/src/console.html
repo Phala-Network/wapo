@@ -317,7 +317,7 @@
             <button class="tab" @click="activeTab = 'apps'">Apps</button>
         </div>
 
-        <div v-show="activeTab === 'workerInfo'" class="tabcontent">
+        <div v-show="activeTab === 'workerInfo'" class="tabcontent" style="display: none;">
             <textarea id="workerInfo" v-model="workerInfoResponse"></textarea>
             <div class="form-group">
                 <button @click="updateInfo">Refresh</button>
@@ -325,7 +325,7 @@
             </div>
         </div>
 
-        <div v-show="activeTab === 'blobs'" class="tabcontent">
+        <div v-show="activeTab === 'blobs'" class="tabcontent" style="display: none;">
             <form @submit.prevent="uploadBlob">
                 <div class="form-group">
                     <label for="putFile">File:</label>
@@ -335,10 +335,10 @@
             </form>
         </div>
 
-        <div v-show="activeTab === 'apps'" class="tabcontent">
+        <div v-show="activeTab === 'apps'" class="tabcontent" style="display: none;">
             <div>
                 <button type="button" @click="showDeployApp = !showDeployApp" class="collapsible">Deploy App</button>
-                <div v-show="showDeployApp" class="content">
+                <div v-show="showDeployApp" class="content" style="display: none;">
                     <form @submit.prevent="deployApp">
                         <div class="form-group">
                             <label for="deployCodeHash">Code Hash:</label>
@@ -410,7 +410,7 @@
             </div>
         </div>
 
-        <div id="queryAppModal" class="modal" v-show="queryForm.show">
+        <div id="queryAppModal" class="modal" v-show="queryForm.show" style="display: none;">
             <div class="modal-content">
                 <span class="close-button" @click="closeQuery">&times;</span>
                 <h2>Query</h2>
@@ -715,6 +715,7 @@
             startHeight = parseInt(document.defaultView.getComputedStyle(consoleOutput).height, 10);
             document.documentElement.addEventListener('mousemove', doDrag, false);
             document.documentElement.addEventListener('mouseup', stopDrag, false);
+            e.preventDefault();
         });
 
         function doDrag(e) {
@@ -722,11 +723,14 @@
             consoleOutput.style.height = pos + 'px';
             consoleResizer.style.bottom = pos + 'px';
             consoleControls.style.bottom = pos - 5 + 'px';
+            document.body.style.marginBottom = pos + 'px';
+            e.preventDefault();
         }
 
         function stopDrag(e) {
             document.documentElement.removeEventListener('mousemove', doDrag, false);
             document.documentElement.removeEventListener('mouseup', stopDrag, false);
+            e.preventDefault();
         }
     });
 
