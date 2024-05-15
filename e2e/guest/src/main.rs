@@ -14,7 +14,12 @@ async fn main() {
             break;
         };
         info!("Received query: {:?}", query.path);
-        if let Err(err) = query.reply_tx.send(&query.payload) {
+        let reply = match query.path.as_str() {
+            "/echo" => query.payload,
+            "/helloworld" => b"Hello, world!".to_vec(),
+            _ => b"404".to_vec(),
+        };
+        if let Err(err) = query.reply_tx.send(&reply) {
             error!("Failed to send reply: {:?}", err);
         }
     }
