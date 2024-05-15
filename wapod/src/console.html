@@ -304,7 +304,7 @@
 </head>
 
 <body>
-    <div id="app" class="page">
+    <div id="app" class="page" :style="{ marginBottom: consoleHeight - 100 + 'px' }">
         <div id="toasts">
             <div v-for="(toast, index) in toasts" :key="index" :class="['toast', toast.type]">
                 {{ toast.message }}
@@ -431,14 +431,16 @@
             </div>
         </div>
 
-        <div id="consoleControls" class="console-controls">
+        <div id="consoleControls" class="console-controls" :style="{ bottom: (consoleHeight - 5) + 'px' }">
             <div class="form-group">
                 <button @click="copyConsoleOutput">Copy</button>
                 <button @click="clearConsoleOutput">Clear</button>
             </div>
         </div>
-        <div id="consoleResizer" class="resizer"></div>
-        <textarea id="consoleOutput" ref="consoleOutput" v-model="consoleOutput" disabled></textarea>
+        <div id="consoleResizer" class="resizer" @mousedown.prevent="startDrag"
+            :style="{ bottom: consoleHeight + 'px' }"></div>
+        <textarea id="consoleOutput" ref="consoleOutput" v-model="consoleOutput"
+            :style="{ height: consoleHeight + 'px' }" disabled></textarea>
     </div>
 
 </body>
@@ -469,6 +471,11 @@
                 },
                 toasts: [],
                 nextToastId: 0,
+                consoleHeight: 200,
+                drag: {
+                    startY: 0,
+                    startHeight: 0,
+                },
             };
         },
         methods: {
@@ -701,43 +708,27 @@
                 console.log('closeQuery');
                 this.queryForm.show = false;
             },
+            startDrag(e) {
+                this.drag.startY = e.clientY;
+                this.drag.startHeight = this.consoleHeight;
+                document.documentElement.addEventListener('mousemove', this.doDrag, false);
+                document.documentElement.addEventListener('mouseup', this.stopDrag, false);
+            },
+            doDrag(e) {
+                console.log('on drag', e.clientY);
+                const diff = e.clientY - this.drag.startY;
+                this.consoleHeight = this.drag.startHeight - diff;
+            },
+            stopDrag(e) {
+                document.documentElement.removeEventListener('mousemove', this.doDrag, false);
+                document.documentElement.removeEventListener('mouseup', this.stopDrag, false);
+            }
         },
         mounted() {
             this.updateInfo();
             this.loadApps();
         }
-    }).mount("#app");
-
-    document.addEventListener('DOMContentLoaded', function () {
-        const consoleOutput = document.getElementById('consoleOutput');
-        const consoleResizer = document.getElementById('consoleResizer');
-        const consoleControls = document.getElementById('consoleControls');
-
-        let startY, startHeight;
-
-        consoleResizer.addEventListener('mousedown', function (e) {
-            startY = e.clientY;
-            startHeight = parseInt(document.defaultView.getComputedStyle(consoleOutput).height, 10);
-            document.documentElement.addEventListener('mousemove', doDrag, false);
-            document.documentElement.addEventListener('mouseup', stopDrag, false);
-            e.preventDefault();
-        });
-
-        function doDrag(e) {
-            const pos = (startHeight + startY - e.clientY);
-            consoleOutput.style.height = pos + 'px';
-            consoleResizer.style.bottom = pos + 'px';
-            consoleControls.style.bottom = pos - 5 + 'px';
-            document.body.style.marginBottom = pos + 'px';
-            e.preventDefault();
-        }
-
-        function stopDrag(e) {
-            document.documentElement.removeEventListener('mousemove', doDrag, false);
-            document.documentElement.removeEventListener('mouseup', stopDrag, false);
-            e.preventDefault();
-        }
-    });
+    }).mount('body');
 
     function dedent(callSite, ...args) {
         function format(str) {
