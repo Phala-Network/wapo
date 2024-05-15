@@ -758,7 +758,9 @@
         if (hexString.startsWith('0x')) {
             hexString = hexString.slice(2);
         }
-
+        if (hexString.length == 0) {
+            return new Uint8Array();
+        }
         // Ensure the hex string has an even number of characters for valid byte pairs
         if (hexString.length % 2 !== 0) {
             throw new Error('Invalid hex string, it must have an even number of characters');
