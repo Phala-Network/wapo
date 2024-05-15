@@ -9,43 +9,60 @@
         body {
             font-family: Arial, sans-serif;
             margin: 0;
-            padding: 5px;
+            padding: 0;
         }
 
-        .page {
-            max-width: 900px;
-            margin: auto;
-            padding: 5px;
+        .sidebar {
+            width: 200px;
+            background-color: #f1f1f1;
+            padding: 10px;
+            position: fixed;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        .main-content {
+            margin-left: 220px;
+            margin-right: 200px;
+            padding: 20px;
             padding-bottom: 150px;
-            /* Add bottom padding to account for floating log box */
+            min-width: 700px;
         }
 
         .tabs {
-            overflow: hidden;
-            background-color: #f1f1f1;
+            list-style-type: none;
+            padding: 0;
         }
 
         .tab {
-            float: left;
-            border: none;
-            outline: none;
+            padding: 5px 10px;
             cursor: pointer;
-            padding: 10px 16px;
             transition: 0.3s;
             font-size: 17px;
+            text-align: left;
         }
 
-        .tab:hover {
+        .tab a {
+            color: #587a79e0;
+        }
+
+        .tab:hover,
+        .tab.active {
             background-color: #ddd;
         }
 
-        .tab.active {
-            background-color: #ccc;
+        .tabcontent {
+            margin-bottom: 10px;
         }
 
-        .tabcontent {
-            padding: 6px 12px;
-            border-top: none;
+        h2 {
+            margin: 5px;
+        }
+
+        #workerInfo,
+        #apps {
+            border: 1px solid #ccc;
+            background-color: #fff;
         }
 
         .collapsible {
@@ -106,7 +123,7 @@
             /* Align with text baseline */
         }
 
-        #workerInfo {
+        #workerInfoTextarea {
             height: 150px;
             margin-top: 10px;
             border: 1px solid #eee;
@@ -135,7 +152,7 @@
         button,
         input[type="checkbox"],
         .btn-small {
-            padding: 6px 3;
+            padding: 6px 3px;
             font-size: 0.8em;
             margin: 5px 5px 5px 0;
             /* Spacing around button for a tight layout */
@@ -154,7 +171,6 @@
         .form-group label {
             margin-right: 10px;
             white-space: nowrap;
-            /* Prevent the label from wrapping */
         }
 
         .form-group input[type="text"],
@@ -162,12 +178,10 @@
         .form-group input[type="number"],
         .form-group textarea {
             flex-grow: 1;
-            /* Let input fields take the available space */
         }
 
         .shortened-address {
             max-width: 120px;
-            /* Adjust the width to your preference */
             display: inline-block;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -181,42 +195,30 @@
         #consoleOutput {
             height: 130px;
             margin-top: 10px;
-            /* Preserve formatting and spaces */
             position: fixed;
             bottom: 0;
-            left: 0;
+            left: 220px;
             right: 0;
             z-index: 1000;
-
             border: 1px solid #333;
-            /* Dark border color */
             background-color: #1e1e1e;
-            /* Dark background */
             color: #dcdcdc;
-            /* Light text color for contrast */
             font-family: 'Courier New', monospace;
-            /* Monospace font for terminal look */
             font-size: 0.8em;
-            /* Adjust font size if desired */
             padding: 6px;
             overflow-y: auto;
-            /* Add a vertical scrollbar */
             white-space: pre;
         }
 
-        /* Add to your existing style tag */
         .resizer {
             width: 100%;
             height: 3px;
             background: #666;
             cursor: ns-resize;
-            /* cursor style indicating resizing */
             position: fixed;
             bottom: 130px;
-            /* Initially position at the bottom of the console */
-            left: 0;
+            left: 220px;
             z-index: 1010;
-            /* Ensure the resizer is above other elements */
         }
 
         .console-controls {
@@ -224,9 +226,7 @@
             position: fixed;
             /* Place above the console box */
             bottom: 130px;
-            /* Distance from the right side */
             right: 15px;
-            /* Ensure it's above the logs */
             z-index: 1010;
         }
 
@@ -239,7 +239,6 @@
             margin-left: 0px;
         }
 
-        /* Add to your style tag */
         #toasts {
             position: fixed;
             top: 10px;
@@ -304,38 +303,30 @@
 </head>
 
 <body>
-    <div id="app" class="page" :style="{ marginBottom: consoleHeight - 100 + 'px' }">
-        <div id="toasts">
-            <div v-for="(toast, index) in toasts" :key="index" :class="['toast', toast.type]">
-                {{ toast.message }}
-            </div>
+    <div id="toasts">
+        <div v-for="(toast, index) in toasts" :key="index" :class="['toast', toast.type]">
+            {{ toast.message }}
         </div>
+    </div>
+    <div class="sidebar">
+        <ul class="tabs">
+            <li class="tab"><a class="tablabel" href="#workerInfo">Worker Info</a></li>
+            <li class="tab"><a class="tablabel" href="#apps">Apps</a></li>
+        </ul>
+    </div>
 
-        <div class="tabs form-group">
-            <button class="tab" @click="activeTab = 'workerInfo'">Worker Info</button>
-            <button class="tab" @click="activeTab = 'blobs'">Blobs</button>
-            <button class="tab" @click="activeTab = 'apps'">Apps</button>
-        </div>
-
-        <div v-show="activeTab === 'workerInfo'" class="tabcontent" style="display: none;">
-            <textarea id="workerInfo" v-model="workerInfoResponse"></textarea>
+    <div class="main-content" :style="{ marginBottom: bodyMarginBottom() + 'px' }">
+        <div id="workerInfo" class="tabcontent">
+            <h2>Worker Info</h2>
+            <textarea id="workerInfoTextarea" v-model="workerInfoResponse"></textarea>
             <div class="form-group">
                 <button @click="updateInfo">Refresh</button>
                 <button @click="initWorker">Init Worker</button>
             </div>
         </div>
 
-        <div v-show="activeTab === 'blobs'" class="tabcontent" style="display: none;">
-            <form @submit.prevent="uploadBlob">
-                <div class="form-group">
-                    <label for="putFile">File:</label>
-                    <input type="file" id="putFile" ref="fileInput" name="file">
-                    <button type="submit">Upload Blob</button>
-                </div>
-            </form>
-        </div>
-
-        <div v-show="activeTab === 'apps'" class="tabcontent" style="display: none;">
+        <div id="apps" class="tabcontent">
+            <h2>Apps</h2>
             <div>
                 <button type="button" @click="showDeployApp = !showDeployApp" class="collapsible">Deploy App</button>
                 <div v-show="showDeployApp" class="content" style="display: none;">
@@ -372,11 +363,9 @@
             </div>
 
             <div id="deployedApps">
-                <h2>Apps</h2>
                 <div class="form-group">
                     <button @click="loadApps">Refresh</button>
                     <button @click="clearApps">Clear Apps</button>
-                    <button @click="initWorker">Init Worker</button>
                 </div>
                 <table id="appsTable">
                     <thead>
@@ -450,7 +439,7 @@
     Vue.createApp({
         data() {
             return {
-                showDeployApp: false,
+                showDeployApp: true,
                 activeTab: 'workerInfo',
                 workerInfoResponse: '',
                 consoleOutput: '',
@@ -479,6 +468,12 @@
             };
         },
         methods: {
+            bodyMarginBottom() {
+                if (this.consoleHeight < 110) {
+                    return 10
+                }
+                return this.consoleHeight - 100
+            },
             async fetchAPI(method, data) {
                 const toastId = this.addToast(`Calling ${method}`);
                 try {
@@ -537,20 +532,6 @@
                 });
             },
 
-            async uploadBlob() {
-                const fileInput = this.$refs.fileInput;
-                if (fileInput.files.length > 0) {
-                    const file = fileInput.files[0];
-                    const data = await this.readFileAsArrayBuffer(file);
-                    const blobData = {
-                        hash: '0x',
-                        hash_algorithm: 'sha256',
-                        body: this.toHex(data)
-                    };
-                    await this.rpcCall('BlobPut', blobData);
-                    // other logic, if needed...
-                }
-            },
             readFileAsArrayBuffer(file) {
                 return new Promise((resolve, reject) => {
                     const reader = new FileReader();
@@ -699,7 +680,7 @@
 
                     const { output } = await this.rpcCall('AppQuery', queryArgs);
                     this.consoleLog("Output", hexDecodeStr(output));
-                    this.closeQuery();
+                    // this.closeQuery();
                 } catch (error) {
                     this.consoleLog('Error querying app', error);
                 }
@@ -715,19 +696,45 @@
                 document.documentElement.addEventListener('mouseup', this.stopDrag, false);
             },
             doDrag(e) {
-                console.log('on drag', e.clientY);
                 const diff = e.clientY - this.drag.startY;
                 this.consoleHeight = this.drag.startHeight - diff;
             },
             stopDrag(e) {
                 document.documentElement.removeEventListener('mousemove', this.doDrag, false);
                 document.documentElement.removeEventListener('mouseup', this.stopDrag, false);
-            }
+            },
+            handleScroll() {
+                const sections = document.querySelectorAll('.tabcontent');
+                sections.forEach((section) => {
+                    const rect = section.getBoundingClientRect();
+                    if (rect.top <= 100 && rect.bottom >= 100) {
+                        this.setActiveTab(section.id);
+                    }
+                });
+            },
+            setActiveTab(id) {
+                document.querySelectorAll('.tab').forEach((tab) => {
+                    tab.classList.toggle('active', tab.querySelector('a').getAttribute('href').substring(1) === id);
+                });
+            },
         },
         mounted() {
             this.updateInfo();
             this.loadApps();
-        }
+
+            window.addEventListener('scroll', this.handleScroll);
+            document.querySelectorAll('.tab').forEach((tab) => {
+                tab.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    const targetId = tab.querySelector('.tablabel').getAttribute('href').substring(1);
+                    document.getElementById(targetId).scrollIntoView({ behavior: 'smooth' });
+                    this.setActiveTab(targetId);
+                });
+            });
+        },
+        beforeUnmount() {
+            window.removeEventListener('scroll', this.handleScroll);
+        },
     }).mount('body');
 
     function dedent(callSite, ...args) {
