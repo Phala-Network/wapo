@@ -1,0 +1,3 @@
+[submodule "prpc"]
+	path = prpc
+	url = https://github.com/kvinwang/prpc.git
