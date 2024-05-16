@@ -557,7 +557,11 @@
 
             async resizeApp(address) {
                 try {
-                    let newSize = parseInt(prompt('Enter new size for app:'));
+                    const input = prompt('Enter new size for app:');
+                    if (input == null || input.length == 0) {
+                        return;
+                    }
+                    let newSize = parseInt(input);
                     await this.rpcCall('AppResize', { address: address, instances: newSize });
                     this.loadApps();
                 } catch (error) {
