@@ -195,7 +195,7 @@ impl OperationRpc for Call {
                     info.address,
                     info.running_instances as _,
                     info.resizable,
-                    info.start_mode,
+                    info.on_demand,
                 )
             })
             .collect();

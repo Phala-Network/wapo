@@ -36,7 +36,7 @@ pub struct AppInfo {
     pub session: [u8; 32],
     pub running_instances: usize,
     pub resizable: bool,
-    pub start_mode: u32,
+    pub on_demand: bool,
 }
 
 pub struct AppState {
@@ -217,7 +217,7 @@ impl Worker {
     }
 
     pub async fn deploy_app(&self, manifest: Manifest) -> Result<AppInfo> {
-        let immediate = manifest.start_mode == 0;
+        let on_demand = manifest.on_demand;
         let address = sp_core::blake2_256(&scale::Encode::encode(&manifest));
         tracing::Span::current().record("addr", display(ShortId(&address)));
         {
@@ -237,7 +237,7 @@ impl Worker {
             };
             worker.apps.insert(address, state);
         }
-        if immediate {
+        if !on_demand {
             self.resize_app_instances(address, 1, false).await?;
         }
         let worker = self.lock();
@@ -250,8 +250,8 @@ impl Worker {
             session: app.session,
             running_instances: app.instances.len(),
             resizable: app.manifest.resizable,
+            on_demand: app.manifest.on_demand,
             sn: app.sn,
-            start_mode: app.manifest.start_mode,
         })
     }
 
@@ -317,7 +317,7 @@ impl Worker {
                 session: state.session,
                 running_instances: state.instances.len(),
                 resizable: state.manifest.resizable,
-                start_mode: state.manifest.start_mode,
+                on_demand: state.manifest.on_demand,
                 sn: state.sn,
             })
             .collect()
@@ -419,7 +419,7 @@ impl WorkerState {
         let mut created = vec![];
         let mut removed = vec![];
         if count > current {
-            let on_demand = app.manifest.start_mode == 1;
+            let on_demand = app.manifest.on_demand;
             if on_demand && !demand {
                 bail!("On-demand app cannot be started directly");
             }

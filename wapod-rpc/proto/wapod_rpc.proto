@@ -150,11 +150,11 @@ message Manifest {
   // The environment variables of the app.
   repeated StringPair env_vars = 5;
   // The start mode of the app.
-  uint32 start_mode = 6;
-  // The salt used to derive the app's address.
-  bytes salt = 7;
+  bool on_demand = 6;
   // Whether the app can run multiple instances in a single worker.
-  bool resizable = 8;
+  bool resizable = 7;
+  // The salt used to derive the app's address.
+  bytes salt = 8;
 }
 
 // Environment variable of an app.
@@ -200,7 +200,7 @@ message AppInfo {
   // Whether the number of instances is resizable.
   bool resizable = 4;
   // The start mode of the app.
-  uint32 start_mode = 6;
+  bool on_demand = 6;
 }
 
 message Boolean { bool value = 1; }

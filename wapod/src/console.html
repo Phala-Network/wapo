@@ -347,7 +347,7 @@
                         </div>
                         <div class="form-group">
                             <label for="deployStartMode">Start Mode:</label>
-                            <input type="number" v-model.number="deployForm.startMode">
+                            <input type="checkbox" v-model="deployForm.onDemand">
                         </div>
                         <div class="form-group">
                             <label for="deploySalt">Salt:</label>
@@ -383,7 +383,7 @@
                             <td>{{ app.sn }}</td>
                             <td><span class="shortened-address">{{ app.address }}</span></td>
                             <td>{{ app.resizable ? 'Yes' : 'No' }}</td>
-                            <td>{{ app.start_mode == 0 ? 'Immediate' : 'OnDemand' }}</td>
+                            <td>{{ app.on_demand ? 'Immediate' : 'OnDemand' }}</td>
                             <td>{{ app.instances }}</td>
                             <td>
                                 <div class="form-group app-op-buttons">
@@ -526,7 +526,7 @@
                         hash_algorithm: "sha256", // assuming 'hash_algorithm' as static too
                         args: JSON.parse(this.deployForm.args),
                         env_vars: JSON.parse(this.deployForm.envVars),
-                        start_mode: this.deployForm.startMode,
+                        on_demand: this.deployForm.onDemand,
                         salt: this.deployForm.salt,
                         resizable: this.deployForm.resizable
                     };
@@ -720,7 +720,7 @@
                     codeHash: '',
                     args: '[]',
                     envVars: '[]',
-                    startMode: 0,
+                    onDemand: false,
                     salt: '0x00',
                     resizable: false
                 },
