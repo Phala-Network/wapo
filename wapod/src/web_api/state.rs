@@ -220,6 +220,7 @@ impl Worker {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all, fields(addr=%ShortId(address)))]
     pub async fn query(
         &self,
         origin: Option<[u8; 32]>,
