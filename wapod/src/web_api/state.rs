@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use std::ops::Add;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
+use std::time::Instant;
 
 use service::{Command, CommandSender, ServiceHandle};
 
@@ -37,6 +38,7 @@ pub struct AppInfo {
     pub running_instances: usize,
     pub resizable: bool,
     pub on_demand: bool,
+    pub last_query_elapsed_secs: u64,
 }
 
 pub struct AppState {
@@ -45,6 +47,8 @@ pub struct AppState {
     manifest: Manifest,
     hist_metrics: Metrics,
     instances: Vec<Instance>,
+    on_going_queries: usize,
+    last_query_done: Instant,
 }
 
 impl AppState {
@@ -56,6 +60,39 @@ impl AppState {
             .iter()
             .map(|run| run.vm_handle.meter().to_metrics())
             .fold(init, Add::add)
+    }
+    pub(crate) fn on_going_query_inc(&mut self) {
+        self.on_going_queries += 1;
+    }
+    pub(crate) fn on_going_query_dec(&mut self) -> usize {
+        self.on_going_queries -= 1;
+        self.last_query_done = Instant::now();
+        self.on_going_queries
+    }
+
+    fn info(&self, address: Address) -> AppInfo {
+        AppInfo {
+            address,
+            sn: self.sn,
+            session: self.session,
+            running_instances: self.instances.len(),
+            resizable: self.manifest.resizable,
+            on_demand: self.manifest.on_demand,
+            last_query_elapsed_secs: self.last_query_done.elapsed().as_secs(),
+        }
+    }
+}
+
+struct QueryGuard {
+    worker: Worker,
+    address: Address,
+}
+
+impl Drop for QueryGuard {
+    fn drop(&mut self) {
+        if let Err(err) = self.worker.end_query(self.address) {
+            info!("End query error: {err}");
+        }
     }
 }
 
@@ -144,6 +181,45 @@ impl Worker {
         self.lock().blob_loader.clone()
     }
 
+    async fn prepare_query(&self, address: Address) -> Result<QueryGuard> {
+        // If the app is start-on-demand, we need to start an instance to serve the query if it is not already.
+        let mut start_needed = false;
+        let guard = {
+            let mut state = self.lock();
+            let app = state
+                .apps
+                .get_mut(&address)
+                .ok_or(anyhow::Error::msg("App not found"))?;
+            if app.instances.len() == 0 && app.manifest.on_demand {
+                start_needed = true;
+            }
+            app.on_going_query_inc();
+            QueryGuard {
+                address,
+                worker: self.clone(),
+            }
+        };
+        if start_needed {
+            self.resize_app_instances(address, 1, true)
+                .await
+                .context("Failed to start app on-demand")?;
+        }
+        Ok(guard)
+    }
+
+    fn end_query(&self, address: Address) -> Result<()> {
+        let mut state = self.lock();
+        let app = state
+            .apps
+            .get_mut(&address)
+            .ok_or(anyhow::Error::msg("App not found"))?;
+        let rest = app.on_going_query_dec();
+        if rest == 0 && app.manifest.on_demand {
+            app.instances.clear();
+        }
+        Ok(())
+    }
+
     pub async fn query(
         &self,
         origin: Option<[u8; 32]>,
@@ -151,6 +227,10 @@ impl Worker {
         path: String,
         payload: Vec<u8>,
     ) -> Result<Vec<u8>> {
+        let _guard = self
+            .prepare_query(address)
+            .await
+            .context("Failed to prepare query")?;
         let cmd_sender = {
             let state = self.lock();
             let app = state
@@ -234,6 +314,8 @@ impl Worker {
                 manifest,
                 hist_metrics: Default::default(),
                 instances: vec![],
+                on_going_queries: 0,
+                last_query_done: Instant::now(),
             };
             worker.apps.insert(address, state);
         }
@@ -245,14 +327,7 @@ impl Worker {
             .apps
             .get(&address)
             .ok_or(anyhow!("BUG: App not found after deployed"))?;
-        Ok(AppInfo {
-            address,
-            session: app.session,
-            running_instances: app.instances.len(),
-            resizable: app.manifest.resizable,
-            on_demand: app.manifest.on_demand,
-            sn: app.sn,
-        })
+        Ok(app.info(address))
     }
 
     pub async fn remove_app(&self, address: Address) -> Result<()> {
@@ -312,14 +387,7 @@ impl Worker {
             .iter()
             .skip(start)
             .take(count)
-            .map(|(address, state)| AppInfo {
-                address: *address,
-                session: state.session,
-                running_instances: state.instances.len(),
-                resizable: state.manifest.resizable,
-                on_demand: state.manifest.on_demand,
-                sn: state.sn,
-            })
+            .map(|(address, state)| state.info(*address))
             .collect()
     }
 

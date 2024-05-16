@@ -346,12 +346,12 @@
                             <textarea v-model="deployForm.envVars"></textarea>
                         </div>
                         <div class="form-group">
-                            <label for="deployStartMode">Start Mode:</label>
-                            <input type="checkbox" v-model="deployForm.onDemand">
-                        </div>
-                        <div class="form-group">
                             <label for="deploySalt">Salt:</label>
                             <input type="text" v-model="deployForm.salt">
+                        </div>
+                        <div class="form-group">
+                            <label for="deployStartMode">On-Demand:</label>
+                            <input type="checkbox" v-model="deployForm.onDemand">
                         </div>
                         <div class="form-group">
                             <label for="deployResizable">Resizable:</label>

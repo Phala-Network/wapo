@@ -201,6 +201,8 @@ message AppInfo {
   bool resizable = 4;
   // The start mode of the app.
   bool on_demand = 6;
+  // The elapsed time since last query to the app (in seconds).
+  uint64 last_query_elapsed = 7;
 }
 
 message Boolean { bool value = 1; }
