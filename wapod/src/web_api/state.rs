@@ -220,7 +220,6 @@ impl Worker {
         Ok(())
     }
 
-    #[tracing::instrument(skip_all, fields(addr=%ShortId(address)))]
     pub async fn query(
         &self,
         origin: Option<[u8; 32]>,
@@ -228,6 +227,7 @@ impl Worker {
         path: String,
         payload: Vec<u8>,
     ) -> Result<Vec<u8>> {
+        info!(address=%ShortId(address), "Incomming query");
         let _guard = self
             .prepare_query(address)
             .await
@@ -257,7 +257,12 @@ impl Worker {
             .await
             .context("Failed to send query to instance")?;
         info!("Waiting app to reply the query");
-        rx.await.context("Failed to receive query response")
+        let reply = rx.await.context("Failed to receive query response");
+        match &reply {
+            Ok(data) => info!(len = data.len(), "Received reply Ok from app"),
+            Err(_) => info!("Received reply Err from app"),
+        }
+        reply
     }
 
     pub async fn start_app(&self, address: Address, demand: bool) -> Result<()> {

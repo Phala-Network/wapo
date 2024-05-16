@@ -465,8 +465,12 @@
             },
 
             async rpcCall(method, data) {
+                const startTime = Date.now();
                 const response = await this.fetchAPI(method, data);
-                this.consoleLog(method, response);
+                const endTime = Date.now();
+
+                const timeCost = endTime - startTime;
+                this.consoleLog(method, response, timeCost);
                 return response;
             },
 
@@ -491,13 +495,21 @@
                 this.appsData = response.apps;
             },
 
-            async consoleLog(tip, msg) {
+            async consoleLog(tip, msg, cost) {
                 const timestamp = new Date().toLocaleString();
                 let msgstr = msg;
                 if (typeof msg != 'string') {
                     msgstr = JSON.stringify(msg, null, 2);
                 }
-                this.consoleOutput += `${timestamp} - ${tip}:\n${msgstr}\n\n`;
+                let costStr = '';
+                if (cost) {
+                    costStr = cost + 'ms'; // default to milliseconds
+                    if (cost >= 1000) {
+                        costStr = (cost / 1000).toFixed(2) + 's'; // convert to seconds if cost is more than 1000ms
+                    }
+                    costStr = ` (cost ${costStr})`;
+                }
+                this.consoleOutput += `${timestamp} - ${tip} ${costStr}:\n${msgstr}\n\n`;
                 this.$nextTick(() => {
                     const consoleElement = document.querySelector('#consoleOutput');
                     consoleElement.scrollTop = consoleElement.scrollHeight;
