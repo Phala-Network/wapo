@@ -1,8 +1,32 @@
 #![no_main]
 use std::{fmt::Debug, time::Duration};
 
+use anyhow::{Context, Result};
 use log::{info, warn};
-use wapo::channel::Query;
+
+#[wapo::main]
+async fn main() {
+    use wapo::logger::{LevelFilter, Logger};
+    Logger::with_max_level(LevelFilter::Info).init();
+
+    info!("Started!");
+    let query_rx = wapo::channel::incoming_queries();
+    loop {
+        info!("Waiting for query...");
+        let Some(query) = query_rx.next().await else {
+            break;
+        };
+        info!("Received query: {:?}", query.path);
+        wapo::spawn(async move {
+            let result = handle_query(query.path, query.payload).await;
+            let reply = match result {
+                Ok(reply) => reply,
+                Err(err) => format!("QueryError: {err:?}").into_bytes(),
+            };
+            query.reply_tx.send(&reply).ignore();
+        });
+    }
+}
 
 const INDEX: &[u8] = br#"Index:
     /
@@ -15,44 +39,23 @@ const INDEX: &[u8] = br#"Index:
         => sleep T before response a message where T is given via payload
 "#;
 
-#[wapo::main]
-async fn main() {
-    use wapo::logger::{LevelFilter, Logger};
-    Logger::with_max_level(LevelFilter::Info).init();
-
-    info!("Started!");
-    let ch = wapo::channel::incoming_queries();
-    loop {
-        info!("Waiting for query...");
-        let Some(query) = ch.next().await else {
-            break;
-        };
-        info!("Received query: {:?}", query.path);
-        let reply = match query.path.as_str() {
-            "/" => INDEX.to_vec(),
-            "/echo" => query.payload,
-            "/helloworld" => b"Hello, world!".to_vec(),
-            "/sleep" => {
-                handle_sleep(query);
-                continue;
-            }
-            _ => b"404".to_vec(),
-        };
-        query.reply_tx.send(&reply).ignore();
-    }
+async fn handle_query(path: String, payload: Vec<u8>) -> Result<Vec<u8>> {
+    let reply = match path.as_str() {
+        "/" => INDEX.to_vec(),
+        "/echo" => payload,
+        "/helloworld" => b"Hello, world!".to_vec(),
+        "/sleep" => handle_sleep(&payload).await?,
+        _ => b"404".to_vec(),
+    };
+    Ok(reply)
 }
 
-fn handle_sleep(query: Query) {
-    wapo::spawn(async move {
-        let reply = match String::from_utf8_lossy(&query.payload).parse() {
-            Ok(ms) => {
-                wapo::time::sleep(Duration::from_millis(ms)).await;
-                format!("Slept {ms} ms").into_bytes()
-            }
-            Err(_) => b"Invalid timestamp".to_vec(),
-        };
-        query.reply_tx.send(&reply).ignore();
-    });
+async fn handle_sleep(data: &[u8]) -> Result<Vec<u8>> {
+    let ms = String::from_utf8_lossy(data)
+        .parse()
+        .context("Invalid time")?;
+    wapo::time::sleep(Duration::from_millis(ms)).await;
+    Ok(format!("Slept {ms} ms").into_bytes())
 }
 
 trait Ignore {

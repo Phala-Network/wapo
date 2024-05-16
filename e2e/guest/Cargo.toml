@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 wapo = { path = "../../wapo" }
 log = "0.4"
+anyhow = "1.0.83"
