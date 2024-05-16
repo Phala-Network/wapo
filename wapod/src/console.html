@@ -437,36 +437,6 @@
 <script src="https://unpkg.com/vue@3.4.27/dist/vue.global.prod.js"></script>
 <script>
     Vue.createApp({
-        data() {
-            return {
-                showDeployApp: true,
-                activeTab: 'workerInfo',
-                workerInfoResponse: '',
-                consoleOutput: '',
-                appsData: [],
-                deployForm: {
-                    codeHash: '',
-                    args: '[]',
-                    envVars: '[]',
-                    startMode: 0,
-                    salt: '0x00',
-                    resizable: false
-                },
-                queryForm: {
-                    path: '/',
-                    payload: '0x',
-                    address: '',
-                    show: false,
-                },
-                toasts: [],
-                nextToastId: 0,
-                consoleHeight: 200,
-                drag: {
-                    startY: 0,
-                    startHeight: 0,
-                },
-            };
-        },
         methods: {
             bodyMarginBottom() {
                 if (this.consoleHeight < 110) {
@@ -734,6 +704,36 @@
         },
         beforeUnmount() {
             window.removeEventListener('scroll', this.handleScroll);
+        },
+        data() {
+            return {
+                showDeployApp: false,
+                activeTab: 'workerInfo',
+                workerInfoResponse: '',
+                consoleOutput: '',
+                appsData: [],
+                deployForm: {
+                    codeHash: '',
+                    args: '[]',
+                    envVars: '[]',
+                    startMode: 0,
+                    salt: '0x00',
+                    resizable: false
+                },
+                queryForm: {
+                    path: '/',
+                    payload: '0x',
+                    address: '',
+                    show: false,
+                },
+                toasts: [],
+                nextToastId: 0,
+                consoleHeight: 200,
+                drag: {
+                    startY: 0,
+                    startHeight: 0,
+                },
+            };
         },
     }).mount('body');
 
