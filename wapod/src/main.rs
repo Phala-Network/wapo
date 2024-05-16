@@ -36,6 +36,7 @@ async fn main() -> Result<()> {
     let todo = "Store instance logs to disk";
     let todo = "implement JWT auth";
     let todo = "put RUST_LOG_SANITIZED in grame manifest";
+    let todo = "Add mem stats";
 
     info!("Starting wapod server...");
     let args = Args::parse();
