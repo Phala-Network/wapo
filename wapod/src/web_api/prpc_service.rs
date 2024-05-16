@@ -228,7 +228,7 @@ impl OperationRpc for Call {
 
 impl UserRpc for Call {
     async fn info(self) -> Result<WorkerInfo> {
-        Ok(self.worker.info().await)
+        Ok(self.worker.info())
     }
 
     async fn query(self, request: pb::QueryArgs) -> Result<pb::QueryResponse> {

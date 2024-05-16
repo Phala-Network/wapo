@@ -157,7 +157,7 @@ impl Worker {
         Some(handle)
     }
 
-    pub async fn info(&self) -> pb::WorkerInfo {
+    pub fn info(&self) -> pb::WorkerInfo {
         let worker = self.lock();
         let max_instances = worker.args.max_instances as u64;
         let deployed_apps = worker.apps.len() as u64;
@@ -255,6 +255,7 @@ impl Worker {
             })
             .await
             .context("Failed to send query to instance")?;
+        info!("Waiting app to reply the query");
         rx.await.context("Failed to receive query response")
     }
 

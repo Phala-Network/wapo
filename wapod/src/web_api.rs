@@ -177,7 +177,7 @@ async fn connect_vm<'r>(
 
 #[get("/info")]
 async fn info(state: &State<Worker>) -> String {
-    let info = state.info().await;
+    let info = state.info();
     serde_json::json!({
         "running": wapo_host::vm_count(),
         "deployed": info.running_instances,
