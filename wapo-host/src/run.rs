@@ -149,7 +149,7 @@ impl WasmModule {
     }
 }
 
-#[derive(typed_builder::TypedBuilder)]
+#[derive(typed_builder::TypedBuilder, Clone)]
 pub struct InstanceConfig {
     #[builder(default)]
     id: VmId,
@@ -208,7 +208,7 @@ impl Drop for WasmRun {
 }
 
 impl Future for WasmRun {
-    type Output = Result<i32, RuntimeError>;
+    type Output = Result<(), RuntimeError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let _guard = match &self.scheduler {
@@ -222,16 +222,21 @@ impl Future for WasmRun {
         let run = self.get_mut();
         let result =
             match async_context::set_task_cx(cx, || run.wasm_poll_entry.call(&mut run.store, ())) {
-                Ok(rv) => {
-                    if rv == 0 {
+                Ok(rv) => match rv {
+                    // Pending = 0
+                    0 => {
                         if run.store.data().has_more_ready_tasks() {
                             cx.waker().wake_by_ref();
                         }
                         Poll::Pending
-                    } else {
-                        Poll::Ready(Ok(rv))
                     }
-                }
+                    // Ready = 1
+                    1 => Poll::Ready(Ok(())),
+                    // Other values are invalid
+                    _ => Poll::Ready(Err(anyhow::anyhow!(
+                        "Invalid poll return value from wasm: {rv}"
+                    ))),
+                },
                 Err(err) => Poll::Ready(Err(err)),
             };
         run.sync_gas();

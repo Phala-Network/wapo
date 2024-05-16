@@ -418,6 +418,7 @@ impl WorkerState {
             return Err(anyhow!("Instance already started"));
         }
         let config = service::InstanceStartConfig::builder()
+            .auto_restart(true)
             .max_memory_pages(self.args.max_memory_pages)
             .id(address)
             .weight(1)
@@ -445,7 +446,6 @@ impl WorkerState {
         let weak_self = self.weak_self.clone();
         self.service.spawn(
             async move {
-                let todo = "Restart the instance if it stopped unexpectedly";
                 if let Ok(reason) = join_handle.await {
                     info!(?reason, "App stopped");
                 } else {

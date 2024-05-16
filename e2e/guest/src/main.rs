@@ -17,6 +17,9 @@ async fn main() {
             break;
         };
         info!("Received query: {:?}", query.path);
+        if query.path == "/return" {
+            break;
+        }
         wapo::spawn(async move {
             let result = handle_query(query.path, query.payload).await;
             let reply = match result {
@@ -37,6 +40,10 @@ const INDEX: &[u8] = br#"Index:
         => returns "Hello, world!"
     /sleep
         => sleep T before response a message where T is given via payload
+    /exit
+        => exit the program with the given code
+    /return
+        => return the main function
 "#;
 
 async fn handle_query(path: String, payload: Vec<u8>) -> Result<Vec<u8>> {
@@ -45,6 +52,7 @@ async fn handle_query(path: String, payload: Vec<u8>) -> Result<Vec<u8>> {
         "/echo" => payload,
         "/helloworld" => b"Hello, world!".to_vec(),
         "/sleep" => handle_sleep(&payload).await?,
+        "/exit" => handle_exit(&payload)?,
         _ => b"404".to_vec(),
     };
     Ok(reply)
@@ -56,6 +64,13 @@ async fn handle_sleep(data: &[u8]) -> Result<Vec<u8>> {
         .context("Invalid time")?;
     wapo::time::sleep(Duration::from_millis(ms)).await;
     Ok(format!("Slept {ms} ms").into_bytes())
+}
+
+fn handle_exit(data: &[u8]) -> Result<Vec<u8>> {
+    let code = String::from_utf8_lossy(data)
+        .parse()
+        .context("Invalid time")?;
+    std::process::exit(code);
 }
 
 trait Ignore {

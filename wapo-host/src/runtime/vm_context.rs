@@ -99,7 +99,7 @@ impl TaskSet {
     }
 }
 
-pub type LogHandler = Box<dyn Fn(VmId, u8, &str) + Send + Sync>;
+pub type LogHandler = fn(VmId, u8, &str);
 
 pub type OutgoingRequestSender = Sender<(VmId, OutgoingRequest)>;
 pub type OutgoingRequestReceiver = Receiver<(VmId, OutgoingRequest)>;

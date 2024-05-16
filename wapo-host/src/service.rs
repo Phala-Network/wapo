@@ -13,6 +13,7 @@ use tokio::{
 };
 use tracing::{debug, error, info, warn, Instrument};
 use wapo_env::messages::{AccountId, HttpHead, HttpResponseHead};
+use wasi_common::I32Exit;
 use wasmtime::Config;
 
 use crate::Meter;
@@ -129,8 +130,8 @@ pub enum ExitReason {
     Stopped,
     /// The input channel has been closed, likely caused by a Stop command.
     InputClosed,
-    /// The program panicked.
-    Panicked,
+    /// The program trapped.
+    Trap,
     /// The task future has beed dropped, likely caused by a Stop command.
     Cancelled,
     /// When a previous running instance restored from a checkpoint.
@@ -242,6 +243,7 @@ pub struct InstanceStartConfig {
     id: VmId,
     weight: u32,
     blobs_dir: PathBuf,
+    auto_restart: bool,
 }
 
 impl ServiceHandle {
@@ -257,6 +259,7 @@ impl ServiceHandle {
             id,
             weight,
             blobs_dir,
+            auto_restart,
         } = config;
         let event_tx = self.out_tx.clone();
         let (cmd_tx, mut cmd_rx) = channel(128);
@@ -308,7 +311,7 @@ impl ServiceHandle {
                 .blobs_dir(blobs_dir)
                 .meter(Some(meter_cloned))
                 .build();
-            let mut wasm_run = match module.run(config) {
+            let mut wasm_run = match module.run(config.clone()) {
                 Ok(i) => i,
                 Err(err) => {
                     error!(target: "wapo", "Failed to create instance: {err:?}");
@@ -330,15 +333,38 @@ impl ServiceHandle {
                 tokio::select! {
                     rv = &mut wasm_run => {
                         match rv {
-                            Ok(ret) => {
-                                info!(target: "wapo", ret, "The instance exited normally.");
-                                break ExitReason::Exited(ret);
+                            Ok(()) => {
+                                info!(target: "wapo", "The instance returned from main.");
+                                break ExitReason::Exited(0);
                             }
                             Err(err) => {
-                                info!(target: "wapo", ?err, "The instance exited.");
-                                break ExitReason::Panicked;
+                                match err.downcast() {
+                                    Ok(I32Exit(code)) => {
+                                        info!(target: "wapo", code, "The instance exited via proc_exit()");
+                                        if code == 0 || !auto_restart {
+                                            break ExitReason::Exited(code);
+                                        }
+                                        // fallthrough to restart
+                                    }
+                                    Err(err) => {
+                                        info!(target: "wapo", ?err, "The instance exited.");
+                                        if !auto_restart {
+                                            break ExitReason::Trap;
+                                        }
+                                        // fallthrough to restart
+                                    }
+                                }
                             }
                         }
+                        info!(target: "wapo", "Restarting...");
+                        wasm_run = match module.run(config.clone()) {
+                            Ok(run) => run,
+                            Err(err) => {
+                                error!(target: "wapo", ?err, "Failed to rerestart instance");
+                                break ExitReason::FailedToStart;
+                            }
+                        };
+                        continue;
                     }
                     cmd = cmd_rx.recv() => {
                         match cmd {
@@ -385,7 +411,7 @@ impl ServiceHandle {
                     if err.is_cancelled() {
                         ExitReason::Cancelled
                     } else {
-                        ExitReason::Panicked
+                        ExitReason::Trap
                     }
                 }
             };
