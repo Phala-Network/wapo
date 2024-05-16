@@ -1,0 +1,20 @@
+
+Project layout:
+e2e/
+wapo/
+wapo-env/
+wapo-host/
+wapo-macro/
+wapo-run/
+wapod/
+wapod-rpc/
+wapod-signature/
+
+Each of the dirname should be considered a component name.
+
+Example message:
+
+    chore(wapo-env): Suppress dead code warning in trait implementation
+
+    Added `#[allow(dead_code)]` attribute to suppress dead code warning for `load` function in `Nargs` trait. (parse_args.rs)
+
