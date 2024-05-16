@@ -35,6 +35,7 @@ async fn main() -> Result<()> {
     let todo = "Validate max_memory_pages * max_instances < WAPOD_ENCLAVE_MEM_SIZE";
     let todo = "Store instance logs to disk";
     let todo = "implement JWT auth";
+    let todo = "put RUST_LOG_SANITIZED in grame manifest";
 
     info!("Starting wapod server...");
     let args = Args::parse();
