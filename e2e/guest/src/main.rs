@@ -4,6 +4,17 @@ use std::{fmt::Debug, time::Duration};
 use log::{info, warn};
 use wapo::channel::Query;
 
+const INDEX: &[u8] = br#"Index:
+    /
+        => index page
+    /echo
+        => echo your request as response
+    /helloworld
+        => returns "Hello, world!"
+    /sleep
+        => sleep T before response a message where T is given via payload
+"#;
+
 #[wapo::main]
 async fn main() {
     use wapo::logger::{LevelFilter, Logger};
@@ -18,6 +29,7 @@ async fn main() {
         };
         info!("Received query: {:?}", query.path);
         let reply = match query.path.as_str() {
+            "/" => INDEX.to_vec(),
             "/echo" => query.payload,
             "/helloworld" => b"Hello, world!".to_vec(),
             "/sleep" => {
