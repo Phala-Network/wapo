@@ -12,3 +12,6 @@ members = [
     "wapod-signature",
     "e2e/guest",
 ]
+
+[profile.release]
+panic = "abort"
