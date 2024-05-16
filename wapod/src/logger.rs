@@ -3,7 +3,7 @@ use tracing::{
     level_filters::LevelFilter,
     span::{Attributes, Id, Record},
     subscriber::Interest,
-    Event, Metadata,
+    warn, Event, Metadata,
 };
 use tracing_subscriber::{
     layer::{Context, Filter, SubscriberExt},
@@ -89,12 +89,18 @@ fn target_allowed(target: &str) -> bool {
 }
 
 pub fn init() {
+    let default_fileter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into())
+        .from_env_lossy();
     if std::env::var("RUST_LOG_SANITIZED") == Ok("1".to_string()) {
-        let filter = SanitizedFilter(EnvFilter::from_default_env());
+        let filter = SanitizedFilter(default_fileter);
         let layer = tracing_subscriber::fmt::layer().with_filter(filter);
         tracing_subscriber::registry().with(layer).init();
         info!("Sanitized logging enabled");
     } else {
-        tracing_subscriber::fmt::fmt().init();
+        tracing_subscriber::fmt()
+            .with_env_filter(default_fileter)
+            .init();
+        warn!("Log is not sanitized");
     }
 }
