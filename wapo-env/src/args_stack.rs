@@ -47,6 +47,7 @@ impl<B> StackedArgs<B> {
 
 pub(crate) trait Nargs {
     const N_ARGS: usize;
+    #[allow(dead_code)]
     fn load(buf: &mut &[IntPtr]) -> Option<Self>
     where
         Self: Sized;
