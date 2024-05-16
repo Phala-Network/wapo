@@ -70,8 +70,6 @@
             color: white;
             cursor: pointer;
             padding: 10px;
-            /* Reduced padding */
-            width: 100%;
             border: none;
             text-align: left;
             outline: none;
@@ -107,10 +105,17 @@
         input[type="text"],
         input[type="file"],
         input[type="number"],
-        button,
         textarea,
         table {
             width: 100%;
+        }
+
+        input[type="text"],
+        input[type="file"],
+        input[type="number"],
+        button,
+        textarea,
+        table {
             padding: 6px;
             /* Reduced padding */
             margin-top: 3px;
@@ -327,77 +332,73 @@
 
         <div id="apps" class="tabcontent">
             <h2>Apps</h2>
-            <div>
+            <div class="form-group">
                 <button type="button" @click="showDeployApp = !showDeployApp" class="collapsible">Deploy App</button>
-                <div v-show="showDeployApp" class="content" style="display: none;">
-                    <form @submit.prevent="deployApp">
-                        <div class="form-group">
-                            <label>Code Hash:</label>
-                            <input type="text" v-model="deployForm.codeHash" required>
-                            <input type="file" id="codeHashFile" ref="hashFileInput" @click="clearFile"
-                                @change="computeFileHash">
-                        </div>
-                        <div class="form-group">
-                            <label>Args:</label>
-                            <input type="text" v-model="deployForm.args">
-                        </div>
-                        <div class="form-group">
-                            <label>Env Vars (list of string pairs):</label>
-                            <textarea v-model="deployForm.envVars"></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label>Salt:</label>
-                            <input type="text" v-model="deployForm.salt">
-                        </div>
-                        <div class="form-group">
-                            <label>On-Demand:</label>
-                            <input type="checkbox" v-model="deployForm.onDemand">
-                        </div>
-                        <div class="form-group">
-                            <label>Resizable:</label>
-                            <input type="checkbox" v-model="deployForm.resizable">
-                        </div>
-                        <button type="submit">Deploy</button>
-                    </form>
-                </div>
+                <button @click="loadApps">Refresh</button>
+                <button @click="removeAllApps">Remove All</button>
+            </div>
+            <div v-show="showDeployApp" class="content" style="display: none;">
+                <form @submit.prevent="deployApp">
+                    <div class="form-group">
+                        <label>Code Hash:</label>
+                        <input type="text" v-model="deployForm.codeHash" required>
+                        <input type="file" id="codeHashFile" ref="hashFileInput" @click="clearFile"
+                            @change="computeFileHash">
+                    </div>
+                    <div class="form-group">
+                        <label>Args:</label>
+                        <input type="text" v-model="deployForm.args">
+                    </div>
+                    <div class="form-group">
+                        <label>Env Vars (list of string pairs):</label>
+                        <textarea v-model="deployForm.envVars"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Salt:</label>
+                        <input type="text" v-model="deployForm.salt">
+                    </div>
+                    <div class="form-group">
+                        <label>On-Demand:</label>
+                        <input type="checkbox" v-model="deployForm.onDemand">
+                    </div>
+                    <div class="form-group">
+                        <label>Resizable:</label>
+                        <input type="checkbox" v-model="deployForm.resizable">
+                    </div>
+                    <button type="submit">Deploy</button>
+                </form>
             </div>
 
-            <div id="deployedApps">
-                <div class="form-group">
-                    <button @click="loadApps">Refresh</button>
-                    <button @click="clearApps">Clear Apps</button>
-                </div>
-                <table id="appsTable">
-                    <thead>
-                        <tr>
-                            <th>SN</th>
-                            <th>Address</th>
-                            <th>Resizable</th>
-                            <th>Start Mode</th>
-                            <th>Instances</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="app in appsData" :key="app.address">
-                            <td>{{ app.sn }}</td>
-                            <td><span class="shortened-address">{{ app.address }}</span></td>
-                            <td>{{ app.resizable ? 'Yes' : 'No' }}</td>
-                            <td>{{ app.on_demand ? 'Immediate' : 'OnDemand' }}</td>
-                            <td>{{ app.instances }}</td>
-                            <td>
-                                <div class="form-group app-op-buttons">
-                                    <button class="btn-small" @click="startApp(app.address)">▶</button>
-                                    <button class="btn-small" @click="stopApp(app.address)">◾</button>
-                                    <button class="btn-small" @click="resizeApp(app.address)">➕</button>
-                                    <button class="btn-small" @click="removeApp(app.address)">❌</button>
-                                    <button class="btn-small" @click="showQuery(app.address)">💬</button>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            <table id="appsTable">
+                <thead>
+                    <tr>
+                        <th>SN</th>
+                        <th>Address</th>
+                        <th>Resizable</th>
+                        <th>Start Mode</th>
+                        <th>Instances</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="app in appsData" :key="app.address">
+                        <td>{{ app.sn }}</td>
+                        <td><span class="shortened-address">{{ app.address }}</span></td>
+                        <td>{{ app.resizable ? 'Yes' : 'No' }}</td>
+                        <td>{{ app.on_demand ? 'Immediate' : 'OnDemand' }}</td>
+                        <td>{{ app.instances }}</td>
+                        <td>
+                            <div class="form-group app-op-buttons">
+                                <button class="btn-small" @click="startApp(app.address)">▶</button>
+                                <button class="btn-small" @click="stopApp(app.address)">◾</button>
+                                <button class="btn-small" @click="resizeApp(app.address)">➕</button>
+                                <button class="btn-small" @click="removeApp(app.address)">❌</button>
+                                <button class="btn-small" @click="showQuery(app.address)">💬</button>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
 
         <div id="queryAppModal" class="modal" v-show="queryForm.show" style="display: none;">
@@ -578,7 +579,7 @@
                 }
             },
 
-            async clearApps() {
+            async removeAllApps() {
                 await this.rpcCall('AppRemoveAll', {});
                 this.loadApps();
             },
