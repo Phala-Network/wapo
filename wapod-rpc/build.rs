@@ -10,6 +10,7 @@ fn main() {
         ".wapod",
         "#[derive(::serde::Serialize, ::serde::Deserialize)]",
     );
+    builder = builder.field_attribute(".wapod", "#[serde(default)]");
     for t in &[".wapod.Manifest", ".wapod.StringPair"] {
         builder = builder.type_attribute(t, "#[derive(::scale::Encode, ::scale::Decode)]");
     }
