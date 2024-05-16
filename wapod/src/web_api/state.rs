@@ -297,6 +297,9 @@ impl Worker {
     }
 
     pub async fn deploy_app(&self, manifest: Manifest) -> Result<AppInfo> {
+        if manifest.resizable && manifest.on_demand {
+            bail!("On-demand app can not be resizable");
+        }
         let on_demand = manifest.on_demand;
         let address = sp_core::blake2_256(&scale::Encode::encode(&manifest));
         tracing::Span::current().record("addr", display(ShortId(&address)));
