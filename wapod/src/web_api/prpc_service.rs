@@ -203,7 +203,7 @@ impl OperationRpc for Call {
         Ok(pb::AppListResponse { apps })
     }
 
-    async fn apps_clear(self) -> Result<()> {
+    async fn app_remove_all(self) -> Result<()> {
         self.clear();
         Ok(())
     }

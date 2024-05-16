@@ -579,7 +579,7 @@
             },
 
             async clearApps() {
-                await this.rpcCall('AppClear', {});
+                await this.rpcCall('AppRemoveAll', {});
                 this.loadApps();
             },
 

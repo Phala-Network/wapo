@@ -88,7 +88,7 @@ service Operation {
     // of instances is resizable, and the start mode.
   }
   // Remove all deployed apps.
-  rpc AppsClear(google.protobuf.Empty) returns (google.protobuf.Empty) {
+  rpc AppRemoveAll(google.protobuf.Empty) returns (google.protobuf.Empty) {
     // Removes all deployed apps from the worker.
   }
   // Send a query request to a given app.
