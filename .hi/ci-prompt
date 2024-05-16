@@ -12,9 +12,24 @@ wapod-signature/
 
 Each of the dirname should be considered a component name.
 
-Example message:
+Example message 1:
 
     chore(wapo-env): Suppress dead code warning in trait implementation
 
     Added `#[allow(dead_code)]` attribute to suppress dead code warning for `load` function in `Nargs` trait. (parse_args.rs)
 
+Example message 2:
+
+    feat(e2e, wapo-host, wapod): Add auto-restart feature
+
+    e2e/guest:
+    - Added a `/return` endpoint to break the main function loop.
+    - Added an `/exit` endpoint to exit the program with a given code.
+
+    wapo-host:
+    - Cloned `InstanceConfig` to allow reuse in restarts.
+    - Adjusted `WasmRun` future to handle normal exit and treat other values as invalid.
+    - Changed `LogHandler` type to a simple function pointer for flexibility.
+
+    wapod:
+    - Set `auto_restart` to true in `InstanceStartConfig` to automatically restart instances on failure.
