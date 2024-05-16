@@ -2650,6 +2650,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "phala-allocator"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77ae2ee6307d5b1da6e4fd477c2189ac0818e820d9052327dc9510e95fa849a4"
+
+[[package]]
 name = "phala-rocket-middleware"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4713,6 +4719,7 @@ dependencies = [
  "hex",
  "hex_fmt",
  "parity-scale-codec",
+ "phala-allocator",
  "phala-rocket-middleware",
  "rand",
  "rocket",

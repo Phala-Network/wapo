@@ -24,3 +24,4 @@ scopeguard = "1.2.0"
 hex_fmt = "0.3.0"
 scale = { package = "parity-scale-codec", version = "3" }
 rand = "0.8.5"
+phala-allocator = "0.1.0"

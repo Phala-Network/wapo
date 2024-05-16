@@ -174,6 +174,7 @@ impl Worker {
             max_instances,
             instance_memory_size,
             session: worker.session.map(|s| s.to_vec()).unwrap_or_default(),
+            memory_usage: Some(crate::allocator::mem_usage()),
         }
     }
 

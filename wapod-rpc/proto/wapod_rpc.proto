@@ -112,6 +112,21 @@ message WorkerInfo {
   uint64 instance_memory_size = 5;
   // The session ID of the worker.
   bytes session = 6;
+  // The memory information of the worker.
+  MemoryUsage memory_usage = 7;
+}
+
+message MemoryUsage {
+  // The current heap usage of Rust codes.
+  uint64 rust_used = 1;
+  // The peak heap usage of Rust codes.
+  uint64 rust_peak = 2;
+  // The peak heap usage of Rust codes in a recent short-term.
+  uint64 rust_spike = 3;
+  // The entire peak heap memory usage of the enclave.
+  uint64 peak = 4;
+  // The memory left.
+  uint64 free = 5;
 }
 
 // An object to be stored in the worker's object storage.

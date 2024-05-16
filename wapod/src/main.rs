@@ -7,6 +7,7 @@ mod logger;
 mod paths;
 mod web_api;
 mod worker_key;
+mod allocator;
 
 #[derive(Parser, Clone)]
 #[clap(about = "wapo - a WASM runtime", version, author)]
@@ -64,5 +65,4 @@ fn todo() {
     let todo = "Store instance logs to disk";
     let todo = "implement JWT auth";
     let todo = "put RUST_LOG_SANITIZED in grame manifest";
-    let todo = "Add mem stats";
 }
