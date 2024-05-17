@@ -160,7 +160,6 @@ impl ModuleLoader {
                 continue;
             };
             if let Ok(ref module) = &module {
-                let todo = "Also cache on fs";
                 state.cache.put(code_hash.to_vec(), module.clone());
             }
             match tx.send(module.map_err(Into::into)) {
