@@ -364,7 +364,7 @@ impl ServiceHandle {
                                 }
                             }
                         }
-                        info!(target: "wapo", "testarting...");
+                        info!(target: "wapo", "restarting...");
                         wasm_run = match module.run(config.clone()) {
                             Ok(run) => run,
                             Err(err) => {

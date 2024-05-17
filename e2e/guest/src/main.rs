@@ -36,26 +36,34 @@ const INDEX: &[u8] = br#"Index:
         => index page
     /echo
         => echo your request as response
-    /helloworld
-        => returns "Hello, world!"
     /sleep
         => sleep T before response a message where T is given via payload
     /exit
         => exit the program with the given code
     /return
         => return the main function
+    /alloc
+        => test memory allocation
 "#;
 
 async fn handle_query(path: String, payload: Vec<u8>) -> Result<Vec<u8>> {
     let reply = match path.as_str() {
         "/" => INDEX.to_vec(),
         "/echo" => payload,
-        "/helloworld" => b"Hello, world!".to_vec(),
         "/sleep" => handle_sleep(&payload).await?,
         "/exit" => handle_exit(&payload)?,
+        "/alloc" => handel_alloc(&payload)?,
         _ => b"404".to_vec(),
     };
     Ok(reply)
+}
+
+fn handel_alloc(data: &[u8]) -> Result<Vec<u8>> {
+    let s = String::from_utf8_lossy(data);
+    info!("allocating: [{s}]");
+    let size = s.parse().context("invalid size")?;
+    let _tmp = vec![1_u8; size];
+    Ok(b"allocated".to_vec())
 }
 
 async fn handle_sleep(data: &[u8]) -> Result<Vec<u8>> {

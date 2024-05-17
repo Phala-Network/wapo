@@ -125,10 +125,12 @@ message MemoryUsage {
   uint64 rust_peak = 2;
   // The peak heap usage of Rust codes in a recent short-term.
   uint64 rust_spike = 3;
+  // Process memory used.
+  uint64 used = 4;
   // The entire peak heap memory usage of the enclave.
-  uint64 peak = 4;
+  uint64 peak = 5;
   // The memory left.
-  uint64 free = 5;
+  uint64 free = 6;
 }
 
 message ModuleLoaderInfo {

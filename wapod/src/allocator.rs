@@ -14,6 +14,7 @@ pub fn mem_usage() -> MemoryUsage {
         rust_spike: stats.spike as _,
         peak: vm_peak().unwrap_or(0) as _,
         free: mem_free().unwrap_or(0) as _,
+        used: mem_used().unwrap_or(0) as _,
     }
 }
 
@@ -26,6 +27,10 @@ fn vm_peak() -> Option<usize> {
         }
     }
     None
+}
+
+fn mem_used() -> Option<usize> {
+    Some(memory_stats::memory_stats()?.physical_mem)
 }
 
 fn mem_free() -> Option<usize> {
