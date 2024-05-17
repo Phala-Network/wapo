@@ -27,6 +27,9 @@ pub struct Args {
     /// The port that user service listens on
     #[arg(long)]
     user_port: Option<u16>,
+    /// Number of modules can be stored in the LRU cache
+    #[arg(long, default_value_t = 16)]
+    module_cache_size: usize,
 }
 
 #[tokio::main]

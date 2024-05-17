@@ -187,6 +187,7 @@ pub struct ServiceHandle {
 
 pub fn service(
     worker_threads: usize,
+    module_cache_size: usize,
     out_tx: crate::OutgoingRequestSender,
     blobs_dir: &str,
 ) -> Result<(ServiceRun, ServiceHandle)> {
@@ -205,8 +206,7 @@ pub fn service(
     let run = ServiceRun { runtime, report_rx };
     let blob_loader = BlobLoader::new(blobs_dir);
     let engine = WasmEngine::new(Config::new(), 10).context("failed to create Wasm engine")?;
-    let todo = "configurable cache_size";
-    let module_loader = ModuleLoader::new(engine, blob_loader, 100);
+    let module_loader = ModuleLoader::new(engine, blob_loader, module_cache_size);
     let spawner = ServiceHandle {
         runtime_handle,
         report_tx,
