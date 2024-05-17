@@ -288,6 +288,7 @@
             padding: 20px;
             border: 1px solid #888;
             width: 30%;
+            position: relative;
         }
 
         .modal-header {
@@ -504,7 +505,7 @@
 
             <div id="queryAppModal" class="modal" @mousedown.prevent="startDialogDrag" v-show="queryForm.show"
                 style="display: none;">
-                <div class="modal-content">
+                <div id="queryModelContent" class="modal-content">
                     <span class="close-button" @click="closeQuery">&times;</span>
                     <div class="modal-header">
                         <h2>Query</h2>
@@ -815,10 +816,13 @@
 
             startDialogDrag: dragHelper({
                 start(e) {
-                    const modal = document.getElementById('queryAppModal');
+                    const modal = document.getElementById('queryModelContent');
+                    const style = window.getComputedStyle(modal);
+                    const left = parseFloat(style.left) || 0;
+                    const top = parseFloat(style.top) || 0;
                     return {
-                        shiftX: e.clientX - modal.getBoundingClientRect().left,
-                        shiftY: e.clientY - modal.getBoundingClientRect().top,
+                        shiftX: e.clientX - left,
+                        shiftY: e.clientY - top,
                         modal,
                     };
                 },
