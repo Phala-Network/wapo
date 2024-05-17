@@ -31,7 +31,10 @@ pub enum VmStatus {
     LoadingCode,
     CreatingInstance,
     Running,
-    Stopped { reason: String },
+    Stopped {
+        reason: String,
+        error: Option<crate::ArcError>,
+    },
 }
 
 pub type VmStatusReceiver = watch::Receiver<VmStatus>;
@@ -270,6 +273,7 @@ impl ServiceHandle {
         let status_guard = scopeguard::guard(status_tx, |tx| {
             let _ = tx.send(VmStatus::Stopped {
                 reason: "Unknown error".into(),
+                error: None,
             });
         });
 
@@ -289,13 +293,15 @@ impl ServiceHandle {
             }
             let result = module_loader
                 .load_module(&wasm_hash, &wasm_hash_alg)
-                .await;
+                .await
+                .context("Failed to load module");
             let module = match result {
                 Ok(m) => m,
                 Err(err) => {
                     error!(target: "wapo", ?err, "Failed to load module");
                     _ = ScopeGuard::into_inner(status_guard).send(VmStatus::Stopped {
-                        reason: format!("Failed to load module: {err}"),
+                        reason: format!("{err:?}"),
+                        error: Some(err.into()),
                     });
                     return ExitReason::FailedToStart;
                 }
@@ -312,12 +318,13 @@ impl ServiceHandle {
                 .blobs_dir(blobs_dir)
                 .meter(Some(meter_cloned))
                 .build();
-            let mut wasm_run = match module.run(config.clone()) {
+            let mut wasm_run = match module.run(config.clone()).context("Failed to create instance") {
                 Ok(i) => i,
                 Err(err) => {
-                    error!(target: "wapo", "Failed to create instance: {err:?}");
+                    error!(target: "wapo", ?err, "Failed to create instance");
                     _ = ScopeGuard::into_inner(status_guard).send(VmStatus::Stopped {
-                        reason: format!("Failed to create instance: {err}"),
+                        reason: format!("{err}"),
+                        error: Some(err.into()),
                     });
                     return ExitReason::FailedToStart;
                 }
@@ -400,6 +407,7 @@ impl ServiceHandle {
             };
             _ = ScopeGuard::into_inner(status_guard).send(VmStatus::Stopped {
                 reason: format!("{reason:?}"),
+                error: None,
             });
             reason
         });

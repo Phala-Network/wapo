@@ -499,6 +499,9 @@
                 let msgstr = msg;
                 if (typeof msg != 'string') {
                     msgstr = JSON.stringify(msg, null, 2);
+                    if (msg.error) {
+                        msgstr += '\n\nerror: ' + msg.error;
+                    }
                 }
                 let costStr = '';
                 if (cost) {

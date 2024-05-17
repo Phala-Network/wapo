@@ -309,8 +309,13 @@ impl Worker {
                 }
                 match &*status.borrow_and_update() {
                     VmStatus::Running => break,
-                    VmStatus::Stopped { reason } => {
-                        anyhow::bail!("Instance stopped unexpectedly: {reason}");
+                    VmStatus::Stopped { reason, error } => {
+                        return if let Some(error) = error.clone() {
+                            Err(error.into())
+                        } else {
+                            Err(anyhow::Error::msg(reason.clone()))
+                        }
+                        .context("Instance stopped unexpectedly");
                     }
                     _ => {}
                 }

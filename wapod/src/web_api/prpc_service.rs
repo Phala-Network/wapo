@@ -303,19 +303,21 @@ async fn dispatch_prpc(
         Ok(data) => (200, data),
         Err(err) => {
             error!("Rpc error: {:?}", err);
-            let (code, err) = match err {
-                Error::NotFound => (404, ProtoError::new("Method Not Found")),
-                Error::DecodeError(err) => (400, ProtoError::new(format!("DecodeError({err:?})"))),
-                Error::BadRequest(msg) => (400, ProtoError::new(format!("BadRequest({msg:?})"))),
+            let (code, error) = match err {
+                Error::NotFound => (404, "Method Not Found".to_string()),
+                Error::DecodeError(err) => (400, format!("DecodeError({err:?})")),
+                Error::BadRequest(msg) => (400, msg),
             };
             if json {
-                let error = format!("{err:?}");
                 let body = serde_json::to_string_pretty(&serde_json::json!({ "error": error }))
                     .unwrap_or_else(|_| r#"{"error": "Failed to encode the error"}"#.to_string())
                     .into_bytes();
                 (code, body)
             } else {
-                (code, pb::codec::encode_message_to_vec(&err))
+                (
+                    code,
+                    pb::codec::encode_message_to_vec(&ProtoError::new(error)),
+                )
             }
         }
     };

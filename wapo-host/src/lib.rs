@@ -3,7 +3,9 @@ mod module_loader;
 pub mod rocket_stream;
 mod run;
 mod runtime;
+mod error;
 
+pub use error::ArcError;
 pub mod service;
 pub use runtime::blobs;
 pub use runtime::metrics::{Meter, Metrics};
