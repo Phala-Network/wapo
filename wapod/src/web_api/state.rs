@@ -206,7 +206,7 @@ impl Worker {
                 .apps
                 .get_mut(&address)
                 .ok_or(anyhow::Error::msg("App not found"))?;
-            if app.instances.len() == 0 && app.manifest.on_demand {
+            if app.instances.is_empty() && app.manifest.on_demand {
                 start_needed = true;
             }
             app.on_going_query_inc();
@@ -254,7 +254,7 @@ impl Worker {
                 .apps
                 .get(&address)
                 .ok_or(anyhow::Error::msg("App not found"))?;
-            let instance = match app.instances.get(0) {
+            let instance = match app.instances.first() {
                 Some(instance) => instance,
                 None => {
                     bail!("instance not found");
@@ -517,26 +517,32 @@ impl WorkerState {
         info!(current, count, max_allowed, "changing number of instances");
         let mut created = vec![];
         let mut removed = vec![];
-        if count > current {
-            let on_demand = app.manifest.on_demand;
-            if on_demand && !demand {
-                bail!("on-demand app cannot be started directly");
+
+        use std::cmp::Ordering::*;
+        match current.cmp(&count) {
+            Less => {
+                let on_demand = app.manifest.on_demand;
+                if on_demand && !demand {
+                    bail!("on-demand app cannot be started directly");
+                }
+                let available_slots = self.available_slots();
+                let creating = available_slots.min(count - current);
+                info!(available_slots, creating, "creating instances");
+                for i in 0..creating {
+                    info!("starting instance ({}/{creating})...", i + 1);
+                    created.push(self.start_app(address)?);
+                }
             }
-            let available_slots = self.available_slots();
-            let creating = available_slots.min(count - current);
-            info!(available_slots, creating, "creating instances");
-            for i in 0..creating {
-                info!("starting instance ({}/{creating})...", i + 1);
-                created.push(self.start_app(address)?);
+            Equal => (),
+            Greater => {
+                let stop_count = current - count;
+                info!(stop_count, "stopping instances");
+                removed = app
+                    .instances
+                    .drain(count..)
+                    .map(|run| run.vm_handle)
+                    .collect();
             }
-        } else if count < current {
-            let stop_count = current - count;
-            info!(stop_count, "stopping instances");
-            removed = app
-                .instances
-                .drain(count..)
-                .map(|run| run.vm_handle)
-                .collect();
         }
         Ok((created, removed))
     }

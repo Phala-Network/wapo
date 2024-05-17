@@ -121,7 +121,7 @@ impl ModuleLoader {
         info!(target: "wapo", "loading module code...");
         let wasm_code = self
             .blob_loader
-            .get(&code_hash, &hash_alg)
+            .get(code_hash, hash_alg)
             .context("failed to load module")?
             .ok_or_else(|| anyhow!("Wasm code not found"))?;
         let t0 = Instant::now();

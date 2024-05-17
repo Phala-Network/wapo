@@ -8,7 +8,7 @@ use std::task::{self, RawWaker, RawWakerVTable, Waker};
 use super::vm_context::TaskSet;
 
 thread_local! {
-    static TLS_TASK_ENV: RefCell<Option<TaskEnv>> = RefCell::new(None);
+    static TLS_TASK_ENV: RefCell<Option<TaskEnv>> = const { RefCell::new(None) };
 }
 
 #[derive(Clone)]
@@ -142,7 +142,7 @@ where
 // https://github.com/rust-lang/rust/pull/51580/files#diff-2437bade3937fa15310072df88db95aa1d2cd047069275cdddaccf2e4b1dc431R53-R116
 
 thread_local! {
-    static TLS_CX: Cell<Option<NonNull<task::Context<'static>>>> = Cell::new(None);
+    static TLS_CX: Cell<Option<NonNull<task::Context<'static>>>> = const { Cell::new(None) };
 }
 
 struct SetOnDrop(Option<NonNull<task::Context<'static>>>);
@@ -199,12 +199,9 @@ where
 }
 
 /// Polls a future in the current thread-local task context.
-pub(crate) fn poll_in_task_cx<F: ?Sized>(
-    guest_waker: GuestWaker,
-    f: Pin<&mut F>,
-) -> task::Poll<F::Output>
+pub(crate) fn poll_in_task_cx<F>(guest_waker: GuestWaker, f: Pin<&mut F>) -> task::Poll<F::Output>
 where
-    F: Future,
+    F: Future + ?Sized,
 {
     get_task_cx(guest_waker, |cx| f.poll(cx))
 }

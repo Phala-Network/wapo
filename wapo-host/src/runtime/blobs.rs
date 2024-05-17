@@ -131,7 +131,7 @@ where
     let tmpdir = path.join(".tmp");
     std::fs::create_dir_all(&tmpdir).context("failed to create blobs directory")?;
 
-    let tmp_filepath = tmpdir.join(&uuid::Uuid::new_v4().to_string());
+    let tmp_filepath = tmpdir.join(uuid::Uuid::new_v4().to_string());
     let mut tmpfile = tokio::fs::File::create(&tmp_filepath)
         .await
         .context("failed to create temporary object file")?;
@@ -157,7 +157,7 @@ where
         );
     }
     let key = hex::encode(&actual_hash);
-    std::fs::rename(&tmp_filepath, path.join(&key))
+    std::fs::rename(&tmp_filepath, path.join(key))
         .context("failed to move object file to blobs directory")?;
     Ok(actual_hash)
 }

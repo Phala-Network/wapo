@@ -179,7 +179,7 @@ impl WapoCtx {
     }
 }
 
-impl<'a> env::OcallEnv for WapoCtx {
+impl env::OcallEnv for WapoCtx {
     fn put_return(&mut self, rv: Vec<u8>) -> usize {
         let len = rv.len();
         self.temp_return_value = Some(rv);
@@ -191,7 +191,7 @@ impl<'a> env::OcallEnv for WapoCtx {
     }
 }
 
-impl<'a> env::OcallFuncs for WapoCtx {
+impl env::OcallFuncs for WapoCtx {
     fn close(&mut self, resource_id: i32) -> Result<()> {
         self.close(resource_id)
     }

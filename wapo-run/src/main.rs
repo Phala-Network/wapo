@@ -90,9 +90,8 @@ pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
         .args
         .into_iter()
         .map(|s| -> Result<String> {
-            if s.starts_with('@') {
-                let path = &s[1..];
-                let content = std::fs::read_to_string(path).context("failed to read file")?;
+            if let Some(s) = s.strip_prefix('@') {
+                let content = std::fs::read_to_string(s).context("failed to read file")?;
                 Ok(content)
             } else {
                 Ok(s)
@@ -124,24 +123,14 @@ pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
             }
         }
         _ = async {
-            while let Some((_vmid, event)) = event_rx.recv().await {
-                match event {
-                    OutgoingRequest::Output(output_bytes) => {
-                        output = Some(output_bytes);
-                        break;
-                    }
-                }
+            if let Some((_vmid, OutgoingRequest::Output(output_bytes))) = event_rx.recv().await {
+                output = Some(output_bytes);
             }
         } => {}
     }
     if output.is_none() {
-        while let Ok((_vmid, event)) = event_rx.try_recv() {
-            match event {
-                OutgoingRequest::Output(output_bytes) => {
-                    output = Some(output_bytes);
-                    break;
-                }
-            }
+        if let Ok((_vmid, OutgoingRequest::Output(output_bytes))) = event_rx.try_recv() {
+            output = Some(output_bytes);
         }
     }
     Ok((output.unwrap_or_default(), wasm_run.meter()))

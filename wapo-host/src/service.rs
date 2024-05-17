@@ -103,7 +103,7 @@ impl Deref for CommandSender {
 
 impl Drop for CommandSenderInner {
     fn drop(&mut self) {
-        if let Err(_) = self.ctl_tx.send(ControlCommand::Stop) {
+        if self.ctl_tx.send(ControlCommand::Stop).is_err() {
             info!(target: "wapo", "instance already stopped");
         }
     }

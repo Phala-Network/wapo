@@ -15,7 +15,7 @@ use rpc::prpc::{
 };
 use rpc::prpc::{operation_server::OperationRpc, user_server::UserRpc};
 use scale::Encode;
-use tracing::{error, field::Empty, info, warn};
+use tracing::{error, field::Empty, info};
 use wapo_host::ShortId;
 use wapod_rpc as rpc;
 
@@ -144,7 +144,7 @@ impl OperationRpc for Call {
         self.for_each_app(addresses, |address, app| {
             let m = app.metrics();
             metrics.apps.push(rpc::types::AppMetrics {
-                address: address,
+                address,
                 session: app.session,
                 running_time_ms: m.duration.as_millis() as u64,
                 gas_consumed: m.gas_comsumed,

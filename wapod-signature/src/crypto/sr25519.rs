@@ -50,6 +50,12 @@ impl Pair {
     }
 }
 
+impl Default for Pair {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Encode for Pair {
     fn encode_to<W: scale::Output + ?Sized>(&self, dest: &mut W) {
         self.dump().encode_to(dest);
@@ -75,7 +81,7 @@ impl Public {
             sr25519::Signature::from_slice(signature).or(Err(CryptoError::InvalidSignature))?;
 
         let pubkey = sr25519::Public::from(self.inner);
-        if sr25519::Pair::verify(&signature, &final_message, &pubkey) {
+        if sr25519::Pair::verify(&signature, final_message, &pubkey) {
             Ok(())
         } else {
             Err(CryptoError::InvalidSignature)

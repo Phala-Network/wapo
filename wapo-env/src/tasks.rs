@@ -27,7 +27,7 @@ thread_local! {
     };
     /// New spawned tasks are pushed to this queue. Since tasks are always spawned from inside a
     /// running task which borrowing the TASKS, it can not be immediately pushed to the TASKS.
-    static SPAWNING_TASKS: RefCell<Vec<TaskFuture>> = RefCell::new(vec![]);
+    static SPAWNING_TASKS: RefCell<Vec<TaskFuture>> = const { RefCell::new(vec![]) };
     /// Wakers might being referenced by the wapo host runtime.
     ///
     /// When a ocall polling some resource, we can not pass the waker to the host runtime,
@@ -36,10 +36,10 @@ thread_local! {
     /// which called waker_id, into the host runtime. And then before each guest polling, the
     /// guest runtime ask the host runtime to see which waker is awaken or dropped in the host
     /// runtime to deside to awake or drop the waker from this Vec.
-    static WAKERS: RefCell<Vec<Option<Waker>>> = RefCell::new(vec![]);
+    static WAKERS: RefCell<Vec<Option<Waker>>> = const { RefCell::new(vec![]) };
 
     /// The released waker ids that are cached and can be reused.
-    static CACHED_WAKER_IDS: RefCell<VecDeque<i32>> = RefCell::new(VecDeque::new());
+    static CACHED_WAKER_IDS: RefCell<VecDeque<i32>> = const { RefCell::new(VecDeque::new()) };
 }
 
 const MAX_CACHE_WAKER_IDS: usize = 1024;

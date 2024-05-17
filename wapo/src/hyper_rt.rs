@@ -93,7 +93,7 @@ mod hyper_v1 {
 
     impl HyperSleep {
         fn reset(self: Pin<&mut Self>, deadline: Instant) {
-            self.project().inner.as_mut().reset(deadline.into());
+            self.project().inner.as_mut().reset(deadline);
         }
     }
 }
