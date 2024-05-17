@@ -1,13 +1,15 @@
+use std::thread::available_parallelism;
+
 use anyhow::{Context, Result};
 use clap::Parser;
 use tracing::info;
 use web_api::crate_worker_state;
 
+mod allocator;
 mod logger;
 mod paths;
 mod web_api;
 mod worker_key;
-mod allocator;
 
 #[derive(Parser, Clone)]
 #[clap(about = "wapo - a WASM runtime", version, author)]
@@ -16,8 +18,8 @@ pub struct Args {
     #[arg(long, default_value_t = 256)]
     max_memory_pages: u32,
     /// Max number of instances to run
-    #[arg(long, default_value_t = 8)]
-    max_instances: u32,
+    #[arg(long)]
+    max_instances: Option<usize>,
     /// Path to store hash blobs
     #[arg(long, default_value = "./blobs")]
     blobs_dir: String,
@@ -30,6 +32,14 @@ pub struct Args {
     /// Number of modules can be stored in the LRU cache
     #[arg(long, default_value_t = 16)]
     module_cache_size: usize,
+}
+
+impl Args {
+    fn max_instances(&self) -> usize {
+        self.max_instances
+            .or_else(|| available_parallelism().ok().map(Into::into))
+            .unwrap_or(1)
+    }
 }
 
 #[tokio::main]

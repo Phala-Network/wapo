@@ -159,7 +159,7 @@ impl Worker {
 
     pub fn info(&self, admin: bool) -> pb::WorkerInfo {
         let worker = self.lock();
-        let max_instances = worker.args.max_instances as u64;
+        let max_instances = worker.args.max_instances() as u64;
         let deployed_apps = worker.apps.len() as u64;
         let running_instances = worker
             .apps
@@ -542,7 +542,7 @@ impl WorkerState {
     }
 
     fn available_slots(&self) -> usize {
-        let max = self.args.max_instances as usize;
+        let max = self.args.max_instances();
         max.saturating_sub(self.running_instances())
     }
 

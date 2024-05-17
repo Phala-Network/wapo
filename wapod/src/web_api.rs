@@ -303,7 +303,7 @@ fn sign_http_response(data: &[u8]) -> Option<String> {
 pub fn crate_worker_state(args: Args) -> Result<Worker> {
     let (tx, mut rx) = crate_outgoing_request_channel();
     let (run, spawner) = service::service(
-        args.max_instances.saturating_add(2) as usize,
+        args.max_instances().saturating_add(2),
         args.module_cache_size,
         tx,
         &args.blobs_dir,
