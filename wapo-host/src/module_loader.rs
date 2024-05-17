@@ -75,7 +75,7 @@ impl ModuleLoader {
 
     #[tracing::instrument(skip_all, fields(code = %ShortId(code_hash)))]
     pub async fn load_module(&self, code_hash: &[u8], hash_alg: &str) -> Result<WasmModule> {
-        info!(target: "wapo", "Loading module");
+        info!(target: "wapo", "loading module");
 
         let mut module_rx = {
             let mut state = self
@@ -83,14 +83,14 @@ impl ModuleLoader {
                 .lock()
                 .expect("BUG: ModuleLoaderState lock poisoned");
             if let Some(module) = state.cache.get(code_hash) {
-                info!(target: "wapo", "Module found in cache");
+                info!(target: "wapo", "module found in cache");
                 return Ok(module.clone());
             }
             match state.compiling.get(code_hash) {
                 Some(tx) => tx.subscribe(),
                 None => {
                     if state.queue.len() >= self.queue_cap {
-                        anyhow::bail!("Module compilation queue is full");
+                        anyhow::bail!("module compilation queue is full");
                     }
                     state.queue.insert(code_hash.to_vec(), hash_alg.to_string());
                     let (tx, rx) = channel(1);
@@ -103,7 +103,7 @@ impl ModuleLoader {
                             .spawn(move || {
                                 cloned_self.serve_compilation();
                             })
-                            .expect("Failed to spawn module compiler thread");
+                            .expect("failed to spawn module compiler thread");
                     }
                     rx
                 }
@@ -112,30 +112,30 @@ impl ModuleLoader {
         let module = module_rx
             .recv()
             .await
-            .context("Failed to receive compiled module")?;
-        info!(target: "wapo", "Received module compiled by another task");
+            .context("failed to receive compiled module")?;
+        info!(target: "wapo", "received module compiled by another task");
         Ok(module?)
     }
 
     fn compile(&self, code_hash: &[u8], hash_alg: &str) -> Result<WasmModule> {
-        info!(target: "wapo", "Loading module code...");
+        info!(target: "wapo", "loading module code...");
         let wasm_code = self
             .blob_loader
             .get(&code_hash, &hash_alg)
-            .context("Failed to load module")?
+            .context("failed to load module")?
             .ok_or_else(|| anyhow!("Wasm code not found"))?;
         let t0 = Instant::now();
-        info!(target: "wapo", "Compiling module...",);
+        info!(target: "wapo", "compiling module...",);
         let module = self
             .engine
             .compile(&wasm_code)
-            .context("Failed to compile module")?;
-        info!(target: "wapo", "Module compiled, elapsed={:.2?}", t0.elapsed());
+            .context("failed to compile module")?;
+        info!(target: "wapo", "module compiled, elapsed={:.2?}", t0.elapsed());
         Ok(module)
     }
 
     fn serve_compilation(&self) {
-        info!(target: "wapo", "Module compiler started");
+        info!(target: "wapo", "module compiler started");
         loop {
             let (code_hash, hash_alg) = {
                 let mut state = self
@@ -144,7 +144,7 @@ impl ModuleLoader {
                     .expect("BUG: ModuleLoaderState lock poisoned");
                 let Some((hash, alg)) = state.queue.pop_first() else {
                     state.compiling_tasks -= 1;
-                    info!(target: "wapo", "No more tasks to compile, exiting...");
+                    info!(target: "wapo", "no more tasks to compile, exiting...");
                     break;
                 };
                 (hash, alg)
@@ -164,9 +164,9 @@ impl ModuleLoader {
                 state.cache.put(code_hash.to_vec(), module.clone());
             }
             match tx.send(module.map_err(Into::into)) {
-                Ok(n) => info!(target: "wapo", "Compiled module sent to {n} subscribers"),
+                Ok(n) => info!(target: "wapo", "compiled module sent to {n} subscribers"),
                 Err(_err) => {
-                    debug!(target: "wapo", "Failed to send compiled module")
+                    debug!(target: "wapo", "failed to send compiled module")
                 }
             }
         }

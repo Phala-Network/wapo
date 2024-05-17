@@ -18,13 +18,13 @@ impl Logger {
     /// Install the logger as the global logger.
     pub fn init(self) {
         log::set_max_level(self.max_level);
-        log::set_boxed_logger(Box::new(self)).expect("Failed to set logger");
+        log::set_boxed_logger(Box::new(self)).expect("failed to set logger");
     }
 
     /// Install the logger as the global logger, but for static lifetime.
     pub fn init_static(&'static self) {
         log::set_max_level(self.max_level);
-        log::set_logger(self).expect("Failed to set logger");
+        log::set_logger(self).expect("failed to set logger");
     }
 }
 

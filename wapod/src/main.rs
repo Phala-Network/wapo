@@ -33,15 +33,15 @@ pub struct Args {
 async fn main() -> Result<()> {
     logger::init();
 
-    info!("Starting wapod server...");
+    info!("starting wapod server...");
     let args = Args::parse();
 
-    paths::create_dirs_if_needed().context("Failed to create directories")?;
+    paths::create_dirs_if_needed().context("failed to create directories")?;
 
     let key = worker_key::load_or_generate_key().public();
-    info!("Worker pubkey: 0x{}", hex_fmt::HexFmt(key));
+    info!("worker pubkey: 0x{}", hex_fmt::HexFmt(key));
 
-    let worker_state = crate_worker_state(args.clone()).context("Failed to create worker state")?;
+    let worker_state = crate_worker_state(args.clone()).context("failed to create worker state")?;
     let admin_service = web_api::serve_admin(worker_state.clone(), args.clone());
     let user_service = async move {
         // Wait for the admin service to start
@@ -50,13 +50,13 @@ async fn main() -> Result<()> {
     };
     tokio::select! {
         result = user_service => {
-            result.context("User service terminated")?;
+            result.context("user service terminated")?;
         },
         result = admin_service => {
-            result.context("Admin service terminated")?;
+            result.context("admin service terminated")?;
         },
     }
-    info!("Server exited.");
+    info!("server exited.");
     Ok(())
 }
 

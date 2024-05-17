@@ -96,7 +96,7 @@ async fn push_query(
     let payload = read_data(data, 100.mebibytes()).await?;
     let address =
         id.0.try_into()
-            .map_err(|_| Custom(Status::BadRequest, "Invalid address"))?;
+            .map_err(|_| Custom(Status::BadRequest, "invalid address"))?;
 
     let (reply_tx, rx) = tokio::sync::oneshot::channel();
     let origin = match origin {
@@ -161,13 +161,13 @@ async fn connect_vm<'r>(
 ) -> Result<StreamResponse, (Status, String)> {
     let address =
         id.0.try_into()
-            .map_err(|_| (Status::BadRequest, "Invalid address".to_string()))?;
+            .map_err(|_| (Status::BadRequest, "invalid address".to_string()))?;
     let Some(command_tx) = state.sender_for(address, 0) else {
         return Err((Status::NotFound, Default::default()));
     };
     let path = path
         .to_str()
-        .ok_or((Status::BadRequest, "Invalid path".to_string()))?;
+        .ok_or((Status::BadRequest, "invalid path".to_string()))?;
     let result = connect(head, path, body, command_tx).await;
     match result {
         Ok(response) => Ok(response),
@@ -257,7 +257,7 @@ async fn object_post(
         .put(&hash.0, &mut stream, r#type)
         .await
         .map_err(|err| {
-            warn!("Failed to put object: {err:?}");
+            warn!("failed to put object: {err:?}");
             Custom(Status::InternalServerError, err.to_string())
         })
 }
@@ -307,13 +307,13 @@ pub fn crate_worker_state(args: Args) -> Result<Worker> {
         tx,
         &args.blobs_dir,
     )
-    .context("Failed to create service")?;
+    .context("failed to create service")?;
     tokio::spawn(async move {
         while let Some((id, message)) = rx.recv().await {
             let vmid = ShortId(id);
             match message {
                 OutgoingRequest::Output(output) => {
-                    info!(%vmid, "Outgoing message: {output:?}");
+                    info!(%vmid, "outgoing message: {output:?}");
                 }
             }
         }
@@ -321,7 +321,7 @@ pub fn crate_worker_state(args: Args) -> Result<Worker> {
     std::thread::spawn(move || {
         run.blocking_run(|evt| match evt {
             Report::VmTerminated { id, reason } => {
-                info!(target: "wapod", id=%ShortId(id), ?reason, "Instance terminated");
+                info!(target: "wapod", id=%ShortId(id), ?reason, "instance terminated");
             }
         });
     });
@@ -342,7 +342,7 @@ pub async fn serve_user(state: Worker, args: Args) -> Result<()> {
         .attach(
             cors_options()
                 .to_cors()
-                .context("Failed to create CORS options")?,
+                .context("failed to create CORS options")?,
         )
         .attach(signer)
         .attach(RequestTracer::default())
@@ -368,7 +368,7 @@ pub async fn serve_admin(state: Worker, args: Args) -> Result<()> {
         .attach(
             cors_options()
                 .to_cors()
-                .context("Failed to create CORS options")?,
+                .context("failed to create CORS options")?,
         )
         .attach(RequestTracer::default())
         .attach(TimeMeter)
@@ -384,7 +384,7 @@ pub async fn serve_admin(state: Worker, args: Args) -> Result<()> {
 }
 
 fn print_rpc_methods(prefix: &str, methods: &[&str]) {
-    info!("Methods under {}:", prefix);
+    info!("methods under {}:", prefix);
     for method in methods {
         info!("    {}", format!("{prefix}/{method}"));
     }

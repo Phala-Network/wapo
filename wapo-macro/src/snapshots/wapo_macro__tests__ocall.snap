@@ -29,7 +29,7 @@ pub mod ocall_guest {
             if ret != len {
                 panic!("ocall get return length mismatch");
             }
-            Ok(Decode::decode(&mut buf.as_ref()).expect("Failed to decode ocall return value"))
+            Ok(Decode::decode(&mut buf.as_ref()).expect("failed to decode ocall return value"))
         }
     }
     pub fn call_fi(a: i32, b: i32) -> i32 {
@@ -49,7 +49,7 @@ pub mod ocall_guest {
             if ret != len {
                 panic!("ocall get return length mismatch");
             }
-            Ok(Decode::decode(&mut buf.as_ref()).expect("Failed to decode ocall return value"))
+            Ok(Decode::decode(&mut buf.as_ref()).expect("failed to decode ocall return value"))
         }
     }
     pub fn call_fo(a: i32, b: i32) -> i32 {

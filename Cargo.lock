@@ -4741,6 +4741,7 @@ dependencies = [
 name = "wapod-rpc"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "parity-scale-codec",
  "prost 0.12.4",
  "prpc",

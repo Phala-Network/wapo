@@ -96,11 +96,11 @@ pub fn init() {
         let filter = SanitizedFilter(default_fileter);
         let layer = tracing_subscriber::fmt::layer().with_filter(filter);
         tracing_subscriber::registry().with(layer).init();
-        info!("Sanitized logging enabled");
+        info!("sanitized logging enabled");
     } else {
         tracing_subscriber::fmt()
             .with_env_filter(default_fileter)
             .init();
-        warn!("Log is not sanitized");
+        warn!("log is not sanitized");
     }
 }

@@ -68,7 +68,7 @@ impl Resource {
                         Ok(Resource::TcpStream(Box::new(stream)))
                     }
                     Ready(Err(err)) => {
-                        log::error!("Tcp connect error: {}", err);
+                        log::error!("tcp connect error: {}", err);
                         Err(OcallError::IoError)
                     }
                 }
@@ -82,7 +82,7 @@ impl Resource {
                         Ok(Resource::TlsStream(Box::new(stream)))
                     }
                     Ready(Err(err)) => {
-                        log::error!("Tls connect error: {}", err);
+                        log::error!("tls connect error: {}", err);
                         Err(OcallError::IoError)
                     }
                 }

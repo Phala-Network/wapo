@@ -52,12 +52,12 @@ impl VmHandle {
     }
 
     pub async fn stop(&mut self) -> Result<()> {
-        info!(target: "wapo", "Stopping instance...");
+        info!(target: "wapo", "stopping instance...");
         self.cmd_sender.inner.ctl_tx.send(ControlCommand::Stop)?;
         if let Some(stop_signal) = self.stop_signal.take() {
             stop_signal.await?;
         }
-        info!(target: "wapo", "Stopped");
+        info!(target: "wapo", "stopped");
         Ok(())
     }
 
@@ -104,7 +104,7 @@ impl Deref for CommandSender {
 impl Drop for CommandSenderInner {
     fn drop(&mut self) {
         if let Err(_) = self.ctl_tx.send(ControlCommand::Stop) {
-            info!(target: "wapo", "Instance already stopped");
+            info!(target: "wapo", "instance already stopped");
         }
     }
 }
@@ -199,12 +199,12 @@ pub fn service(
         .worker_threads(worker_threads + 2)
         .enable_all()
         .build()
-        .context("Failed to create tokio runtime")?;
+        .context("failed to create tokio runtime")?;
     let runtime_handle = runtime.handle().clone();
     let (report_tx, report_rx) = channel(100);
     let run = ServiceRun { runtime, report_rx };
     let blob_loader = BlobLoader::new(blobs_dir);
-    let engine = WasmEngine::new(Config::new(), 10).context("Failed to create Wasm engine")?;
+    let engine = WasmEngine::new(Config::new(), 10).context("failed to create Wasm engine")?;
     let todo = "configurable cache_size";
     let module_loader = ModuleLoader::new(engine, blob_loader, 100);
     let spawner = ServiceHandle {
@@ -226,7 +226,7 @@ impl ServiceRun {
         loop {
             match self.report_rx.recv().await {
                 None => {
-                    info!(target: "wapo", "The report channel is closed. Exiting service.");
+                    info!(target: "wapo", "the report channel is closed. Exiting service.");
                     break;
                 }
                 Some(report) => {
@@ -285,20 +285,20 @@ impl ServiceHandle {
         let handle = self.spawn(async move {
             macro_rules! push_msg {
                 ($expr: expr, $level: ident, $msg: expr) => {{
-                    $level!(target: "wapo", msg=%$msg, "Pushing message");
+                    $level!(target: "wapo", msg=%$msg, "pushing message");
                     if let Err(err) = $expr {
-                        error!(target: "wapo", msg=%$msg, %err, "Push message failed");
+                        error!(target: "wapo", msg=%$msg, %err, "push message failed");
                     }
                 }};
             }
             let result = module_loader
                 .load_module(&wasm_hash, &wasm_hash_alg)
                 .await
-                .context("Failed to load module");
+                .context("failed to load module");
             let module = match result {
                 Ok(m) => m,
                 Err(err) => {
-                    error!(target: "wapo", ?err, "Failed to load module");
+                    error!(target: "wapo", ?err, "failed to load module");
                     _ = ScopeGuard::into_inner(status_guard).send(VmStatus::Stopped {
                         reason: format!("{err:?}"),
                         error: Some(err.into()),
@@ -309,7 +309,7 @@ impl ServiceHandle {
 
             _ = status_guard.send(VmStatus::CreatingInstance);
 
-            info!(target: "wapo", "Starting instance...");
+            info!(target: "wapo", "starting instance...");
             let config = InstanceConfig::builder()
                 .id(id)
                 .max_memory_pages(max_memory_pages)
@@ -318,10 +318,10 @@ impl ServiceHandle {
                 .blobs_dir(blobs_dir)
                 .meter(Some(meter_cloned))
                 .build();
-            let mut wasm_run = match module.run(config.clone()).context("Failed to create instance") {
+            let mut wasm_run = match module.run(config.clone()).context("failed to create instance") {
                 Ok(i) => i,
                 Err(err) => {
-                    error!(target: "wapo", ?err, "Failed to create instance");
+                    error!(target: "wapo", ?err, "failed to create instance");
                     _ = ScopeGuard::into_inner(status_guard).send(VmStatus::Stopped {
                         reason: format!("{err}"),
                         error: Some(err.into()),
@@ -342,20 +342,20 @@ impl ServiceHandle {
                     rv = &mut wasm_run => {
                         match rv {
                             Ok(()) => {
-                                info!(target: "wapo", "The instance returned from main.");
+                                info!(target: "wapo", "the instance returned from main.");
                                 break ExitReason::Exited(0);
                             }
                             Err(err) => {
                                 match err.downcast() {
                                     Ok(I32Exit(code)) => {
-                                        info!(target: "wapo", code, "The instance exited via proc_exit()");
+                                        info!(target: "wapo", code, "the instance exited via proc_exit()");
                                         if code == 0 || !auto_restart {
                                             break ExitReason::Exited(code);
                                         }
                                         // fallthrough to restart
                                     }
                                     Err(err) => {
-                                        info!(target: "wapo", ?err, "The instance exited.");
+                                        info!(target: "wapo", ?err, "the instance exited.");
                                         if !auto_restart {
                                             break ExitReason::Trap;
                                         }
@@ -364,11 +364,11 @@ impl ServiceHandle {
                                 }
                             }
                         }
-                        info!(target: "wapo", "Restarting...");
+                        info!(target: "wapo", "testarting...");
                         wasm_run = match module.run(config.clone()) {
                             Ok(run) => run,
                             Err(err) => {
-                                error!(target: "wapo", ?err, "Failed to rerestart instance");
+                                error!(target: "wapo", ?err, "failed to rerestart instance");
                                 break ExitReason::FailedToStart;
                             }
                         };
@@ -377,7 +377,7 @@ impl ServiceHandle {
                     cmd = cmd_rx.recv() => {
                         match cmd {
                             None => {
-                                info!(target: "wapo", "The command channel is closed. Exiting...");
+                                info!(target: "wapo", "the command channel is closed. Exiting...");
                                 break ExitReason::InputClosed;
                             }
                             Some(Command::PushQuery{ path, origin, payload, reply_tx }) => {
@@ -391,11 +391,11 @@ impl ServiceHandle {
                     cmd = ctl_cmd_rx.recv() => {
                         match cmd {
                             None => {
-                                info!(target: "wapo", "The control command channel is closed. Exiting...");
+                                info!(target: "wapo", "the control command channel is closed. Exiting...");
                                 break ExitReason::InputClosed;
                             }
                             Some(ControlCommand::Stop) => {
-                                info!(target: "wapo", "Received stop command. Exiting...");
+                                info!(target: "wapo", "received stop command. Exiting...");
                                 break ExitReason::Stopped;
                             }
                             Some(ControlCommand::UpdateWeight(weight)) => {
@@ -416,7 +416,7 @@ impl ServiceHandle {
             let reason = match handle.await {
                 Ok(r) => r,
                 Err(err) => {
-                    warn!(target: "wapo", ?err, "The instance exited with error");
+                    warn!(target: "wapo", ?err, "the instance exited with error");
                     if err.is_cancelled() {
                         ExitReason::Cancelled
                     } else {
@@ -425,7 +425,7 @@ impl ServiceHandle {
                 }
             };
             if let Err(err) = report_tx.send(Report::VmTerminated { id, reason }).await {
-                warn!(target: "wapo", ?err, "Failed to send report to service");
+                warn!(target: "wapo", ?err, "failed to send report to service");
             }
             let _ = stop_signal_tx.send(());
             reason

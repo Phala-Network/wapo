@@ -40,7 +40,7 @@ impl WasmEngine {
             .epoch_interruption(true)
             .static_memory_maximum_size(0)
             .guard_before_linear_memory(false);
-        let engine = Engine::new(&config).context("Failed to create Wasm engine")?;
+        let engine = Engine::new(&config).context("failed to create Wasm engine")?;
         if tick_time_ms > 0 {
             let engine = engine.clone();
             std::thread::Builder::new()
@@ -49,7 +49,7 @@ impl WasmEngine {
                     std::thread::sleep(std::time::Duration::from_millis(tick_time_ms));
                     engine.increment_epoch();
                 })
-                .context("Failed to start epoch ticking service")?;
+                .context("failed to start epoch ticking service")?;
         }
         Ok(Self { inner: engine })
     }
@@ -86,9 +86,9 @@ impl WasmModule {
 
         let wasi_ctx = WasiCtxBuilder::new()
             .args(&args)
-            .context("Failed to set args")?
+            .context("failed to set args")?
             .envs(&envs)
-            .context("Failed to set envs")?
+            .context("failed to set envs")?
             .build();
         wasi_common::sync::add_to_linker(&mut linker, |c| &mut c.wasi_ctx)?;
 
@@ -107,33 +107,33 @@ impl WasmModule {
         };
         let mut store = Store::new(&engine, vm_ctx);
         store.limiter(move |ctx| &mut ctx.limits);
-        store.set_fuel(u64::MAX).context("Failed to set fuel")?;
+        store.set_fuel(u64::MAX).context("failed to set fuel")?;
 
         store.set_epoch_deadline(epoch_deadline);
         store.epoch_deadline_callback(move |ctx| {
             if ctx.data().meter().stopped() {
-                info!(target: "wapo", "Instance stopped by meter");
+                info!(target: "wapo", "instance stopped by meter");
                 anyhow::bail!("stopped by meter")
             }
-            debug!(target: "wapo", "Epoch update");
+            debug!(target: "wapo", "epoch update");
             sync_gas(&ctx);
             Ok(UpdateDeadline::Continue(epoch_deadline))
         });
 
         let instance = linker
             .instantiate(&mut store, &self.module)
-            .context("Failed to create instance")?;
+            .context("failed to create instance")?;
         let wasm_poll_entry = match instance.get_typed_func(&mut store, "wapo_poll") {
             Ok(entry) => {
-                debug!(target: "wapo", "Using entry point wapo_poll in the WASM module");
+                debug!(target: "wapo", "using entry point wapo_poll in the WASM module");
                 entry
             }
             Err(_) => {
                 // Fallback to the old name
                 let Ok(entry) = instance.get_typed_func(&mut store, "sidevm_poll") else {
-                    bail!("No poll function found in the WASM module");
+                    bail!("no poll function found in the WASM module");
                 };
-                debug!(target: "wapo", "Using entry point sidevm_poll in the WASM module");
+                debug!(target: "wapo", "using entry point sidevm_poll in the WASM module");
                 entry
             }
         };

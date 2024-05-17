@@ -145,7 +145,7 @@ fn start_task(tasks: &mut Tasks, task: TaskFuture) {
     for (task_id, task_ref) in tasks.iter_mut().enumerate().skip(1) {
         if task_ref.is_none() {
             *task_ref = Some(task);
-            ocall::mark_task_ready(task_id as _).expect("Mark task ready failed");
+            ocall::mark_task_ready(task_id as _).expect("mark task ready failed");
             return;
         }
     }
@@ -153,7 +153,7 @@ fn start_task(tasks: &mut Tasks, task: TaskFuture) {
     if tasks.len() < MAX_N_TASKS {
         let task_id = tasks.len();
         tasks.push(Some(task));
-        ocall::mark_task_ready(task_id as _).expect("Mark task ready failed");
+        ocall::mark_task_ready(task_id as _).expect("mark task ready failed");
         return;
     }
 
@@ -187,11 +187,11 @@ where
                 |data| raw_waker(data as _),
                 |data| {
                     let task_id = data as _;
-                    ocall::mark_task_ready(task_id).expect("Mark task ready failed");
+                    ocall::mark_task_ready(task_id).expect("mark task ready failed");
                 },
                 |data| {
                     let task_id = data as _;
-                    ocall::mark_task_ready(task_id).expect("Mark task ready failed");
+                    ocall::mark_task_ready(task_id).expect("mark task ready failed");
                 },
                 |_| (),
             ),
@@ -207,7 +207,7 @@ pub fn wapo_poll() -> i32 {
 
     fn poll() -> task::Poll<()> {
         {
-            for waker_id in ocall::awake_wakers().expect("Failed to get awake wakers") {
+            for waker_id in ocall::awake_wakers().expect("failed to get awake wakers") {
                 if waker_id >= 0 {
                     wake_waker(waker_id);
                 } else {

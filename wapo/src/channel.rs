@@ -112,7 +112,7 @@ impl Future for Next<'_, Query> {
         match ocall::poll(waker_id, self.ch.res_id.0) {
             Ok(msg) => {
                 let request =
-                    QueryRequest::decode(&mut &msg[..]).expect("Failed to decode QueryRequest");
+                    QueryRequest::decode(&mut &msg[..]).expect("failed to decode QueryRequest");
                 let reply_tx = OneshotSender::new(ResourceId(request.reply_tx));
                 Poll::Ready(Some(Query {
                     origin: request.origin,
@@ -133,7 +133,7 @@ macro_rules! singleton_channel {
         lazy_static! {
             static ref RX: Receiver<$ch> = {
                 let res_id = ocall::create_input_channel(InputChannel::$ch)
-                    .expect("Failed to create input channel");
+                    .expect("failed to create input channel");
                 Receiver::new(ResourceId(res_id))
             };
         }
@@ -154,7 +154,7 @@ impl Future for Next<'_, HttpRequest> {
         match ocall::poll(waker_id, self.ch.res_id.0) {
             Ok(msg) => {
                 let request =
-                    MsgHttpReqeust::decode(&mut &msg[..]).expect("Failed to decode MsgHttpReqeust");
+                    MsgHttpReqeust::decode(&mut &msg[..]).expect("failed to decode MsgHttpReqeust");
                 let response_tx = OneshotSender::new(ResourceId(request.response_tx)).into();
                 let io_stream = TcpStream::new(ResourceId(request.io_stream));
                 Poll::Ready(Some(HttpRequest {

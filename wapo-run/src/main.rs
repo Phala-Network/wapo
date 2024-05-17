@@ -70,18 +70,18 @@ pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
     let mut engine_config = Config::new();
     engine_config.strategy(args.compiler.into());
     let engine = WasmEngine::new(engine_config, args.tick_time_ms)
-        .context("Failed to create Wasm engine")?;
+        .context("failed to create Wasm engine")?;
     let t0 = std::time::Instant::now();
-    info!(target: "wapo", "Compiling wasm module");
+    info!(target: "wapo", "compiling wasm module");
     let module = engine.compile(&code)?;
-    info!(target: "wapo", "Compiled wasm module in {:?}", t0.elapsed());
+    info!(target: "wapo", "compiled wasm module in {:?}", t0.elapsed());
     args.args.insert(0, args.program);
     let vm_envs = args
         .envs
         .into_iter()
         .map(|s| -> Result<(String, String)> {
             let mut parts = s.splitn(2, '=');
-            let key = parts.next().context("Invalid env")?;
+            let key = parts.next().context("invalid env")?;
             let value = parts.next().unwrap_or_default();
             Ok((key.to_string(), value.to_string()))
         })
@@ -92,7 +92,7 @@ pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
         .map(|s| -> Result<String> {
             if s.starts_with('@') {
                 let path = &s[1..];
-                let content = std::fs::read_to_string(path).context("Failed to read file")?;
+                let content = std::fs::read_to_string(path).context("failed to read file")?;
                 Ok(content)
             } else {
                 Ok(s)
@@ -107,10 +107,10 @@ pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
         .envs(vm_envs)
         .blobs_dir("./blobs".into())
         .build();
-    let mut wasm_run = module.run(config).context("Failed to start the instance")?;
+    let mut wasm_run = module.run(config).context("failed to start the instance")?;
     if let Some(kill_timeout) = args.kill_timeout {
         let meter = wasm_run.meter().clone();
-        info!(target: "wapo", "Setting kill timeout to {}s", kill_timeout);
+        info!(target: "wapo", "setting kill timeout to {}s", kill_timeout);
         std::thread::spawn(move || {
             std::thread::sleep(std::time::Duration::from_secs(kill_timeout));
             meter.stop();
@@ -120,7 +120,7 @@ pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
     tokio::select! {
         rv = &mut wasm_run => {
             if let Err(err) = rv {
-                error!(target: "wapo", ?err, "Js runtime exited with error.");
+                error!(target: "wapo", ?err, "JS runtime exited with error.");
             }
         }
         _ = async {
@@ -154,7 +154,7 @@ async fn main() -> anyhow::Result<()> {
     let decode_output_js = args.decode_js_value;
     let (output, meter) = run(args).await?;
     if decode_output_js {
-        let js_value = JsValue::decode(&mut &output[..]).context("Failed to decode JsValue")?;
+        let js_value = JsValue::decode(&mut &output[..]).context("failed to decode JsValue")?;
         println!("Output: {:?}", js_value);
     } else {
         println!("Output: {:?}", output);

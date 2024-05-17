@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use anyhow::Context;
+use anyhow::{bail, Context, Result};
 use rand::Rng;
 use rocket::{
     data::{ByteUnit, Limits, ToByteUnit as _},
@@ -18,8 +18,6 @@ use scale::Encode;
 use tracing::{error, field::Empty, info, warn};
 use wapo_host::ShortId;
 use wapod_rpc as rpc;
-
-type Result<T, E = RpcError> = std::result::Result<T, E>;
 
 use crate::worker_key::load_or_generate_key;
 
@@ -51,10 +49,10 @@ impl Call {
 impl OperationRpc for Call {
     async fn worker_init(self, request: pb::InitArgs) -> Result<pb::InitResponse> {
         if request.salt.len() > 64 {
-            return Err(RpcError::BadRequest("Salt too long".into()));
+            bail!("the salt is too long");
         }
         let session_seed = self.init(&request.salt)?;
-        let session = self.session().context("No worker session")?;
+        let session = self.session().context("no worker session")?;
         Ok(pb::InitResponse {
             session: session.to_vec(),
             session_seed: session_seed.to_vec(),
@@ -74,10 +72,7 @@ impl OperationRpc for Call {
                 &request.hash_algorithm,
             )
             .await
-            .map_err(|err| {
-                warn!("Failed to put object: {err}");
-                RpcError::BadRequest(format!("Failed to put object: {err}"))
-            })?;
+            .context("failed to put object")?;
         Ok(pb::Blob {
             hash,
             hash_algorithm: request.hash_algorithm,
@@ -96,22 +91,20 @@ impl OperationRpc for Call {
         let loader = self.blob_loader();
         loader
             .remove(&request.hash)
-            .map_err(|err| RpcError::BadRequest(format!("Failed to remove object: {err}")))
+            .context("failed to remove object")
     }
 
     #[tracing::instrument(name="app.deploy", skip_all, fields(addr=Empty))]
     async fn app_deploy(self, request: pb::DeployArgs) -> Result<pb::DeployResponse> {
         if self.session().is_none() {
-            return Err(RpcError::BadRequest("No worker session".into()));
+            bail!("no worker session");
         }
-        let manifest = request
-            .manifest
-            .ok_or(RpcError::BadRequest("No manifest".into()))?;
+        let manifest = request.manifest.ok_or(anyhow::Error::msg("No manifest"))?;
         let info = self
             .deploy_app(manifest)
             .await
-            .context("Failed to deploy app")?;
-        info!("App deployed, address={}", hex_fmt::HexFmt(&info.address));
+            .context("failed to deploy app")?;
+        info!("app deployed, address={}", hex_fmt::HexFmt(&info.address));
         Ok(pb::DeployResponse {
             address: info.address.to_vec(),
             session: info.session.to_vec(),
@@ -144,7 +137,7 @@ impl OperationRpc for Call {
             Some(&addresses[..])
         };
         let mut metrics = rpc::types::AppsMetrics {
-            session: self.session().context("No worker session")?,
+            session: self.session().context("no worker session")?,
             nonce: rand::thread_rng().gen(),
             apps: vec![],
         };
@@ -170,7 +163,7 @@ impl OperationRpc for Call {
 
     #[tracing::instrument(name="app.resize", fields(id = %ShortId(&request.address)), skip_all)]
     async fn app_resize(self, request: pb::ResizeArgs) -> Result<pb::Number> {
-        info!(new_size = request.instances, "Resizing app");
+        info!(new_size = request.instances, "resizing app");
         let address = request.decode_address()?;
         self.resize_app_instances(address, request.instances as usize, false)
             .await?;
@@ -275,7 +268,7 @@ where
         let custom = if let Some(status) = Status::from_code(status_code) {
             Custom(status, output)
         } else {
-            error!(status_code, "prpc: Invalid status code!");
+            error!(status_code, "prpc: invalid status code!");
             Custom(Status::ServiceUnavailable, vec![])
         };
         Err(custom)
@@ -297,20 +290,20 @@ async fn dispatch_prpc(
 ) -> (u16, Vec<u8>) {
     use rpc::prpc::server::{Error, ProtoError};
 
-    info!("Dispatching request: {}", path);
+    info!("dispatching request: {}", path);
     let result = server.dispatch_request(&path, data, json).await;
     let (code, data) = match result {
         Ok(data) => (200, data),
         Err(err) => {
-            error!("Rpc error: {:?}", err);
+            error!("rpc error: {:?}", err);
             let (code, error) = match err {
-                Error::NotFound => (404, "Method Not Found".to_string()),
+                Error::NotFound => (404, "method Not Found".to_string()),
                 Error::DecodeError(err) => (400, format!("DecodeError({err:?})")),
                 Error::BadRequest(msg) => (400, msg),
             };
             if json {
                 let body = serde_json::to_string_pretty(&serde_json::json!({ "error": error }))
-                    .unwrap_or_else(|_| r#"{"error": "Failed to encode the error"}"#.to_string())
+                    .unwrap_or_else(|_| r#"{"error": "failed to encode the error"}"#.to_string())
                     .into_bytes();
                 (code, body)
             } else {

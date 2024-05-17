@@ -11,6 +11,6 @@ pub fn secret_data_path() -> PathBuf {
 
 pub fn create_dirs_if_needed() -> Result<()> {
     std::fs::create_dir_all(secret_data_path())
-        .context("Failed to create secret data directory")?;
+        .context("failed to create secret data directory")?;
     Ok(())
 }

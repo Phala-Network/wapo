@@ -91,7 +91,7 @@ struct QueryGuard {
 impl Drop for QueryGuard {
     fn drop(&mut self) {
         if let Err(err) = self.worker.end_query(self.address) {
-            info!("End query error: {err}");
+            info!("end query error: {err}");
         }
     }
 }
@@ -127,7 +127,7 @@ impl Worker {
     }
 
     fn lock(&self) -> MutexGuard<'_, WorkerState> {
-        self.inner.lock().expect("Worker lock poisoned")
+        self.inner.lock().expect("worker lock poisoned")
     }
 
     pub async fn send(
@@ -218,7 +218,7 @@ impl Worker {
         if start_needed {
             self.resize_app_instances(address, 1, true)
                 .await
-                .context("Failed to start app on-demand")?;
+                .context("failed to start app on-demand")?;
         }
         Ok(guard)
     }
@@ -243,11 +243,11 @@ impl Worker {
         path: String,
         payload: Vec<u8>,
     ) -> Result<Vec<u8>> {
-        info!(address=%ShortId(address), "Incomming query");
+        info!(address=%ShortId(address), "incomming query");
         let _guard = self
             .prepare_query(address)
             .await
-            .context("Failed to prepare query")?;
+            .context("failed to prepare query")?;
         let cmd_sender = {
             let state = self.lock();
             let app = state
@@ -257,7 +257,7 @@ impl Worker {
             let instance = match app.instances.get(0) {
                 Some(instance) => instance,
                 None => {
-                    bail!("Instance not found");
+                    bail!("instance not found");
                 }
             };
             instance.vm_handle.command_sender().clone()
@@ -271,12 +271,12 @@ impl Worker {
                 reply_tx,
             })
             .await
-            .context("Failed to send query to instance")?;
-        info!("Waiting app to reply the query");
-        let reply = rx.await.context("Failed to receive query response");
+            .context("failed to send query to instance")?;
+        info!("waiting app to reply the query");
+        let reply = rx.await.context("failed to receive query response");
         match &reply {
-            Ok(data) => info!(len = data.len(), "Received reply Ok from app"),
-            Err(_) => info!("Received reply Err from app"),
+            Ok(data) => info!(len = data.len(), "received reply Ok from app"),
+            Err(_) => info!("received reply Err from app"),
         }
         reply
     }
@@ -298,14 +298,14 @@ impl Worker {
         let (created, removed) = self.lock().resize_app_instances(address, count, demand)?;
         let total = removed.len();
         for (i, mut handle) in removed.into_iter().enumerate() {
-            info!("Stopping instances ({}/{total})...", i + 1);
+            info!("stopping instances ({}/{total})...", i + 1);
             handle.stop().await?;
         }
         for (i, mut status) in created.into_iter().enumerate() {
-            info!("Waiting instance ({}/{count}) to start", i + 1);
+            info!("waiting instance ({}/{count}) to start", i + 1);
             loop {
                 if status.changed().await.is_err() {
-                    anyhow::bail!("Failed to start instance: {:?}", *status.borrow());
+                    anyhow::bail!("failed to start instance: {:?}", *status.borrow());
                 }
                 match &*status.borrow_and_update() {
                     VmStatus::Running => break,
@@ -315,7 +315,7 @@ impl Worker {
                         } else {
                             Err(anyhow::Error::msg(reason.clone()))
                         }
-                        .context("Instance stopped unexpectedly");
+                        .context("instance stopped unexpectedly");
                     }
                     _ => {}
                 }
@@ -326,7 +326,7 @@ impl Worker {
 
     pub async fn deploy_app(&self, manifest: Manifest) -> Result<AppInfo> {
         if manifest.resizable && manifest.on_demand {
-            bail!("On-demand app can not be resizable");
+            bail!("on-demand app can not be resizable");
         }
         let on_demand = manifest.on_demand;
         let address = sp_core::blake2_256(&scale::Encode::encode(&manifest));
@@ -334,7 +334,7 @@ impl Worker {
         {
             let mut worker = self.lock();
             if worker.apps.contains_key(&address) {
-                bail!("App already exists")
+                bail!("app already exists")
             }
             let session: [u8; 32] = rand::thread_rng().gen();
 
@@ -363,15 +363,15 @@ impl Worker {
 
     pub async fn remove_app(&self, address: Address) -> Result<()> {
         let Some(app) = self.lock().apps.remove(&address) else {
-            bail!("App not found")
+            bail!("app not found")
         };
         let n = app.instances.len();
         for (i, instance) in app.instances.into_iter().enumerate() {
             let mut handle = instance.vm_handle;
             if !handle.is_stopped() {
-                info!("Stopping instance ({}/{n})...", i + 1);
+                info!("stopping instance ({}/{n})...", i + 1);
                 if let Err(err) = handle.stop().await {
-                    warn!("Failed to stop instance: {err:?}");
+                    warn!("failed to stop instance: {err:?}");
                 }
             }
         }
@@ -451,7 +451,7 @@ impl WorkerState {
                 &app.manifest.hash_algorithm,
                 config,
             )
-            .context("Failed to start instance")?;
+            .context("failed to start instance")?;
         let status = vm_handle.subscribe_status();
         let instance = Instance {
             sequence_number: {
@@ -467,14 +467,14 @@ impl WorkerState {
         self.service.spawn(
             async move {
                 if let Ok(reason) = join_handle.await {
-                    info!(?reason, "App stopped");
+                    info!(?reason, "app stopped");
                 } else {
-                    warn!("App stopped unexpectedly");
+                    warn!("app stopped unexpectedly");
                 }
                 if let Some(inner) = weak_self.upgrade() {
-                    let mut inner = inner.lock().expect("Worker lock poisoned");
+                    let mut inner = inner.lock().expect("worker lock poisoned");
                     let Some(app) = inner.apps.get_mut(&address) else {
-                        info!("App was removed before stopping");
+                        info!("app was removed before stopping");
                         return;
                     };
                     let mut found = None;
@@ -491,7 +491,7 @@ impl WorkerState {
                         })
                         .collect();
                     let Some(instance) = found else {
-                        warn!("Instance was removed before stopping");
+                        warn!("instance was removed before stopping");
                         return;
                     };
                     app.hist_metrics += instance.vm_handle.meter().to_metrics();
@@ -514,24 +514,24 @@ impl WorkerState {
             .ok_or(anyhow!("App not found"))?;
         let current = app.instances.len();
         let max_allowed = if app.manifest.resizable { count } else { 1 };
-        info!(current, count, max_allowed, "Changing number of instances");
+        info!(current, count, max_allowed, "changing number of instances");
         let mut created = vec![];
         let mut removed = vec![];
         if count > current {
             let on_demand = app.manifest.on_demand;
             if on_demand && !demand {
-                bail!("On-demand app cannot be started directly");
+                bail!("on-demand app cannot be started directly");
             }
             let available_slots = self.available_slots();
             let creating = available_slots.min(count - current);
-            info!(available_slots, creating, "Creating instances");
+            info!(available_slots, creating, "creating instances");
             for i in 0..creating {
-                info!("Starting instance ({}/{creating})...", i + 1);
+                info!("starting instance ({}/{creating})...", i + 1);
                 created.push(self.start_app(address)?);
             }
         } else if count < current {
             let stop_count = current - count;
-            info!(stop_count, "Stopping instances");
+            info!(stop_count, "stopping instances");
             removed = app
                 .instances
                 .drain(count..)
@@ -552,7 +552,7 @@ impl WorkerState {
 
     fn init(&mut self, salt: &[u8]) -> Result<[u8; 32]> {
         if !self.apps.is_empty() {
-            bail!("Init session failed, apps already deployed")
+            bail!("init session failed, apps already deployed")
         }
         let seed: [u8; 32] = rand::thread_rng().gen();
         let message = [salt, &seed].concat();

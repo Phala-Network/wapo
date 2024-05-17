@@ -16,5 +16,5 @@ fn main() {
     }
     builder
         .compile(&["wapod_rpc.proto"], &["./proto"])
-        .expect("Failed to compile proto files");
+        .expect("failed to compile proto files");
 }

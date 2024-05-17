@@ -97,7 +97,7 @@ async fn hash_file(path: impl AsRef<Path>, hash_algo: HashAlgo) -> Result<Vec<u8
     let path = path.as_ref();
     let file = tokio::fs::File::open(path)
         .await
-        .context("Failed to open object file")?;
+        .context("failed to open object file")?;
     let mut hasher = match hash_algo {
         HashAlgo::Sha256 => Hasher::Sha256(sha2::Sha256::new()),
         HashAlgo::Sha512 => Hasher::Sha512(sha2::Sha512::new()),
@@ -108,7 +108,7 @@ async fn hash_file(path: impl AsRef<Path>, hash_algo: HashAlgo) -> Result<Vec<u8
         let n = file
             .read(&mut buf)
             .await
-            .context("Failed to read object file")?;
+            .context("failed to read object file")?;
         if n == 0 {
             break;
         }
@@ -129,36 +129,36 @@ where
     let hash_algo = HashAlgo::from_str(hash_algo).map_err(Error::msg)?;
     let path = path.as_ref();
     let tmpdir = path.join(".tmp");
-    std::fs::create_dir_all(&tmpdir).context("Failed to create blobs directory")?;
+    std::fs::create_dir_all(&tmpdir).context("failed to create blobs directory")?;
 
     let tmp_filepath = tmpdir.join(&uuid::Uuid::new_v4().to_string());
     let mut tmpfile = tokio::fs::File::create(&tmp_filepath)
         .await
-        .context("Failed to create temporary object file")?;
+        .context("failed to create temporary object file")?;
     let _guard = scopeguard::guard((), |_| {
         let _ = std::fs::remove_file(&tmp_filepath);
     });
     tokio::io::copy(data, &mut tmpfile)
         .await
-        .context("Failed to write object file")?;
+        .context("failed to write object file")?;
     tmpfile
         .sync_all()
         .await
-        .context("Failed to sync object file")?;
+        .context("failed to sync object file")?;
     drop(tmpfile);
 
     // Make sure the hash of the file is correct
     let actual_hash = hash_file(&tmp_filepath, hash_algo).await?;
     if !hash.is_empty() && actual_hash != hash {
         bail!(
-            "Object file hash mismatch, actual: {}, expected: {}",
+            "blob hash mismatch, actual: {}, expected: {}",
             hex_fmt::HexFmt(actual_hash),
             hex_fmt::HexFmt(hash)
         );
     }
     let key = hex::encode(&actual_hash);
     std::fs::rename(&tmp_filepath, path.join(&key))
-        .context("Failed to move object file to blobs directory")?;
+        .context("failed to move object file to blobs directory")?;
     Ok(actual_hash)
 }
 
@@ -172,12 +172,12 @@ pub fn get_object(
     let data = match result {
         Ok(data) => data,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(err) => return Err(err).context("Failed to read object file"),
+        Err(err) => return Err(err).context("failed to read object file"),
     };
     let actual_hash = Hasher::hash(&data, hash_algo);
     if actual_hash != hash {
         bail!(
-            "Object file hash mismatch, actual hash is {}",
+            "blob hash mismatch, actual hash is {}",
             hex_fmt::HexFmt(actual_hash)
         );
     }

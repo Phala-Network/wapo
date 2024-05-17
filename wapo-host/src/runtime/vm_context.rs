@@ -486,7 +486,7 @@ fn add_wapo_ocalls_to_linker<State>(
                 do_ocall(caller, task_id, func_id, p0, p1, p2, p3, true, get_cx).map_err(Into::into)
             },
         )
-        .context("Failed to add wapo.ocall_fast_return to linker")?;
+        .context("failed to add wapo.ocall_fast_return to linker")?;
     linker
         .func_wrap(
             "wapo",
@@ -503,7 +503,7 @@ fn add_wapo_ocalls_to_linker<State>(
                     .map_err(Into::into)
             },
         )
-        .context("Failed to add wapo.ocall to linker")?;
+        .context("failed to add wapo.ocall to linker")?;
     Ok(())
 }
 
@@ -526,7 +526,7 @@ fn add_sidevm_ocalls_to_linker<State>(
                 do_ocall(caller, task_id, func_id, p0, p1, p2, p3, true, get_cx).map_err(Into::into)
             },
         )
-        .context("Failed to add env.sidevm_ocall_fast_return to linker")?;
+        .context("failed to add env.sidevm_ocall_fast_return to linker")?;
     linker
         .func_wrap(
             "env",
@@ -543,7 +543,7 @@ fn add_sidevm_ocalls_to_linker<State>(
                     .map_err(Into::into)
             },
         )
-        .context("Failed to add env.sidevm_ocall to linker")?;
+        .context("failed to add env.sidevm_ocall to linker")?;
     Ok(())
 }
 
@@ -623,7 +623,7 @@ impl WapoCtx {
         reply_tx: OneshotSender<Vec<u8>>,
     ) -> anyhow::Result<()> {
         let Some(tx) = self.query_tx.clone() else {
-            debug!(target: "wapo", "Query dropped: no query channel");
+            debug!(target: "wapo", "query dropped: no query channel");
             return Ok(());
         };
         let reply_tx = self.resources.push(Resource::OneshotTx(Some(reply_tx)));
@@ -651,7 +651,7 @@ impl WapoCtx {
             response_tx,
         } = request;
         let Some(connect_tx) = self.http_connect_tx.clone() else {
-            debug!(target: "wapo", "Http request dropped: no http connect channel");
+            debug!(target: "wapo", "http request dropped: no http connect channel");
             return Ok(());
         };
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -660,13 +660,13 @@ impl WapoCtx {
             async move {
                 let reply = reply_rx.await;
                 let reply = reply
-                    .context("Failed to receive http response")
+                    .context("failed to receive http response")
                     .and_then(|bytes| {
                         let response = HttpResponseHead::decode(&mut &bytes[..])?;
                         Ok(response)
                     });
                 if response_tx.send(reply).is_err() {
-                    info!(target: "wapo", "Failed to send http response");
+                    info!(target: "wapo", "failed to send http response");
                 }
             }
             .instrument(Span::current()),

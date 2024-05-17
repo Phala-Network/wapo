@@ -494,9 +494,9 @@ where
         let tp = ((encoded >> 32) & 0xffffffff) as i32;
         let val = (encoded & 0xffffffff) as i32;
         if tp == 0 {
-            Ok(A::from_i32(val).expect("Invalid ocall return"))
+            Ok(A::from_i32(val).expect("invalid ocall return"))
         } else {
-            Err(B::from_i32(val).expect("Invalid ocall return"))
+            Err(B::from_i32(val).expect("invalid ocall return"))
         }
     }
 }
