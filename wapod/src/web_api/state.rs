@@ -439,7 +439,7 @@ impl WorkerState {
         }
         let config = service::InstanceStartConfig::builder()
             .auto_restart(true)
-            .max_memory_pages(self.args.max_memory_pages)
+            .max_memory_pages(self.args.max_memory_pages as _)
             .id(address)
             .weight(1)
             .blobs_dir(self.args.blobs_dir.as_str().into())

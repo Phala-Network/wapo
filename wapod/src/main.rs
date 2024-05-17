@@ -1,8 +1,6 @@
-use std::thread::available_parallelism;
-
 use anyhow::{Context, Result};
 use clap::Parser;
-use tracing::info;
+use tracing::{info, warn};
 use web_api::crate_worker_state;
 
 mod allocator;
@@ -11,12 +9,12 @@ mod paths;
 mod web_api;
 mod worker_key;
 
-#[derive(Parser, Clone)]
+#[derive(Parser, Clone, Debug)]
 #[clap(about = "wapo - a WASM runtime", version, author)]
 pub struct Args {
     /// Max memory pages
     #[arg(long, default_value_t = 256)]
-    max_memory_pages: u32,
+    max_memory_pages: usize,
     /// Max number of instances to run
     #[arg(long)]
     max_instances: Option<usize>,
@@ -37,9 +35,55 @@ pub struct Args {
 impl Args {
     fn max_instances(&self) -> usize {
         self.max_instances
-            .or_else(|| available_parallelism().ok().map(Into::into))
-            .unwrap_or(1)
+            .unwrap_or_else(|| self.max_allowed_instances().unwrap_or(32))
     }
+
+    fn validate(&self) -> Result<()> {
+        self.validate_mem_size()?;
+        Ok(())
+    }
+
+    fn max_allowed_instances(&self) -> Option<usize> {
+        let enclave_size = enclave_size()?;
+        let page_size = 64 * 1024;
+        let est_sys_overhead = 1024 * 1024 * 256;
+        let est_vm_overhead = 1024 * 1024;
+        let memory_per_vm = self
+            .max_memory_pages
+            .max(1)
+            .saturating_mul(page_size)
+            .saturating_add(est_vm_overhead);
+        let allowed_instances = enclave_size
+            .saturating_sub(est_sys_overhead)
+            .saturating_div(memory_per_vm);
+        Some(allowed_instances)
+    }
+
+    fn validate_mem_size(&self) -> Result<()> {
+        let Some(allowed_instances) = self.max_allowed_instances() else {
+            warn!("WAPOD_ENCLAVE_MEM_SIZE is not set, skipping validation");
+            return Ok(());
+        };
+        if let Some(enclave_size) = enclave_size() {
+            info!("enclave size: {enclave_size}");
+        }
+        info!("possible instances: {allowed_instances}");
+        info!("set max instances: {}", self.max_instances());
+        if self.max_instances() > allowed_instances {
+            anyhow::bail!("max_instances is too large");
+        }
+        Ok(())
+    }
+}
+
+fn enclave_size() -> Option<usize> {
+    let Ok(enclave_mem_size) = std::env::var("WAPOD_ENCLAVE_MEM_SIZE") else {
+        return None;
+    };
+    let enclave_mem_size: usize = enclave_mem_size
+        .parse()
+        .expect("WAPOD_ENCLAVE_MEM_SIZE must be an integer");
+    Some(enclave_mem_size)
 }
 
 #[tokio::main]
@@ -48,6 +92,10 @@ async fn main() -> Result<()> {
 
     info!("starting wapod server...");
     let args = Args::parse();
+
+    info!("args: {:?}", args);
+
+    args.validate().context("invalid args")?;
 
     paths::create_dirs_if_needed().context("failed to create directories")?;
 
@@ -74,8 +122,7 @@ async fn main() -> Result<()> {
 }
 
 fn todo() {
-    let todo = "Validate max_memory_pages * max_instances < WAPOD_ENCLAVE_MEM_SIZE";
     let todo = "Store instance logs to disk";
     let todo = "implement JWT auth";
-    let todo = "put RUST_LOG_SANITIZED in grame manifest";
+    let todo = "put RUST_LOG_SANITIZED/WAPOD_ENCLAVE_MEM_SIZE in grame manifest";
 }
