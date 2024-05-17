@@ -10,7 +10,7 @@ use lru::LruCache;
 use tokio::sync::broadcast::{channel, Sender};
 use tracing::{debug, info};
 
-use crate::{blobs::BlobLoader, ShortId, WasmEngine, WasmModule, ArcError};
+use crate::{blobs::BlobLoader, ArcError, ShortId, WasmEngine, WasmModule};
 
 pub struct ModuleLoaderInfo {
     pub max_compilation_tasks: usize,

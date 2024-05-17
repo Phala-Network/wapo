@@ -1,9 +1,9 @@
+mod error;
 mod module_loader;
 #[cfg(feature = "rocket-stream")]
 pub mod rocket_stream;
 mod run;
 mod runtime;
-mod error;
 
 pub use error::ArcError;
 pub mod service;
@@ -18,6 +18,6 @@ pub type VmId = [u8; 32];
 pub use run::{InstanceConfig, InstanceConfigBuilder, WasmEngine, WasmModule, WasmRun};
 pub use wasmtime;
 
+pub use module_loader::{ModuleLoader, ModuleLoaderInfo};
 pub use service::{IncomingHttpRequest, VmStatus, VmStatusReceiver};
 pub use wapo_env::OcallError;
-pub use module_loader::{ModuleLoader, ModuleLoaderInfo};
