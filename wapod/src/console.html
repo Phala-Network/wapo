@@ -545,11 +545,10 @@
                 </table>
             </div>
 
-            <div id="queryAppModal" class="modal" @mousedown.prevent="startDialogDrag" v-show="queryForm.show"
-                style="display: none;">
+            <div id="queryAppModal" class="modal" v-show="queryForm.show" style="display: none;">
                 <div id="queryModelContent" class="modal-content">
                     <span class="close-button" @click="closeQuery">&times;</span>
-                    <div class="modal-header">
+                    <div class="modal-header" @mousedown.prevent="startDialogDrag">
                         <h2>Query</h2>
                     </div>
                     <div>
