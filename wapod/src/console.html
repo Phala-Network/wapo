@@ -598,9 +598,9 @@
                 }
                 let costStr = '';
                 if (cost) {
-                    costStr = cost + 'ms'; // default to milliseconds
+                    costStr = cost + 'ms';
                     if (cost >= 1000) {
-                        costStr = (cost / 1000).toFixed(2) + 's'; // convert to seconds if cost is more than 1000ms
+                        costStr = (cost / 1000).toFixed(2) + 's';
                     }
                     costStr = ` (cost ${costStr})`;
                 }
@@ -630,9 +630,9 @@
             async deployApp() {
                 try {
                     const manifest = {
-                        runtime: "test", // assuming 'runtime' as a static value for demo purposes
+                        runtime: "test",
                         code_hash: this.deployForm.codeHash,
-                        hash_algorithm: "sha256", // assuming 'hash_algorithm' as static too
+                        hash_algorithm: "sha256",
                         args: JSON.parse(this.deployForm.args),
                         env_vars: JSON.parse(this.deployForm.envVars),
                         on_demand: this.deployForm.onDemand,
@@ -896,34 +896,26 @@
     }
 
     function hexDecode(hexString) {
-        // Remove the "0x" prefix if present
         if (hexString.startsWith('0x')) {
             hexString = hexString.slice(2);
         }
         if (hexString.length == 0) {
             return new Uint8Array();
         }
-        // Ensure the hex string has an even number of characters for valid byte pairs
         if (hexString.length % 2 !== 0) {
             throw new Error('Invalid hex string, it must have an even number of characters');
         }
-
-        // Convert the hex string to a byte array
         return new Uint8Array(hexString.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
     }
     function hexDecodeStr(hexString) {
         const bytes = hexDecode(hexString);
-        // Decode the byte array using TextDecoder which supports UTF-8
         const decoder = new TextDecoder();
         return decoder.decode(bytes);
     }
 
     function hexEncode(utf8String) {
-        // Encode the UTF-8 string using TextEncoder to get the bytes
         const encoder = new TextEncoder();
         const bytes = encoder.encode(utf8String);
-
-        // Convert the bytes to a hexadecimal string
         let hexString = '';
         for (const byte of bytes) {
             hexString += byte.toString(16).padStart(2, '0');
