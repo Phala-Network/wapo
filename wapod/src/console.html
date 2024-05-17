@@ -273,7 +273,7 @@
         .modal {
             display: block;
             position: fixed;
-            z-index: 1;
+            z-index: 1000;
             left: 0;
             top: 0;
             width: 100%;
@@ -288,6 +288,10 @@
             padding: 20px;
             border: 1px solid #888;
             width: 30%;
+        }
+
+        .modal-header {
+            cursor: move;
         }
 
         .close-button {
@@ -498,10 +502,13 @@
                 </table>
             </div>
 
-            <div id="queryAppModal" class="modal" v-show="queryForm.show" style="display: none;">
+            <div id="queryAppModal" class="modal" @mousedown.prevent="startDialogDrag" v-show="queryForm.show"
+                style="display: none;">
                 <div class="modal-content">
                     <span class="close-button" @click="closeQuery">&times;</span>
-                    <h2>Query</h2>
+                    <div class="modal-header">
+                        <h2>Query</h2>
+                    </div>
                     <div>
                         <label>Address:</label>
                         <input type="text" v-model="queryForm.address" />
@@ -524,7 +531,7 @@
                     <button @click="clearConsoleOutput">Clear</button>
                 </div>
             </div>
-            <div id="consoleResizer" class="resizer" @mousedown.prevent="startDrag"
+            <div id="consoleResizer" class="resizer" @mousedown.prevent="startDragResizer"
                 :style="{ bottom: consoleHeight + 'px' }"></div>
             <textarea id="consoleOutput" ref="consoleOutput" v-model="consoleOutput"
                 :style="{ height: consoleHeight + 'px' }" disabled></textarea>
@@ -774,20 +781,16 @@
             closeQuery() {
                 this.queryForm.show = false;
             },
-            startDrag(e) {
-                this.drag.startY = e.clientY;
-                this.drag.startHeight = this.consoleHeight;
-                document.documentElement.addEventListener('mousemove', this.doDrag, false);
-                document.documentElement.addEventListener('mouseup', this.stopDrag, false);
-            },
-            doDrag(e) {
-                const diff = e.clientY - this.drag.startY;
-                this.consoleHeight = this.drag.startHeight - diff;
-            },
-            stopDrag(e) {
-                document.documentElement.removeEventListener('mousemove', this.doDrag, false);
-                document.documentElement.removeEventListener('mouseup', this.stopDrag, false);
-            },
+            startDragResizer: dragHelper({
+                start(e) {
+                    return {
+                        shiftY: -e.clientY - this.consoleHeight
+                    };
+                },
+                onDrag(e, init) {
+                    this.consoleHeight = -e.clientY - init.shiftY;
+                }
+            }),
             handleScroll() {
                 const sections = document.querySelectorAll('.tabcontent');
                 sections.forEach((section) => {
@@ -809,6 +812,21 @@
                 const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
                 return Math.round(bytes / Math.pow(1024, i), 2) + ' ' + sizes[i];
             },
+
+            startDialogDrag: dragHelper({
+                start(e) {
+                    const modal = document.getElementById('queryAppModal');
+                    return {
+                        shiftX: e.clientX - modal.getBoundingClientRect().left,
+                        shiftY: e.clientY - modal.getBoundingClientRect().top,
+                        modal,
+                    };
+                },
+                onDrag(e, init) {
+                    init.modal.style.left = `${e.clientX - init.shiftX}px`;
+                    init.modal.style.top = `${e.clientY - init.shiftY}px`;
+                }
+            }),
         },
         mounted() {
             this.updateInfo();
@@ -864,10 +882,6 @@
                 toasts: [],
                 nextToastId: 0,
                 consoleHeight: 200,
-                drag: {
-                    startY: 0,
-                    startHeight: 0,
-                },
             };
         },
     }).mount('body');
@@ -922,6 +936,22 @@
         }
 
         return '0x' + hexString;
+    }
+
+    function dragHelper({ start, onDrag }) {
+        return function startDrag(e) {
+            let self = this;
+            const init = start.call(self, e);
+            const doDrag = (e) => {
+                onDrag.call(self, e, init);
+            };
+            const stopDrag = () => {
+                document.removeEventListener('mousemove', doDrag);
+                document.removeEventListener('mouseup', stopDrag);
+            };
+            document.addEventListener('mousemove', doDrag);
+            document.addEventListener('mouseup', stopDrag);
+        };
     }
 
 </script>
