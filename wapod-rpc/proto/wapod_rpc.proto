@@ -114,6 +114,8 @@ message WorkerInfo {
   bytes session = 6;
   // The memory information of the worker.
   MemoryUsage memory_usage = 7;
+  // The information of the module loader.
+  ModuleLoaderInfo module_loader_info = 8;
 }
 
 message MemoryUsage {
@@ -127,6 +129,23 @@ message MemoryUsage {
   uint64 peak = 4;
   // The memory left.
   uint64 free = 5;
+}
+
+message ModuleLoaderInfo {
+  // The maximum number of compilation threads that can be run concurrently.
+  uint32 max_compilation_tasks = 1;
+  // The capacity of the queue of the code hashes waiting to be compiled.
+  uint32 queue_cap = 2;
+  // The current number of items in the queue.
+  uint32 queue_used = 3;
+  // The capacity of the cache used for storing compilation results.
+  uint32 cache_cap = 4;
+  // The current number of items in the cache.
+  uint32 cache_used = 5;
+  // The length of the handles that are currently being compiled or waiting to be compiled.
+  uint32 compiling_handles_len = 6;
+  // The number of threads that are currently in the process of compiling.
+  uint32 compiling_tasks = 7;
 }
 
 // An object to be stored in the worker's object storage.

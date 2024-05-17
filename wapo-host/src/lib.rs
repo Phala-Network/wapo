@@ -18,3 +18,4 @@ pub use wasmtime;
 
 pub use service::{IncomingHttpRequest, VmStatus, VmStatusReceiver};
 pub use wapo_env::OcallError;
+pub use module_loader::{ModuleLoader, ModuleLoaderInfo};

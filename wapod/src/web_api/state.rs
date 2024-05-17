@@ -6,7 +6,7 @@ use tokio::sync::oneshot;
 use tracing::{field::display, info, warn, Instrument};
 use wapo_host::{blobs::BlobLoader, Metrics};
 use wapo_host::{ShortId, VmStatus, VmStatusReceiver};
-use wapod_rpc::prpc as pb;
+use wapod_rpc::prpc::{self as pb};
 
 use std::collections::HashMap;
 
@@ -157,7 +157,7 @@ impl Worker {
         Some(handle)
     }
 
-    pub fn info(&self) -> pb::WorkerInfo {
+    pub fn info(&self, admin: bool) -> pb::WorkerInfo {
         let worker = self.lock();
         let max_instances = worker.args.max_instances as u64;
         let deployed_apps = worker.apps.len() as u64;
@@ -167,6 +167,20 @@ impl Worker {
             .map(|state| state.instances.len())
             .sum::<usize>() as u64;
         let instance_memory_size = worker.args.max_memory_pages as u64 * 64 * 1024;
+        let info = worker.service.module_loader().info();
+        let module_loader_info = if admin {
+            Some(pb::ModuleLoaderInfo {
+                max_compilation_tasks: info.max_compilation_tasks as _,
+                queue_cap: info.queue_cap as _,
+                queue_used: info.queue_used as _,
+                cache_cap: info.cache_cap as _,
+                cache_used: info.cache_used as _,
+                compiling_handles_len: info.compiling_handles_len as _,
+                compiling_tasks: info.compiling_tasks as _,
+            })
+        } else {
+            None
+        };
         pb::WorkerInfo {
             pubkey: load_or_generate_key().public().as_bytes().to_vec(),
             deployed_apps,
@@ -175,6 +189,7 @@ impl Worker {
             instance_memory_size,
             session: worker.session.map(|s| s.to_vec()).unwrap_or_default(),
             memory_usage: Some(crate::allocator::mem_usage()),
+            module_loader_info,
         }
     }
 

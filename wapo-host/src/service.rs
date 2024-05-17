@@ -202,6 +202,7 @@ pub fn service(
     let run = ServiceRun { runtime, report_rx };
     let blob_loader = BlobLoader::new(blobs_dir);
     let engine = WasmEngine::new(Config::new(), 10).context("Failed to create Wasm engine")?;
+    let todo = "configurable cache_size";
     let module_loader = ModuleLoader::new(engine, blob_loader, 100);
     let spawner = ServiceHandle {
         runtime_handle,
@@ -445,5 +446,9 @@ impl ServiceHandle {
 
     pub fn event_tx(&self) -> crate::OutgoingRequestSender {
         self.out_tx.clone()
+    }
+
+    pub fn module_loader(&self) -> &ModuleLoader {
+        &self.module_loader
     }
 }

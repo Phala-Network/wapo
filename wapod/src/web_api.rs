@@ -177,7 +177,8 @@ async fn connect_vm<'r>(
 
 #[get("/info")]
 async fn info(state: &State<Worker>) -> String {
-    let info = state.info();
+    let info = state.info(true);
+    let todo = "Move to prpc";
     serde_json::json!({
         "running": wapo_host::vm_count(),
         "deployed": info.running_instances,
