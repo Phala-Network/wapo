@@ -126,4 +126,6 @@ fn todo() {
     let todo = "implement JWT auth";
     let todo = "put RUST_LOG_SANITIZED/WAPOD_ENCLAVE_MEM_SIZE in grame manifest";
     let todo = "add prpc register_info";
+    let todo = "implement signing with worker key for guest";
+    let todo = "implement sgx_quote api for guest";
 }
