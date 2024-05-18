@@ -14,7 +14,7 @@ Each of the dirname should be considered a component name.
 
 Example message 1:
 
-    chore(wapo-env): Suppress dead code warning in trait implementation
+    chore(wapo-env): Suppress warning for fn load
 
     Added `#[allow(dead_code)]` attribute to suppress dead code warning for `load` function in `Nargs` trait. (parse_args.rs)
 
