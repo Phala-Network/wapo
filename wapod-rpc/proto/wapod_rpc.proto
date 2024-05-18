@@ -106,6 +106,9 @@ message WorkerInfo {
   uint64 deployed_apps = 2;
   // The number of running instances.
   uint64 running_instances = 3;
+  // The number of instances reported by the low level driver.
+  // This should be the same as running_instances unless there is a bug.
+  uint64 vm_instances = 9;
   // The maximum number of instances.
   uint64 max_instances = 4;
   // The size limit of memory for each instance.
@@ -116,6 +119,7 @@ message WorkerInfo {
   MemoryUsage memory_usage = 7;
   // The information of the module loader.
   ModuleLoaderInfo module_loader_info = 8;
+  // next 10
 }
 
 message MemoryUsage {

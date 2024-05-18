@@ -188,6 +188,7 @@ impl Worker {
             session: worker.session.map(|s| s.to_vec()).unwrap_or_default(),
             memory_usage: Some(crate::allocator::mem_usage()),
             module_loader_info,
+            vm_instances: wapo_host::vm_count() as _,
         }
     }
 
