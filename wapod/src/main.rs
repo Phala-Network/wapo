@@ -125,5 +125,4 @@ fn todo() {
     let todo = "Store instance logs to disk";
     let todo = "implement JWT auth";
     let todo = "put RUST_LOG_SANITIZED/WAPOD_ENCLAVE_MEM_SIZE in grame manifest";
-    let todo = "manifest limit to prevent DoS";
 }

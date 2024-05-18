@@ -314,12 +314,23 @@ impl Worker {
     }
 
     pub async fn deploy_app(&self, manifest: Manifest) -> Result<AppInfo> {
+        if manifest.version != 1 {
+            bail!("unsupported manifest version {}", manifest.version);
+        }
         if manifest.resizable && manifest.on_demand {
             bail!("on-demand app can not be resizable");
         }
-        let on_demand = manifest.on_demand;
-        let address = sp_core::blake2_256(&scale::Encode::encode(&manifest));
+        let encoded = scale::Encode::encode(&manifest);
+        const MAX_MANIFEST_SIZE: usize = 1024 * 16;
+        if encoded.len() > MAX_MANIFEST_SIZE {
+            bail!(
+                "manifest too large, max={MAX_MANIFEST_SIZE}, actual={}",
+                encoded.len()
+            );
+        }
+        let address = sp_core::blake2_256(&encoded);
         tracing::Span::current().record("addr", display(ShortId(&address)));
+        let on_demand = manifest.on_demand;
         {
             let mut worker = self.lock();
             if worker.apps.contains_key(&address) {
