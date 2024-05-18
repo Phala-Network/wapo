@@ -502,14 +502,14 @@
                             <td>{{ app.sn }}</td>
                             <td><span class="shortened-address">{{ app.address }}</span></td>
                             <td>{{ app.manifest.resizable ? 'Yes' : 'No' }}</td>
-                            <td>{{ app.manifest.on_demand ? 'OnDemand' : 'Immediate' }}</td>
+                            <td>{{ app.manifest.on_demand ? 'OnDemand' : 'Background' }}</td>
                             <td>{{ app.instances }}</td>
                             <td>{{ app.manifest.max_query_size }}</td>
                             <td>
                                 <div class="form-group app-op-buttons">
-                                    <button class="btn-small" @click="startApp(app.address)">▶</button>
+                                    <button class="btn-small" @click="startApp(app.address)" :disabled="app.manifest.on_demand">▶</button>
+                                    <button class="btn-small" @click="resizeApp(app.address)" :disabled="!app.manifest.resizable">+/-</button>
                                     <button class="btn-small" @click="stopApp(app.address)">◾</button>
-                                    <button class="btn-small" @click="resizeApp(app.address)">➕</button>
                                     <button class="btn-small" @click="removeApp(app.address)">❌</button>
                                     <button class="btn-small" @click="showQuery(app.address)">💬</button>
                                 </div>
