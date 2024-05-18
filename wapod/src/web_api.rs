@@ -14,17 +14,13 @@ use rocket::{get, post, routes, Data, State};
 use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
 use tracing::{info, instrument, warn};
 
-use sp_core::crypto::AccountId32;
-
 use wapo_host::service::Report;
 use wapo_host::{crate_outgoing_request_channel, ShortId};
 use wapod_rpc::prpc::server::{ComposedService, Service};
 use wapod_rpc::prpc::{operation_server::OperationServer, user_server::UserServer};
 
 use std::path::PathBuf;
-use std::str::FromStr;
 
-use service::Command;
 use wapo_host::{
     rocket_stream::{connect, RequestInfo, StreamResponse},
     service, OutgoingRequest,
@@ -85,52 +81,6 @@ async fn read_data(data: Data<'_>, limit: ByteUnit) -> Result<Vec<u8>, ReadDataE
     Ok(data.into_inner())
 }
 
-#[post("/push/query/<id>/<path>?<origin>", data = "<data>")]
-async fn push_query(
-    state: &State<Worker>,
-    id: HexBytes,
-    origin: Option<&str>,
-    path: &str,
-    data: Data<'_>,
-) -> Result<Vec<u8>, Custom<&'static str>> {
-    let payload = read_data(data, 100.mebibytes()).await?;
-    let address =
-        id.0.try_into()
-            .map_err(|_| Custom(Status::BadRequest, "invalid address"))?;
-
-    let (reply_tx, rx) = tokio::sync::oneshot::channel();
-    let origin = match origin {
-        None => None,
-        Some(origin) => Some(
-            AccountId32::from_str(origin)
-                .or(Err(Custom(
-                    Status::BadRequest,
-                    "Failed to decode the origin",
-                )))?
-                .into(),
-        ),
-    };
-
-    state
-        .send(
-            address,
-            0,
-            Command::PushQuery {
-                path: path.into(),
-                origin,
-                payload,
-                reply_tx,
-            },
-        )
-        .await
-        .map_err(|(code, reason)| Custom(Status { code }, reason))?;
-    let reply = rx.await.or(Err(Custom(
-        Status::InternalServerError,
-        "Failed to receive query reply from the VM",
-    )))?;
-    Ok(reply)
-}
-
 #[post("/vm/<id>/<path..>", data = "<body>")]
 async fn connect_vm_post<'r>(
     state: &State<Worker>,
@@ -173,17 +123,6 @@ async fn connect_vm<'r>(
         Ok(response) => Ok(response),
         Err(err) => Err((Status::InternalServerError, err.to_string())),
     }
-}
-
-#[get("/info")]
-async fn info(state: &State<Worker>) -> String {
-    let info = state.info(true);
-    let todo = "Move to prpc";
-    serde_json::json!({
-        "running": wapo_host::vm_count(),
-        "deployed": info.running_instances,
-    })
-    .to_string()
 }
 
 #[instrument(target="prpc", name="user", fields(%id), skip_all)]
@@ -374,10 +313,7 @@ pub async fn serve_admin(state: Worker, args: Args) -> Result<()> {
         .attach(RequestTracer::default())
         .attach(TimeMeter)
         .manage(state)
-        .mount(
-            "/",
-            routes![push_query, info, object_post, object_get, console],
-        )
+        .mount("/", routes![object_post, object_get, console])
         .mount("/prpc", routes![prpc_admin_post, prpc_admin_get])
         .launch()
         .await?;

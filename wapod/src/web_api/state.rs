@@ -128,20 +128,6 @@ impl Worker {
         self.inner.lock().expect("worker lock poisoned")
     }
 
-    pub async fn send(
-        &self,
-        vmid: Address,
-        index: usize,
-        message: Command,
-    ) -> Result<(), (u16, &'static str)> {
-        self.sender_for(vmid, index)
-            .ok_or((404, "App not found"))?
-            .send(message)
-            .await
-            .or(Err((500, "Failed to send message")))?;
-        Ok(())
-    }
-
     pub fn sender_for(&self, vmid: Address, index: usize) -> Option<CommandSender> {
         let handle = self
             .lock()
