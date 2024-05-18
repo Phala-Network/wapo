@@ -36,9 +36,8 @@ pub struct AppInfo {
     pub address: Address,
     pub session: [u8; 32],
     pub running_instances: usize,
-    pub resizable: bool,
-    pub on_demand: bool,
     pub last_query_elapsed_secs: u64,
+    pub manifest: Manifest,
 }
 
 pub struct AppState {
@@ -76,9 +75,8 @@ impl AppState {
             sn: self.sn,
             session: self.session,
             running_instances: self.instances.len(),
-            resizable: self.manifest.resizable,
-            on_demand: self.manifest.on_demand,
             last_query_elapsed_secs: self.last_query_done.elapsed().as_secs(),
+            manifest: self.manifest.clone(),
         }
     }
 }

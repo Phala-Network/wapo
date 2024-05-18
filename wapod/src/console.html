@@ -358,7 +358,7 @@
             <table>
                 <tbody>
                     <tr>
-                        <td>Apps</td>
+                        <td>Deployed</td>
                         <td>{{ workerInfo.deployed_apps }}</td>
                     </tr>
                     <tr>
@@ -366,7 +366,11 @@
                         <td>{{ workerInfo.running_instances }}</td>
                     </tr>
                     <tr>
-                        <td>Memory size</td>
+                        <td>Max Running</td>
+                        <td>{{ workerInfo.max_instances }}</td>
+                    </tr>
+                    <tr>
+                        <td>Memory Limit<br>(per instance)</td>
                         <td>{{ humanMemorySize(workerInfo.instance_memory_size) }}</td>
                     </tr>
                     <tr>
@@ -417,46 +421,6 @@
                         <tr>
                             <td>Session</td>
                             <td>{{ workerInfo.session }}</td>
-                        </tr>
-                        <tr>
-                            <td>Deployed Apps</td>
-                            <td>{{ workerInfo.deployed_apps }}</td>
-                        </tr>
-                        <tr>
-                            <td>Running Instances</td>
-                            <td>{{ workerInfo.running_instances }}</td>
-                        </tr>
-                        <tr>
-                            <td>Max Instances</td>
-                            <td>{{ workerInfo.max_instances }}</td>
-                        </tr>
-                        <tr>
-                            <td>Instance Memory Size</td>
-                            <td>{{ humanMemorySize(workerInfo.instance_memory_size) }}</td>
-                        </tr>
-                        <tr>
-                            <td>Rust Used</td>
-                            <td>{{ humanMemorySize(workerInfo.memory_usage?.rust_used) }}</td>
-                        </tr>
-                        <tr>
-                            <td>Rust Peak</td>
-                            <td>{{ humanMemorySize(workerInfo.memory_usage?.rust_peak) }}</td>
-                        </tr>
-                        <tr>
-                            <td>Rust Spike</td>
-                            <td>{{ humanMemorySize(workerInfo.memory_usage?.rust_spike) }}</td>
-                        </tr>
-                        <tr>
-                            <td>Used</td>
-                            <td>{{ humanMemorySize(workerInfo.memory_usage?.used) }}</td>
-                        </tr>
-                        <tr>
-                            <td>Peak</td>
-                            <td>{{ humanMemorySize(workerInfo.memory_usage?.peak) }}</td>
-                        </tr>
-                        <tr>
-                            <td>Free</td>
-                            <td>{{ humanMemorySize(workerInfo.memory_usage?.free) }}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -525,6 +489,7 @@
                             <th>Resizable</th>
                             <th>Start Mode</th>
                             <th>Instances</th>
+                            <th>Query Size</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -532,9 +497,10 @@
                         <tr v-for="app in appsData" :key="app.address">
                             <td>{{ app.sn }}</td>
                             <td><span class="shortened-address">{{ app.address }}</span></td>
-                            <td>{{ app.resizable ? 'Yes' : 'No' }}</td>
-                            <td>{{ app.on_demand ? 'OnDemand' : 'Immediate' }}</td>
+                            <td>{{ app.manifest.resizable ? 'Yes' : 'No' }}</td>
+                            <td>{{ app.manifest.on_demand ? 'OnDemand' : 'Immediate' }}</td>
                             <td>{{ app.instances }}</td>
+                            <td>{{ app.manifest.max_query_size }}</td>
                             <td>
                                 <div class="form-group app-op-buttons">
                                     <button class="btn-small" @click="startApp(app.address)">▶</button>
@@ -922,7 +888,7 @@
                     onDemand: false,
                     salt: '0x00',
                     resizable: false,
-                    maxQuerySize: 1024*1024,
+                    maxQuerySize: 1024 * 1024,
                 },
                 queryForm: {
                     path: '/',

@@ -190,9 +190,8 @@ impl OperationRpc for Call {
                     info.sn,
                     info.address,
                     info.running_instances as _,
-                    info.resizable,
-                    info.on_demand,
                     info.last_query_elapsed_secs,
+                    Some(info.manifest),
                 )
             })
             .collect();
