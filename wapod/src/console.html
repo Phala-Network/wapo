@@ -509,6 +509,10 @@
                             <label>Resizable:</label>
                             <input type="checkbox" v-model="deployForm.resizable">
                         </div>
+                        <div class="form-group">
+                            <label>Max query size:</label>
+                            <input type="number" v-model="deployForm.maxQuerySize">
+                        </div>
                         <button type="submit">Deploy</button>
                     </form>
                 </div>
@@ -679,14 +683,15 @@
             async deployApp() {
                 try {
                     const manifest = {
-                        runtime: "test",
+                        version: 1,
                         code_hash: this.deployForm.codeHash,
                         hash_algorithm: "sha256",
                         args: JSON.parse(this.deployForm.args),
                         env_vars: JSON.parse(this.deployForm.envVars),
                         on_demand: this.deployForm.onDemand,
                         salt: this.deployForm.salt,
-                        resizable: this.deployForm.resizable
+                        resizable: this.deployForm.resizable,
+                        max_query_size: this.deployForm.maxQuerySize,
                     };
                     await this.rpcCall('AppDeploy', { manifest });
                     this.loadApps();
@@ -916,7 +921,8 @@
                     envVars: '[]',
                     onDemand: false,
                     salt: '0x00',
-                    resizable: false
+                    resizable: false,
+                    maxQuerySize: 1024*1024,
                 },
                 queryForm: {
                     path: '/',

@@ -197,7 +197,7 @@ impl Worker {
         self.lock().blob_loader.clone()
     }
 
-    async fn prepare_query(&self, address: Address) -> Result<QueryGuard> {
+    async fn prepare_query(&self, address: Address, query_size: usize) -> Result<QueryGuard> {
         // If the app is start-on-demand, we need to start an instance to serve the query if it is not already.
         let mut start_needed = false;
         let guard = {
@@ -206,6 +206,9 @@ impl Worker {
                 .apps
                 .get_mut(&address)
                 .ok_or(anyhow::Error::msg("App not found"))?;
+            if query_size > app.manifest.max_query_size as usize {
+                bail!("query size exceeds the limit");
+            }
             if app.instances.is_empty() && app.manifest.on_demand {
                 start_needed = true;
             }
@@ -244,8 +247,9 @@ impl Worker {
         payload: Vec<u8>,
     ) -> Result<Vec<u8>> {
         info!(address=%ShortId(address), "incomming query");
+        let query_size = payload.len() + path.as_bytes().len();
         let _guard = self
-            .prepare_query(address)
+            .prepare_query(address, query_size)
             .await
             .context("failed to prepare query")?;
         let cmd_sender = {

@@ -175,8 +175,8 @@ message DeployResponse {
 
 // Manifest of an app.
 message Manifest {
-  // Name of the required runtime to run the app.
-  string runtime = 1;
+  // The spec version of the manifest.
+  uint32 version = 1;
   // The hash of the app's code.
   bytes code_hash = 2;
   // The hash algorithm used to generate the code hash.
@@ -191,6 +191,8 @@ message Manifest {
   bool resizable = 7;
   // The salt used to derive the app's address.
   bytes salt = 8;
+  // The maximum size of the query payload.
+  uint32 max_query_size = 9;
 }
 
 // Environment variable of an app.

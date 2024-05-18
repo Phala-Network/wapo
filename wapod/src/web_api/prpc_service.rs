@@ -100,6 +100,9 @@ impl OperationRpc for Call {
             bail!("no worker session");
         }
         let manifest = request.manifest.ok_or(anyhow::Error::msg("No manifest"))?;
+        if manifest.version != 1 {
+            bail!("unsupported manifest version");
+        }
         let info = self
             .deploy_app(manifest)
             .await
