@@ -430,14 +430,14 @@
                 </table>
             </div>
             <textarea id="workerInfoTextarea"
-                v-show="showWorkerInfoDetail">{{JSON.stringify(workerInfo, null, 2)}}</textarea>
+                v-show="config.showWorkerInfoDetail">{{JSON.stringify(workerInfo, null, 2)}}</textarea>
             <div class="form-group">
-                <button type="button" @click="showWorkerInfoDetail = !showWorkerInfoDetail"
+                <button type="button" @click="config.showWorkerInfoDetail = !config.showWorkerInfoDetail; saveConfig();"
                     class="collapsible">Detail</button>
                 <button @click="initWorker">Init Worker</button>
                 <button @click="updateInfo">Refresh</button>
                 <div class="form-group">
-                    <input type="checkbox" id="autoRefresh" v-model="autoRefresh">
+                    <input type="checkbox" id="autoRefresh" v-model="config.autoRefresh" @change="saveConfig">
                     <label for="autoRefresh">Auto Refresh</label>
                 </div>
             </div>
@@ -445,11 +445,12 @@
             <div id="apps" class="tabcontent">
                 <h2>Apps</h2>
                 <div class="form-group">
-                    <button type="button" @click="showDeployApp = !showDeployApp" class="collapsible">Deploy</button>
+                    <button type="button" @click="config.showDeployApp = !config.showDeployApp; saveConfig();"
+                        class="collapsible">Deploy</button>
                     <button @click="loadApps">Refresh</button>
                     <button @click="removeAllApps">Remove All</button>
                 </div>
-                <div v-show="showDeployApp" class="content" style="display: none;">
+                <div v-show="config.showDeployApp" class="content" style="display: none;">
                     <form @submit.prevent="deployApp">
                         <div class="form-group">
                             <label>Code Hash:</label>
@@ -507,8 +508,10 @@
                             <td>{{ app.manifest.max_query_size }}</td>
                             <td>
                                 <div class="form-group app-op-buttons">
-                                    <button class="btn-small" @click="startApp(app.address)" :disabled="app.manifest.on_demand">▶</button>
-                                    <button class="btn-small" @click="resizeApp(app.address)" :disabled="!app.manifest.resizable">+/-</button>
+                                    <button class="btn-small" @click="startApp(app.address)"
+                                        :disabled="app.manifest.on_demand">▶</button>
+                                    <button class="btn-small" @click="resizeApp(app.address)"
+                                        :disabled="!app.manifest.resizable">+/-</button>
                                     <button class="btn-small" @click="stopApp(app.address)">◾</button>
                                     <button class="btn-small" @click="removeApp(app.address)">❌</button>
                                     <button class="btn-small" @click="showQuery(app.address)">💬</button>
@@ -541,16 +544,16 @@
                 </div>
             </div>
 
-            <div id="consoleControls" class="console-controls" :style="{ bottom: (consoleHeight - 5) + 'px' }">
+            <div id="consoleControls" class="console-controls" :style="{ bottom: (config.consoleHeight - 5) + 'px' }">
                 <div class="form-group">
                     <button @click="copyConsoleOutput">Copy</button>
                     <button @click="clearConsoleOutput">Clear</button>
                 </div>
             </div>
             <div id="consoleResizer" class="resizer" @mousedown.prevent="startDragResizer"
-                :style="{ bottom: consoleHeight + 'px' }"></div>
+                :style="{ bottom: config.consoleHeight + 'px' }"></div>
             <textarea id="consoleOutput" ref="consoleOutput" v-model="consoleOutput"
-                :style="{ height: consoleHeight + 'px' }" disabled></textarea>
+                :style="{ height: config.consoleHeight + 'px' }" disabled></textarea>
         </div>
 
 </body>
@@ -560,10 +563,10 @@
     Vue.createApp({
         methods: {
             bodyMarginBottom() {
-                if (this.consoleHeight < 110) {
+                if (this.config.consoleHeight < 110) {
                     return 10
                 }
-                return this.consoleHeight - 100
+                return this.config.consoleHeight - 100
             },
             async fetchAPI(method, data) {
                 const toastId = this.addToast(`Calling ${method}`);
@@ -801,11 +804,14 @@
             startDragResizer: dragHelper({
                 start(e) {
                     return {
-                        shiftY: -e.clientY - this.consoleHeight
+                        shiftY: -e.clientY - this.config.consoleHeight
                     };
                 },
                 onDrag(e, init) {
-                    this.consoleHeight = -e.clientY - init.shiftY;
+                    this.config.consoleHeight = -e.clientY - init.shiftY;
+                },
+                onStop() {
+                    this.saveConfig();
                 }
             }),
             handleScroll() {
@@ -845,10 +851,24 @@
                 onDrag(e, init) {
                     init.modal.style.left = `${e.clientX - init.shiftX}px`;
                     init.modal.style.top = `${e.clientY - init.shiftY}px`;
+                },
+                onStop() {
+                    this.saveConfig();
                 }
             }),
+            saveConfig() {
+                let cfgStr = JSON.stringify(this.config);
+                localStorage.setItem('wapodConsoleConfig', cfgStr);
+            },
+            loadConfig() {
+                let cfgStr = localStorage.getItem('wapodConsoleConfig');
+                if (cfgStr) {
+                    this.config = JSON.parse(cfgStr);
+                }
+            },
         },
         mounted() {
+            this.loadConfig();
             this.updateInfo();
             this.loadApps();
 
@@ -867,7 +887,7 @@
             async function refreshTask(m) {
                 while (true) {
                     await sleep(500);
-                    if (m.autoRefresh) {
+                    if (m.config.autoRefresh) {
                         await m.updateInfo();
                     }
                 }
@@ -879,10 +899,13 @@
         },
         data() {
             return {
-                showDeployApp: false,
-                showWorkerInfoDetail: false,
+                config: {
+                    showDeployApp: false,
+                    showWorkerInfoDetail: false,
+                    autoRefresh: false,
+                    consoleHeight: 200,
+                },
                 workerInfo: {},
-                autoRefresh: false,
                 consoleOutput: '',
                 appsData: [],
                 deployForm: {
@@ -902,7 +925,6 @@
                 },
                 toasts: [],
                 nextToastId: 0,
-                consoleHeight: 200,
             };
         },
     }).mount('body');
@@ -959,7 +981,7 @@
         return '0x' + hexString;
     }
 
-    function dragHelper({ start, onDrag }) {
+    function dragHelper({ start, onDrag, onStop }) {
         return function startDrag(e) {
             let self = this;
             const init = start.call(self, e);
@@ -969,6 +991,9 @@
             const stopDrag = () => {
                 document.removeEventListener('mousemove', doDrag);
                 document.removeEventListener('mouseup', stopDrag);
+                if (onStop) {
+                    onStop.call(self);
+                }
             };
             document.addEventListener('mousemove', doDrag);
             document.addEventListener('mouseup', stopDrag);
