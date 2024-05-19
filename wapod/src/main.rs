@@ -13,8 +13,8 @@ mod worker_key;
 #[clap(about = "wapo - a WASM runtime", version, author)]
 pub struct Args {
     /// Max memory pages
-    #[arg(long, default_value_t = 256)]
-    max_memory_pages: usize,
+    #[arg(long, default_value_t = 256, value_parser = clap::value_parser!(u32).range(1..=65536))]
+    max_memory_pages: u32,
     /// Max number of instances to run
     #[arg(long)]
     max_instances: Option<usize>,
@@ -48,8 +48,7 @@ impl Args {
         let page_size = 64 * 1024;
         let est_sys_overhead = 1024 * 1024 * 256;
         let est_vm_overhead = 1024 * 1024;
-        let memory_per_vm = self
-            .max_memory_pages
+        let memory_per_vm = (self.max_memory_pages as usize)
             .max(1)
             .saturating_mul(page_size)
             .saturating_add(est_vm_overhead);
