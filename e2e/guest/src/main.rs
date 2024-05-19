@@ -60,9 +60,21 @@ async fn handle_query(path: String, payload: Vec<u8>) -> Result<Vec<u8>> {
 
 fn handel_alloc(data: &[u8]) -> Result<Vec<u8>> {
     let s = String::from_utf8_lossy(data);
-    info!("allocating: [{s}]");
-    let size = s.parse().context("invalid size")?;
-    let _tmp = vec![1_u8; size];
+    let size: usize = s.parse().context("invalid size")?;
+    const MB: usize = 1024 * 1024;
+    if size < 16 * MB {
+        let _tmp = vec![1u8; size];
+    } else {
+        let mut alloced = vec![];
+        for i in 1.. {
+            alloced.push(vec![1u8; MB * 16]);
+            let alloced_size = MB * 16 * i;
+            info!("allocated: {alloced_size}");
+            if alloced_size >= size {
+                break;
+            }
+        }
+    }
     Ok(b"allocated".to_vec())
 }
 
