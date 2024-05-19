@@ -33,6 +33,9 @@ use state::Worker;
 
 use prpc_service::Call;
 
+use self::auth::Authorized;
+
+mod auth;
 mod prpc_service;
 mod state;
 
@@ -156,6 +159,7 @@ async fn prpc_get(
 #[instrument(target="prpc", name="admin", fields(%id), skip_all)]
 #[post("/<method>?<json>", data = "<data>")]
 async fn prpc_admin_post(
+    _auth: Authorized,
     state: &State<Worker>,
     id: TraceId,
     method: &str,
@@ -171,6 +175,7 @@ async fn prpc_admin_post(
 #[instrument(target="prpc", name="admin", fields(%id), skip_all)]
 #[get("/<method>")]
 async fn prpc_admin_get(
+    _auth: Authorized,
     state: &State<Worker>,
     id: TraceId,
     method: &str,
@@ -183,6 +188,7 @@ async fn prpc_admin_get(
 
 #[post("/object/<hash>?<type>", data = "<data>")]
 async fn object_post(
+    _auth: Authorized,
     state: &State<Worker>,
     limits: &Limits,
     r#type: &str,
@@ -203,6 +209,7 @@ async fn object_post(
 
 #[get("/object/<id>")]
 async fn object_get(
+    _auth: Authorized,
     state: &State<Worker>,
     id: HexBytes,
 ) -> Result<NamedFile, Custom<&'static str>> {
@@ -312,6 +319,7 @@ pub async fn serve_admin(state: Worker, args: Args) -> Result<()> {
         )
         .attach(RequestTracer::default())
         .attach(TimeMeter)
+        .manage(auth::ApiToken::new(args.admin_api_token))
         .manage(state)
         .mount("/", routes![object_post, object_get, console])
         .mount("/prpc", routes![prpc_admin_post, prpc_admin_get])

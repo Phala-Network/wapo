@@ -104,6 +104,7 @@
 
         input[type="text"],
         input[type="number"],
+        input[type="password"],
         textarea,
         table {
             width: 100%;
@@ -112,6 +113,7 @@
         input[type="text"],
         input[type="file"],
         input[type="number"],
+        input[type="password"],
         button,
         textarea,
         table {
@@ -407,6 +409,10 @@
     </div>
 
     <div class="main-content" :style="{ marginBottom: bodyMarginBottom() + 'px' }">
+        <div class="form-group">
+            <label for="apiToken">API Token:</label>
+            <input type="password" id="apiToken" v-model="config.apiToken" @input="saveConfig">
+        </div>
         <div id="workerInfoPanel" class="tabcontent">
             <h2>Worker Info</h2>
             <div class="memory-usage">
@@ -570,13 +576,17 @@
             },
             async fetchAPI(method, data) {
                 const toastId = this.addToast(`Calling ${method}`);
+                const headers = {
+                    'Content-Type': 'application/json',
+                };
+                if (this.config.apiToken) {
+                    headers['Authorization'] = `Bearer ${this.config.apiToken}`;
+                }
                 try {
                     data = data || {};
                     const response = await fetch(`/prpc/Operation.${method}?json`, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
+                        headers,
                         body: JSON.stringify(data)
                     });
                     const success = response.ok;
@@ -900,6 +910,7 @@
         data() {
             return {
                 config: {
+                    apiToken: '',
                     showDeployApp: false,
                     showWorkerInfoDetail: false,
                     autoRefresh: false,

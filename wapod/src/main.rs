@@ -24,6 +24,11 @@ pub struct Args {
     /// The port that admin service listens on
     #[arg(long)]
     admin_port: Option<u16>,
+    /// The API token for requesting admin service
+    /// When it is empty, no token is required.
+    /// When it is not empty, the token must be provided in the Authorization: Bearer token-value.
+    #[arg(long, default_value_t = String::new())]
+    admin_api_token: String,
     /// The port that user service listens on
     #[arg(long)]
     user_port: Option<u16>,
