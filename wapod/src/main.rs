@@ -12,27 +12,36 @@ mod worker_key;
 #[derive(Parser, Clone, Debug)]
 #[clap(about = "wapo - a WASM runtime", version, author)]
 pub struct Args {
-    /// Max memory pages
+    /// Maximum number of memory pages (default: 256). Acceptable range is 1 to 65536.
     #[arg(long, default_value_t = 256, value_parser = clap::value_parser!(u32).range(1..=65536))]
     max_memory_pages: u32,
-    /// Max number of instances to run
+
+    /// Maximum number of instances to run. If not specified, it will be determined by the enclave
+    /// size and instance memory size.
     #[arg(long)]
     max_instances: Option<usize>,
-    /// Path to store hash blobs
+
+    /// Directory path to store hashed blobs (default: "./blobs").
     #[arg(long, default_value = "./blobs")]
     blobs_dir: String,
-    /// The port that admin service listens on
+
+    /// Port number for the admin service to listen on. If not specified, the value will be
+    /// read from the configuration file.
     #[arg(long)]
     admin_port: Option<u16>,
-    /// The API token for requesting admin service
-    /// When it is empty, no token is required.
-    /// When it is not empty, the token must be provided in the Authorization: Bearer token-value.
+
+    /// API token required for accessing the admin service. If empty, no token is required.
+    /// When provided, the token must be included in the `Authorization: Bearer` header for
+    /// each incoming request.
     #[arg(long, default_value_t = String::new())]
     admin_api_token: String,
-    /// The port that user service listens on
+
+    /// Port number for the user service to listen on. If not specified, the value will be
+    /// read from the configuration file.
     #[arg(long)]
     user_port: Option<u16>,
-    /// Number of modules can be stored in the LRU cache
+
+    /// Number of compiled WebAssembly modules that can be cached (default: 16).
     #[arg(long, default_value_t = 16)]
     module_cache_size: usize,
 }

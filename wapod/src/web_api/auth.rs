@@ -1,6 +1,7 @@
 use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome};
 use rocket::Request;
+use tracing::warn;
 
 pub struct ApiToken {
     value: String,
@@ -8,7 +9,12 @@ pub struct ApiToken {
 
 impl ApiToken {
     pub fn new(token: String) -> Self {
-        let value = format!("Bearer {}", token);
+        let value = if token.is_empty() {
+            warn!("API token is empty. No authorization required.");
+            String::new()
+        } else {
+            format!("Bearer {}", token)
+        };
         Self { value }
     }
 }
