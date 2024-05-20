@@ -1,4 +1,4 @@
-use crate::Error;
+use crate::{rng::CryptoRng as _, Error};
 
 use ring::aead::{LessSafeKey, UnboundKey};
 
@@ -12,11 +12,7 @@ pub type IV = [u8; IV_BYTES];
 
 /// Generates a random IV
 pub fn generate_iv() -> IV {
-    use ring::rand::SecureRandom;
-    let mut nonce_vec = [0_u8; IV_BYTES];
-    let rand = ring::rand::SystemRandom::new();
-    rand.fill(&mut nonce_vec).expect("Failed to generate IV");
-    nonce_vec
+    rand::thread_rng().crypto_gen()
 }
 
 fn load_key(raw: &[u8]) -> Result<AeadKey> {
@@ -38,14 +34,12 @@ pub fn encrypt(iv: &IV, secret: &[u8], in_out: &mut Vec<u8>) -> Result<()> {
 
 // Decrypts the cipher (with 128 auth tag appended) in-place and returns the message as a slice.
 pub fn decrypt<'in_out>(
-    iv: &[u8],
+    iv: IV,
     secret: &[u8],
     in_out: &'in_out mut [u8],
 ) -> Result<&'in_out mut [u8]> {
-    let mut iv_arr = [0_u8; IV_BYTES];
-    iv_arr.copy_from_slice(&iv[..IV_BYTES]);
     let key = load_key(secret)?;
-    let nonce = ring::aead::Nonce::assume_unique_for_key(iv_arr);
+    let nonce = ring::aead::Nonce::assume_unique_for_key(iv);
 
     key.0
         .open_in_place(nonce, ring::aead::Aad::empty(), in_out)
@@ -66,7 +60,7 @@ mod test {
         encrypted_message.extend_from_slice(&message);
 
         encrypt(&iv, &secret, &mut encrypted_message).unwrap();
-        let decrypted_messgae = decrypt(&iv, &secret, &mut encrypted_message[..]).unwrap();
+        let decrypted_messgae = decrypt(iv, &secret, &mut encrypted_message[..]).unwrap();
 
         assert_eq!(decrypted_messgae, message);
     }

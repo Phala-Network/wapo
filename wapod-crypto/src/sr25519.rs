@@ -3,7 +3,7 @@ use scale_info::TypeInfo;
 use schnorrkel::SECRET_KEY_LENGTH;
 use sp_core::{sr25519, ByteArray as _, Pair as PairT};
 
-use crate::{ContentType, Error};
+use crate::{CryptoRng, ContentType, Error};
 
 type PublicKey = [u8; sr25519::PUBLIC_KEY_SERIALIZED_SIZE];
 
@@ -18,8 +18,7 @@ pub struct Public {
 
 impl Pair {
     pub fn new() -> Self {
-        use rand::Rng;
-        let seed = rand::thread_rng().gen();
+        let seed = rand::thread_rng().crypto_gen();
         let pair = sr25519::Pair::from_seed(&seed);
         Self { pair }
     }

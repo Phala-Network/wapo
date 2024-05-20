@@ -1,4 +1,4 @@
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum Error {
     #[error("Invalid secret key")]
     InvalidSecretKey,
@@ -8,6 +8,8 @@ pub enum Error {
     InvalidSignature,
     #[error("Invalid AEAD key")]
     InvalidAeadKey,
+    #[error("Invalid message")]
+    InvalidMessage,
     #[error("Other crypto error")]
     CryptoError,
 }
