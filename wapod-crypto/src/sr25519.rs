@@ -1,16 +1,11 @@
-use alloc::vec::Vec;
 use scale::{Decode, Encode};
 use scale_info::TypeInfo;
 use schnorrkel::SECRET_KEY_LENGTH;
 use sp_core::{sr25519, ByteArray as _, Pair as PairT};
 
-use crate::ContentType;
+use crate::{ContentType, Error};
 
 type PublicKey = [u8; sr25519::PUBLIC_KEY_SERIALIZED_SIZE];
-
-pub enum CryptoError {
-    InvalidSignature,
-}
 
 pub struct Pair {
     pair: sr25519::Pair,
@@ -75,16 +70,16 @@ impl Public {
         content_type: ContentType,
         message: &[u8],
         signature: &[u8],
-    ) -> Result<(), CryptoError> {
+    ) -> Result<(), Error> {
         let final_message = content_type.wrap_message(message);
         let signature =
-            sr25519::Signature::from_slice(signature).or(Err(CryptoError::InvalidSignature))?;
+            sr25519::Signature::from_slice(signature).or(Err(Error::InvalidSignature))?;
 
         let pubkey = sr25519::Public::from(self.inner);
         if sr25519::Pair::verify(&signature, final_message, &pubkey) {
             Ok(())
         } else {
-            Err(CryptoError::InvalidSignature)
+            Err(Error::InvalidSignature)
         }
     }
 
@@ -113,7 +108,10 @@ mod tests {
     fn test_new_pair() {
         let pair = Pair::new();
         assert_eq!(pair.dump().len(), SECRET_KEY_LENGTH);
-        assert_eq!(pair.public().inner.len(), sr25519::PUBLIC_KEY_SERIALIZED_SIZE);
+        assert_eq!(
+            pair.public().inner.len(),
+            sr25519::PUBLIC_KEY_SERIALIZED_SIZE
+        );
     }
 
     #[test]
@@ -131,6 +129,9 @@ mod tests {
         let content_type = ContentType::RpcResponse;
         let message = b"Hello, world!";
         let signature = pair.sign(content_type, message);
-        assert!(pair.public().verify(content_type, message, &signature).is_ok());
+        assert!(pair
+            .public()
+            .verify(content_type, message, &signature)
+            .is_ok());
     }
 }
