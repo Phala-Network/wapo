@@ -20,7 +20,7 @@ use service::{Command, CommandSender, ServiceHandle};
 use wapo_host::service::{self, VmHandle};
 use wapod_rpc::prpc::Manifest;
 
-use crate::worker_key::load_or_generate_key;
+use crate::worker_key::worker_identity_key;
 use crate::Args;
 
 type Address = [u8; 32];
@@ -166,7 +166,7 @@ impl Worker {
             None
         };
         pb::WorkerInfo {
-            pubkey: load_or_generate_key().public().as_bytes().to_vec(),
+            pubkey: worker_identity_key().public().as_bytes().to_vec(),
             deployed_apps,
             running_instances,
             max_instances,

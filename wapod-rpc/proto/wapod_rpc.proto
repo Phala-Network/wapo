@@ -17,6 +17,11 @@ service User {
     // Sends a query request to the specified app, with the provided path and
     // payload. Returns the response payload from the app.
   }
+  // Send an encrypted query request to a given app.
+  rpc EncryptedQuery(EncryptedQueryArgs) returns (QueryResponse) {
+    // Sends a query request to the specified app, with the provided path and
+    // payload. Returns the response payload from the app.
+  }
 }
 
 // The wapod admin RPC service.
@@ -95,6 +100,11 @@ service Operation {
   rpc AppQuery(QueryArgs) returns (QueryResponse) {
     // Sends a query request to the app at the provided address, with the
     // specified path and payload. Returns the response payload from the app.
+  }
+  // Send an encrypted query request to a given app.
+  rpc AppEncryptedQuery(EncryptedQueryArgs) returns (QueryResponse) {
+    // Sends a query request to the specified app, with the provided path and
+    // payload. Returns the response payload from the app.
   }
 }
 
@@ -278,6 +288,14 @@ message QueryArgs {
   string path = 2;
   // The payload of the query.
   bytes payload = 3;
+}
+
+
+message EncryptedQueryArgs {
+  // The public key of the user.
+  bytes pubkey = 1;
+  // The encrypted payload of the query.
+  bytes encrypted_payload = 2;
 }
 
 message QueryResponse {

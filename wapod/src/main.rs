@@ -112,7 +112,7 @@ async fn main() -> Result<()> {
 
     paths::create_dirs_if_needed().context("failed to create directories")?;
 
-    let key = worker_key::load_or_generate_key().public();
+    let key = worker_key::worker_identity_key().public();
     info!("worker pubkey: 0x{}", hex_fmt::HexFmt(key));
 
     let worker_state = crate_worker_state(args.clone()).context("failed to create worker state")?;

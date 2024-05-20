@@ -19,7 +19,7 @@ use tracing::{error, field::Empty, info};
 use wapo_host::ShortId;
 use wapod_rpc as rpc;
 
-use crate::worker_key::load_or_generate_key;
+use crate::worker_key::worker_identity_key;
 
 use super::{read_data, Worker};
 
@@ -157,7 +157,7 @@ impl OperationRpc for Call {
         });
         let encoded_metrics = metrics.encode();
         let signature =
-            load_or_generate_key().sign(wapod_crypto::ContentType::Metrics, encoded_metrics);
+            worker_identity_key().sign(wapod_crypto::ContentType::Metrics, encoded_metrics);
         Ok(pb::AppMetricsResponse::new(metrics, signature))
     }
 
@@ -216,6 +216,18 @@ impl OperationRpc for Call {
             .await?;
         Ok(pb::QueryResponse { output })
     }
+
+    async fn app_encrypted_query(
+        self,
+        mut request: pb::EncryptedQueryArgs,
+    ) -> Result<pb::QueryResponse> {
+        let decrypted = worker_identity_key()
+            .decrypt_message(&request.pubkey, &mut request.encrypted_payload)
+            .context("failed to decrypt the payload")?;
+        let args: pb::QueryArgs = pb::Message::decode(&mut decrypted.as_slice())
+            .context("failed to decode the query args")?;
+        Self::app_query(self, args).await
+    }
 }
 
 impl UserRpc for Call {
@@ -234,6 +246,10 @@ impl UserRpc for Call {
             )
             .await?;
         Ok(pb::QueryResponse { output })
+    }
+
+    async fn encrypted_query(self, request: pb::EncryptedQueryArgs) -> Result<pb::QueryResponse> {
+        OperationRpc::app_encrypted_query(self, request).await
     }
 }
 

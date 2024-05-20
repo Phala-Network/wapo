@@ -241,7 +241,7 @@ fn cors_options() -> CorsOptions {
 }
 
 fn sign_http_response(data: &[u8]) -> Option<String> {
-    let pair = worker_key::load_or_generate_key();
+    let pair = worker_key::worker_identity_key();
     let signature = pair.sign(wapod_crypto::ContentType::RpcResponse, data);
     Some(hex::encode(signature))
 }

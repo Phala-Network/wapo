@@ -4,7 +4,7 @@ use wapod_crypto::sr25519::Pair;
 
 use crate::paths;
 
-pub fn load_or_generate_key() -> &'static Pair {
+pub fn worker_identity_key() -> &'static Pair {
     static KEY: OnceLock<Pair> = OnceLock::new();
 
     KEY.get_or_init(|| {
