@@ -4744,8 +4744,30 @@ dependencies = [
  "tracing-subscriber 0.3.18",
  "uuid",
  "wapo-host",
+ "wapod-crypto",
  "wapod-rpc",
- "wapod-signature",
+]
+
+[[package]]
+name = "wapod-crypto"
+version = "0.1.0"
+dependencies = [
+ "curve25519-dalek 4.1.2",
+ "parity-scale-codec",
+ "rand",
+ "ring",
+ "scale-info",
+ "schnorrkel",
+ "sp-core",
+ "wapod-crypto-types",
+]
+
+[[package]]
+name = "wapod-crypto-types"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
@@ -4759,19 +4781,6 @@ dependencies = [
  "prpc-build",
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "wapod-signature"
-version = "0.1.0"
-dependencies = [
- "curve25519-dalek 4.1.2",
- "parity-scale-codec",
- "rand",
- "ring",
- "scale-info",
- "schnorrkel",
- "sp-core",
 ]
 
 [[package]]

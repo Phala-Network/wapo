@@ -8,7 +8,7 @@ wapo-macro/
 wapo-run/
 wapod/
 wapod-rpc/
-wapod-signature/
+wapod-crypto/
 
 Each of the dirname should be considered a component name.
 

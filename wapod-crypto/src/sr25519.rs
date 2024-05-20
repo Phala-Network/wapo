@@ -104,3 +104,33 @@ impl AsRef<PublicKey> for Public {
         &self.inner
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_pair() {
+        let pair = Pair::new();
+        assert_eq!(pair.dump().len(), SECRET_KEY_LENGTH);
+        assert_eq!(pair.public().inner.len(), sr25519::PUBLIC_KEY_SERIALIZED_SIZE);
+    }
+
+    #[test]
+    fn test_load_pair() {
+        let pair = Pair::new();
+        let secret_key = pair.dump();
+        let loaded_pair = Pair::load(&secret_key).unwrap();
+        assert_eq!(loaded_pair.dump(), secret_key);
+        assert_eq!(loaded_pair.public().inner, pair.public().inner);
+    }
+
+    #[test]
+    fn test_sign_and_verify() {
+        let pair = Pair::new();
+        let content_type = ContentType::RpcResponse;
+        let message = b"Hello, world!";
+        let signature = pair.sign(content_type, message);
+        assert!(pair.public().verify(content_type, message, &signature).is_ok());
+    }
+}

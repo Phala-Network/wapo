@@ -1,5 +1,5 @@
 [package]
-name = "wapod-signature"
+name = "wapod-crypto"
 version = "0.1.0"
 edition = "2021"
 
@@ -12,6 +12,7 @@ ring = { version = "0.17.8", default-features = false, optional = true }
 curve25519-dalek = { version = "4.1.2", default-features = false, optional = true }
 schnorrkel = { version = "0.11.4", default-features = false, optional = true }
 rand = { version = "0.8.5", default-features = false, optional = true }
+wapod-crypto-types = { path = "../wapod-crypto-types", version = "0.1.0" }
 
 [features]
 default = ["std", "crypto"]
@@ -21,6 +22,7 @@ std = [
     "rand?/std",
     "sp-core?/std",
     "ring?/std",
-    "schnorrkel?/std"
+    "schnorrkel?/std",
+    "wapod-crypto-types/std",
 ]
 crypto = ["sp-core", "ring", "curve25519-dalek", "schnorrkel", "rand"]

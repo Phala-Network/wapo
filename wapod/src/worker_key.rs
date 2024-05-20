@@ -1,6 +1,6 @@
 use scale::{Decode, Encode};
 use std::sync::OnceLock;
-use wapod_signature::crypto::sr25519::Pair;
+use wapod_crypto::sr25519::Pair;
 
 use crate::paths;
 

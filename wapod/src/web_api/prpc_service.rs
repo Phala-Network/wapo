@@ -157,7 +157,7 @@ impl OperationRpc for Call {
         });
         let encoded_metrics = metrics.encode();
         let signature =
-            load_or_generate_key().sign(wapod_signature::ContentType::Metrics, encoded_metrics);
+            load_or_generate_key().sign(wapod_crypto::ContentType::Metrics, encoded_metrics);
         Ok(pb::AppMetricsResponse::new(metrics, signature))
     }
 

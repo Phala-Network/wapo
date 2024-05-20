@@ -6,10 +6,7 @@ use alloc::vec::Vec;
 use scale::{Decode, Encode};
 use scale_info::TypeInfo;
 
-#[cfg(feature = "crypto")]
-pub mod crypto;
-
-#[derive(Debug, Encode, Decode, TypeInfo)]
+#[derive(Clone, Copy, Debug, Encode, Decode, TypeInfo)]
 pub enum ContentType {
     RpcResponse,
     RegisterInfo,

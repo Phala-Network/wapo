@@ -9,7 +9,8 @@ members = [
     "wapo-env",
     "wapod-rpc",
     "wapo-run",
-    "wapod-signature",
+    "wapod-crypto",
+    "wapod-crypto-types",
     "e2e/guest",
 ]
 
