@@ -1,18 +1,13 @@
-use scale::{Decode, Encode, Error as CodecError};
+use scale::{Encode, Error as CodecError};
 use sp_core::{H160, H256};
 use std::convert::TryFrom;
+
+pub use wapod_crypto_types::query::*;
 
 mod eip712;
 
 type AccountId = [u8; 32];
 type Result<T, E = SignatureVerifyError> = core::result::Result<T, E>;
-
-#[derive(Clone, Encode, Decode)]
-pub struct Query {
-    address: Vec<u8>,
-    path: String,
-    payload: Vec<u8>,
-}
 
 pub trait Signer {
     fn verify_query(
@@ -23,28 +18,15 @@ pub trait Signer {
     ) -> Result<AccountId>;
 }
 
-#[derive(Clone, Encode, Decode)]
-pub struct RootSigner {
-    pubkey: Vec<u8>,
-}
-
-#[derive(Clone, Encode, Decode)]
-pub enum RootOrCertificate {
-    Root(RootSigner),
-    Certificate(Certificate),
-}
-
-impl RootSigner {
-    fn verify_cert(
-        &self,
-        cert: &Certificate,
-        signature: &[u8],
-        sig_type: SignatureType,
-    ) -> Result<AccountId> {
-        match sig_type {
-            SignatureType::Eip712 => eip712_verify_cert(&self.pubkey, cert, signature),
-            _ => non_eip712_verify(&self.pubkey, &cert.encode(), signature, sig_type, 0),
-        }
+fn verify_cert(
+    signer: &RootSigner,
+    cert_body: &CertificateBody,
+    signature: &[u8],
+    sig_type: SignatureType,
+) -> Result<AccountId> {
+    match sig_type {
+        SignatureType::Eip712 => eip712_verify_cert(&signer.pubkey, cert_body, signature),
+        _ => non_eip712_verify(&signer.pubkey, &cert_body.encode(), signature, sig_type, 0),
     }
 }
 
@@ -77,7 +59,13 @@ impl Signer for Certificate {
                 eip712_verify_query(&self.body.pubkey, query.clone(), signature, true)
             }
             _ => non_eip712_verify(&self.body.pubkey, &query.encode(), signature, sig_type, 2),
-        }
+        }?;
+        verify_cert(
+            &self.signature.signer,
+            &self.body,
+            signature,
+            self.signature.signature_type,
+        )
     }
 }
 
@@ -93,50 +81,6 @@ impl Signer for RootOrCertificate {
             RootOrCertificate::Certificate(cert) => cert.verify_query(query, signature, sig_type),
         }
     }
-}
-
-#[derive(Encode, Decode, Clone)]
-pub struct Signature<S: Signer> {
-    /// The signature type
-    pub signature_type: SignatureType,
-    /// The signature of the data
-    pub signature: Vec<u8>,
-    /// The certificate of the signer
-    pub signer: S,
-}
-
-#[derive(Encode, Decode, Clone)]
-pub struct Certificate {
-    /// The body of the certificate
-    pub body: CertificateBody,
-    /// An optinal signature of the body signed by a parent certificate.
-    pub signature: Signature<RootSigner>,
-}
-
-#[derive(Encode, Decode, Clone, Copy)]
-pub enum SignatureType {
-    Ed25519 = 0,
-    Sr25519 = 1,
-    Ecdsa = 2,
-    Ed25519WrapBytes = 3,
-    Sr25519WrapBytes = 4,
-    EcdsaWrapBytes = 5,
-    Eip712 = 6,
-    EvmEcdsa = 7,
-    EvmEcdsaWrapBytes = 8,
-}
-
-#[derive(Clone, Encode, Decode, Debug)]
-pub struct CertificateBody {
-    pub pubkey: Vec<u8>,
-    pub expiration: u64,
-    pub scopes: Vec<Scope>,
-}
-
-#[derive(Clone, Encode, Decode, Debug)]
-pub struct Scope {
-    pub app: Vec<u8>,
-    pub resources: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -247,10 +191,14 @@ fn test_account_id_from_evm_pubkey() {
     );
 }
 
-fn eip712_verify_cert(pubkey: &[u8], cert: &Certificate, signature: &[u8]) -> Result<AccountId> {
+fn eip712_verify_cert(
+    pubkey: &[u8],
+    cert_body: &CertificateBody,
+    signature: &[u8],
+) -> Result<AccountId> {
     let address = evm_pubkey_to_adderss(pubkey)?;
     let message_hash =
-        eip712::hash_cert(&cert.body).or(Err(SignatureVerifyError::Eip712EncodingError))?;
+        eip712::hash_cert(cert_body).or(Err(SignatureVerifyError::Eip712EncodingError))?;
     account_id_from_evm_pubkey(eip712::eip721_verify(address, signature, message_hash.0)?)
 }
 

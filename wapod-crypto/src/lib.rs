@@ -4,7 +4,7 @@ pub mod sr25519;
 pub use error::Error;
 pub use rng::CryptoRng;
 
-mod error;
 mod ecdh;
+mod error;
+pub mod query_signature;
 mod rng;
-mod query_signature;

@@ -141,4 +141,5 @@ fn todo() {
     let todo = "implement signing with worker key for guest";
     let todo = "implement sgx_quote api for guest";
     let todo = "preemptive query instance";
+    let todo = "tests for query signing";
 }

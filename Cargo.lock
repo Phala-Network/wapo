@@ -6435,6 +6435,7 @@ dependencies = [
  "prpc-build",
  "serde",
  "serde_json",
+ "wapod-crypto-types",
 ]
 
 [[package]]

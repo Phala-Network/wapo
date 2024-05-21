@@ -6,6 +6,8 @@ use alloc::vec::Vec;
 use scale::{Decode, Encode};
 use scale_info::TypeInfo;
 
+pub mod query;
+
 #[derive(Clone, Copy, Debug, Encode, Decode, TypeInfo)]
 pub enum ContentType {
     RpcResponse,

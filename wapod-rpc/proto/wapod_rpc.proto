@@ -288,6 +288,9 @@ message QueryArgs {
   string path = 2;
   // The payload of the query.
   bytes payload = 3;
+  // Signer of the request.
+  // @codec scale crate::types::QuerySignature
+  bytes encoded_signature = 4;
 }
 
 

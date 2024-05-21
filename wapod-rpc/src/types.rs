@@ -1,4 +1,7 @@
 use scale::{Decode, Encode};
+use wapod_crypto_types::query::{RootOrCertificate, Signature};
+
+pub type QuerySignature = Signature<RootOrCertificate>;
 
 pub type Address = [u8; 32];
 pub type Bytes32 = [u8; 32];

@@ -9,6 +9,7 @@ prost = "0.12.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 scale = { package = "parity-scale-codec", version = "3" }
+wapod-crypto-types = { path = "../wapod-crypto-types" }
 anyhow = "1"
 
 [build-dependencies]

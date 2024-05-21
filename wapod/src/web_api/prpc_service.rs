@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use rand::Rng;
 use rocket::{
     data::{ByteUnit, Limits, ToByteUnit as _},
@@ -17,6 +17,7 @@ use rpc::prpc::{operation_server::OperationRpc, user_server::UserRpc};
 use scale::Encode;
 use tracing::{error, field::Empty, info};
 use wapo_host::ShortId;
+use wapod_crypto::query_signature::{Query, Signer};
 use wapod_rpc as rpc;
 
 use crate::worker_key::worker_identity_key;
@@ -25,7 +26,6 @@ use super::{read_data, Worker};
 
 pub struct Call {
     worker: Worker,
-    caller: Option<[u8; 32]>,
 }
 
 impl Deref for Call {
@@ -38,11 +38,7 @@ impl Deref for Call {
 
 impl Call {
     pub fn new(worker: Worker) -> Self {
-        let todo = "fill caller";
-        Self {
-            worker,
-            caller: None,
-        }
+        Self { worker }
     }
 }
 
@@ -205,10 +201,25 @@ impl OperationRpc for Call {
     }
 
     async fn app_query(self, request: pb::QueryArgs) -> Result<pb::QueryResponse> {
+        let caller = if request.encoded_signature.is_empty() {
+            None
+        } else {
+            let signature = request.decode_signature()?;
+            let query = Query {
+                address: request.address.clone(),
+                path: request.path.clone(),
+                payload: request.payload.clone(),
+            };
+            let caller = signature
+                .signer
+                .verify_query(&query, &signature.signature, signature.signature_type)
+                .map_err(|err| anyhow!("failed to verify the signature: {err:?}"))?;
+            Some(caller)
+        };
         let output = self
             .worker
             .query(
-                self.caller,
+                caller,
                 request.decode_address()?,
                 request.path,
                 request.payload,
@@ -236,16 +247,7 @@ impl UserRpc for Call {
     }
 
     async fn query(self, request: pb::QueryArgs) -> Result<pb::QueryResponse> {
-        let output = self
-            .worker
-            .query(
-                self.caller,
-                request.decode_address()?,
-                request.path,
-                request.payload,
-            )
-            .await?;
-        Ok(pb::QueryResponse { output })
+        OperationRpc::app_query(self, request).await
     }
 
     async fn encrypted_query(self, request: pb::EncryptedQueryArgs) -> Result<pb::QueryResponse> {
