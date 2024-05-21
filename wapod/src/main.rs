@@ -104,9 +104,12 @@ async fn main() -> Result<()> {
     logger::init();
 
     info!("starting wapod server...");
-    let args = Args::parse();
+    let mut args = Args::parse();
 
     info!("args: {:?}", args);
+
+    // To speed up later access
+    args.max_instances = Some(args.max_instances());
 
     args.validate().context("invalid args")?;
 
@@ -140,7 +143,7 @@ fn todo() {
     let todo = "add prpc register_info";
     let todo = "implement signing with worker key for guest";
     let todo = "implement sgx_quote api for guest";
-    let todo = "preemptive query instance";
+    let todo = "test preemptive query instance";
     let todo = "tests for query signing";
     let todo = "guest tip in metrics";
 }

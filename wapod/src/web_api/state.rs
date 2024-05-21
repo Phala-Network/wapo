@@ -502,12 +502,48 @@ impl WorkerState {
         Ok(status)
     }
 
+    fn reserve_slot_if_needed(&mut self, for_address: Address) -> Result<Option<VmHandle>> {
+        if !self
+            .apps
+            .get(&for_address)
+            .ok_or(anyhow!("App not found"))?
+            .instances
+            .is_empty()
+        {
+            // Already running, no need to reserve slots.
+            return Ok(None);
+        }
+
+        let available_slots = self.available_slots();
+        if available_slots > 0 {
+            return Ok(None);
+        }
+
+        // Seek if there is any bench mark instance to stop.
+        for app in self.apps.values_mut() {
+            if app.manifest.resizable {
+                if let Some(instance) = app.instances.pop() {
+                    let handle = instance.vm_handle;
+                    return Ok(Some(handle));
+                }
+            }
+        }
+        Err(anyhow!("No available slots"))
+    }
+
     fn resize_app_instances(
         &mut self,
         address: Address,
         count: usize,
         demand: bool,
     ) -> Result<(Vec<VmStatusReceiver>, Vec<VmHandle>)> {
+        let mut created = vec![];
+        let mut removed = vec![];
+        if demand {
+            if let Some(handle) = self.reserve_slot_if_needed(address)? {
+                removed.push(handle);
+            }
+        }
         let app = self
             .apps
             .get_mut(&address)
@@ -515,8 +551,6 @@ impl WorkerState {
         let current = app.instances.len();
         let max_allowed = if app.manifest.resizable { count } else { 1 };
         info!(current, count, max_allowed, "changing number of instances");
-        let mut created = vec![];
-        let mut removed = vec![];
 
         use std::cmp::Ordering::*;
         match current.cmp(&count) {
