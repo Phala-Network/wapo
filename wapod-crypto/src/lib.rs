@@ -7,3 +7,4 @@ pub use rng::CryptoRng;
 mod error;
 mod ecdh;
 mod rng;
+mod query_signature;

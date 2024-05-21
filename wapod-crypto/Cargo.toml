@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 scale = { package = "parity-scale-codec", version = "3.0.0" }
+serde = { version = "1.0.130", features = ["derive"] }
 scale-info = "2.0.0"
 sp-core = "32.0.0"
 ring = "0.17.8"
@@ -14,3 +15,13 @@ rand = "0.8.5"
 wapod-crypto-types = { path = "../wapod-crypto-types", version = "0.1.0" }
 thiserror = "1.0.61"
 derive_more = "0.99.17"
+ethers = { version = "2.0.14", features = ["eip712"] }
+secp256k1 = "0.29.0"
+eip712_enc = "0.1.0"
+serde_json = "1.0.117"
+hex_fmt = "0.3.0"
+anyhow = "1.0.86"
+
+[dev-dependencies]
+hex = "0.4.3"
+hex-literal = "0.4.1"

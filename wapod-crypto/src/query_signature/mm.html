@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Wapod Query & Certificate Signing</title>
+    <script src="https://c0f4f41c-2f55-4863-921b-sdk-docs.github.io/cdn/metamask-sdk.js"></script>
+</head>
+
+<body>
+    <h1>Wapod Signing Test</h1>
+    <label for="proxyCheck">Use Proxy:</label>
+    <input type="checkbox" id="proxyCheck">
+    <br>
+    <label for="queryAddress">Query Address:</label>
+    <input id="queryAddress" value="0x1234">
+    <br>
+    <label for="queryPath">Query Path:</label>
+    <input id="queryPath" value="/api/resource">
+    <br>
+    <label for="queryPayload">Query Payload:</label>
+    <input id="queryPayload" value="0xabcdef">
+    <br>
+    <label for="certPublicKey">Certificate Public Key:</label>
+    <input id="certPublicKey" value="0x1234">
+    <br>
+    <label for="certExpirationTime">Certificate Expiration Time:</label>
+    <input id="certExpirationTime" value="1672531199">
+    <br>
+    <label for="certScopes">Certificate Scopes:</label>
+    <textarea
+        id="certScopes">[{"app":"0x12","resources":["/res1","/res2"]},{"app":"0x34","resources":["/res1"]}]</textarea>
+    <br>
+    <button id="sign-cert">Sign a Cert</button>
+    <button id="sign-query">Sign a Query</button>
+    <p id="signature"></p>
+
+    <script>
+        // Function to convert hex string to a byte array
+        function hexToBytes(hex) {
+            let bytes = [];
+            for (let c = 0; c < hex.length; c += 2) {
+                bytes.push(parseInt(hex.substr(c, 2), 16));
+            }
+            return bytes;
+        }
+
+        // Function to hash a query
+        async function mkQuery(query, proxy) {
+            const description = proxy
+                ? "Authorized query that would be sent to a Wapod App"
+                : "This is a query that would be sent to a Wapod App";
+            const address = query.address;
+            const payload = query.payload;
+            const path = query.path;
+            return {
+                description,
+                address,
+                path,
+                payload,
+            };
+        }
+
+        // Function to hash a certificate
+        async function mkCert(cert) {
+            const publicKey = cert.pubkey;
+            const scopes = cert.scopes.map(s => ({
+                address: s.app,
+                paths: s.resources
+            }));
+            const expirationTime = cert.expiration;
+            return {
+                description: "This is a certificate that can be used to sign a query that would be sent to a Wapod App",
+                publicKey: publicKey,
+                expirationTime: expirationTime,
+                scopes: scopes
+            };
+        }
+
+        // Function to sign using MetaMask
+        async function signEip712(params) {
+            const ethereum = window.ethereum;
+            const account = (await ethereum.request({ method: 'eth_requestAccounts' }))[0];
+            const signature = await ethereum.request({
+                method: 'eth_signTypedData_v4',
+                params: [account, JSON.stringify(params)],
+                from: account,
+            });
+            return signature;
+        }
+
+        // Function to handle signing
+        async function phalaSign(message, messageType) {
+            let params;
+            switch (messageType) {
+                case "cert": {
+                    params = {
+                        domain: {
+                            name: "Wapod Query",
+                            version: '1',
+                        },
+                        message: message,
+                        primaryType: 'Certificate',
+                        types: {
+                            EIP712Domain: [
+                                { name: 'name', type: 'string' },
+                                { name: 'version', type: 'string' },
+                            ],
+                            Certificate: [
+                                { name: 'description', type: 'string' },
+                                { name: 'publicKey', type: 'bytes' },
+                                { name: 'expirationTime', type: 'string' },
+                                { name: 'scopes', type: 'Scope[]' }
+                            ],
+                            Scope: [
+                                { name: 'address', type: 'bytes' },
+                                { name: 'paths', type: 'string[]' }
+                            ]
+                        }
+                    };
+                    break;
+                }
+                case "query": {
+                    params = {
+                        domain: {
+                            name: "Wapod Query",
+                            version: '1',
+                        },
+                        message: message,
+                        primaryType: 'WapodQuery',
+                        types: {
+                            EIP712Domain: [
+                                { name: 'name', type: 'string' },
+                                { name: 'version', type: 'string' },
+                            ],
+                            WapodQuery: [
+                                { name: 'description', type: 'string' },
+                                { name: 'address', type: 'bytes' },
+                                { name: 'path', type: 'string' },
+                                { name: 'payload', type: 'bytes' }
+                            ]
+                        }
+                    };
+                    break;
+                }
+            }
+            return await signEip712(params);
+        }
+
+        // Event listener for signing a certificate
+        document.getElementById('sign-cert').addEventListener('click', async function (event) {
+            const cert = {
+                pubkey: document.getElementById('certPublicKey').value,
+                expiration: document.getElementById('certExpirationTime').value,
+                scopes: JSON.parse(document.getElementById('certScopes').value)
+            };
+            const hashedCert = await mkCert(cert);
+            const signature = await phalaSign(hashedCert, 'cert');
+            document.getElementById('signature').innerHTML = `<div>Signature: ${signature}</div>`;
+        });
+
+        // Event listener for signing a query
+        document.getElementById('sign-query').addEventListener('click', async function (event) {
+            const query = {
+                address: document.getElementById('queryAddress').value,
+                path: document.getElementById('queryPath').value,
+                payload: document.getElementById('queryPayload').value
+            };
+            const proxy = document.getElementById('proxyCheck').checked;
+            const hashedQuery = await mkQuery(query, proxy);
+            const signature = await phalaSign(hashedQuery, 'query');
+            document.getElementById('signature').innerHTML = `<div>Signature: ${signature}</div>`;
+        });
+    </script>
+</body>
+
+</html>
