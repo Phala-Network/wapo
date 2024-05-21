@@ -220,10 +220,8 @@ async fn object_get(
 }
 
 #[get("/")]
-async fn console() -> RawHtml<String> {
-    let todo = "switch to include_str";
-    RawHtml(std::fs::read_to_string("src/console.html").unwrap())
-    // RawHtml(include_str!("console.html"))
+async fn console() -> RawHtml<&'static str> {
+    RawHtml(include_str!("console.html"))
 }
 
 fn cors_options() -> CorsOptions {
