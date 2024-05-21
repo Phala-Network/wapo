@@ -12,7 +12,7 @@ type Result<T, E = SignatureVerifyError> = core::result::Result<T, E>;
 pub trait Signer {
     fn verify_query(
         &self,
-        query: &Query,
+        query: Query,
         signature: &[u8],
         sig_type: SignatureType,
     ) -> Result<AccountId>;
@@ -33,7 +33,7 @@ fn verify_cert(
 impl Signer for RootSigner {
     fn verify_query(
         &self,
-        query: &Query,
+        query: Query,
         signature: &[u8],
         sig_type: SignatureType,
     ) -> Result<AccountId> {
@@ -49,11 +49,10 @@ impl Signer for RootSigner {
 impl Signer for Certificate {
     fn verify_query(
         &self,
-        query: &Query,
+        query: Query,
         signature: &[u8],
         sig_type: SignatureType,
     ) -> Result<AccountId, SignatureVerifyError> {
-        let todo = "owned query";
         match sig_type {
             SignatureType::Eip712 => {
                 eip712_verify_query(&self.body.pubkey, query.clone(), signature, true)
@@ -72,7 +71,7 @@ impl Signer for Certificate {
 impl Signer for RootOrCertificate {
     fn verify_query(
         &self,
-        query: &Query,
+        query: Query,
         signature: &[u8],
         sig_type: SignatureType,
     ) -> Result<AccountId> {

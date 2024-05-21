@@ -212,7 +212,7 @@ impl OperationRpc for Call {
             };
             let caller = signature
                 .signer
-                .verify_query(&query, &signature.signature, signature.signature_type)
+                .verify_query(query, &signature.signature, signature.signature_type)
                 .map_err(|err| anyhow!("failed to verify the signature: {err:?}"))?;
             Some(caller)
         };
