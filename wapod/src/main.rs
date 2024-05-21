@@ -142,4 +142,5 @@ fn todo() {
     let todo = "implement sgx_quote api for guest";
     let todo = "preemptive query instance";
     let todo = "tests for query signing";
+    let todo = "guest tip in metrics";
 }
