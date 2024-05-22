@@ -1,7 +1,7 @@
 use anyhow::{anyhow, bail, Context, Result};
 
 use rand::Rng as _;
-use sp_core::{blake2_256, keccak_256};
+use sp_core::blake2_256;
 use tokio::sync::oneshot;
 use tracing::{field::display, info, warn, Instrument};
 use wapo_host::{blobs::BlobLoader, Metrics};
@@ -613,6 +613,12 @@ impl AppRuntimeCalls {
     fn new(address: Address) -> Self {
         Self { address }
     }
+
+    fn wrap_message(&self, message: impl AsRef<[u8]>) -> Vec<u8> {
+        let mut final_message = self.address.to_vec();
+        final_message.extend(message.as_ref());
+        final_message
+    }
 }
 
 impl wapo_host::RuntimeCalls for AppRuntimeCalls {
@@ -621,18 +627,10 @@ impl wapo_host::RuntimeCalls for AppRuntimeCalls {
     }
 
     fn sign_app_data(&self, data: &[u8]) -> Vec<u8> {
-        let key = worker_identity_key();
-        let mut final_message = self.address.to_vec();
-        final_message.extend(data);
-        key.sign(ContentType::AppData, &final_message)
+        worker_identity_key().sign(ContentType::AppData, &self.wrap_message(data))
     }
 
     fn sgx_quote_app_data(&self, data: &[u8]) -> Option<Vec<u8>> {
-        let mut message = self.address.to_vec();
-        message.extend(data);
-        let final_message = ContentType::AppData.wrap_message(message);
-        let hash = keccak_256(&final_message);
-        let todo = "TODO: sgx_quote_app_data";
-        None
+        crate::sgx::quote(ContentType::AppData, &self.wrap_message(data))
     }
 }

@@ -316,7 +316,6 @@ impl ServiceHandle {
             _ = status_guard.send(VmStatus::CreatingInstance);
 
             info!(target: "wapo", "starting instance...");
-            let todo = "Implement external calls";
             let config = InstanceConfig::builder()
                 .id(id)
                 .max_memory_pages(max_memory_pages)

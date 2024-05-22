@@ -3,7 +3,7 @@ use scale_info::TypeInfo;
 use schnorrkel::SECRET_KEY_LENGTH;
 use sp_core::{sr25519, ByteArray as _, Pair as PairT};
 
-use crate::{CryptoRng, ContentType, Error};
+use crate::{ContentType, CryptoRng, Error};
 
 type PublicKey = [u8; sr25519::PUBLIC_KEY_SERIALIZED_SIZE];
 
@@ -84,6 +84,10 @@ impl Public {
 
     pub fn as_bytes(&self) -> &[u8] {
         self.as_ref()
+    }
+
+    pub fn to_array(&self) -> PublicKey {
+        self.inner
     }
 }
 

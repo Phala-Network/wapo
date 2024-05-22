@@ -25,3 +25,25 @@ pub struct AppsMetrics {
     pub nonce: Bytes32,
     pub apps: Vec<AppMetrics>,
 }
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
+pub struct WorkerRegistrationInfoV2 {
+    pub version: u32,
+    pub machine_id: Vec<u8>,
+    pub pubkey: [u8; 32],
+    pub ecdh_pubkey: [u8; 32],
+    pub genesis_block_hash: [u8; 32],
+    pub features: Vec<u32>,
+    pub operator: Option<[u8; 32]>,
+    pub para_id: u32,
+    pub max_consensus_version: u32,
+}
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
+pub enum AttestationReport {
+    SgxIas,
+    SgxDcap {
+        quote: Vec<u8>,
+        collateral: Option<()>,
+    },
+}

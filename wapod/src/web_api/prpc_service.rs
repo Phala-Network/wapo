@@ -239,6 +239,38 @@ impl OperationRpc for Call {
             .context("failed to decode the query args")?;
         Self::app_query(self, args).await
     }
+
+    async fn sign_register_info(
+        self,
+        request: pb::SignRegisterInfoArgs,
+    ) -> anyhow::Result<pb::SignRegisterInfoResponse> {
+        let pubkey = worker_identity_key().public().to_array();
+        let runtime_info = rpc::types::WorkerRegistrationInfoV2 {
+            version: compat_app_version(),
+            machine_id: vec![],
+            pubkey,
+            ecdh_pubkey: pubkey,
+            genesis_block_hash: request.decode_genesis_block_hash()?,
+            features: vec![],
+            operator: request.decode_operator()?,
+            para_id: request.para_id,
+            max_consensus_version: 0,
+        };
+        let report = crate::sgx::quote(
+            wapod_crypto::ContentType::WorkerAttestation,
+            &runtime_info.encode(),
+        )
+        .map(|quote| rpc::types::AttestationReport::SgxDcap {
+            quote,
+            collateral: None,
+        });
+        Ok(pb::SignRegisterInfoResponse::new(runtime_info, report))
+    }
+}
+
+fn compat_app_version() -> u32 {
+    let (major, minor, patch) = (3_u32, 0_u32, 0_u32);
+    (major << 16) + (minor << 8) + patch
 }
 
 impl UserRpc for Call {

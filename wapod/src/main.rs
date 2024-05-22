@@ -8,6 +8,7 @@ mod logger;
 mod paths;
 mod web_api;
 mod worker_key;
+mod sgx;
 
 #[derive(Parser, Clone, Debug)]
 #[clap(about = "wapo - a WASM runtime", version, author)]
@@ -141,9 +142,10 @@ fn todo() {
     let todo = "Store instance logs to disk";
     let todo = "put RUST_LOG_SANITIZED/WAPOD_ENCLAVE_MEM_SIZE in grame manifest";
     let todo = "add prpc register_info";
-    let todo = "implement signing with worker key for guest";
-    let todo = "implement sgx_quote api for guest";
+    let todo = "guest tip in metrics";
+
+    let todo = "test  signing with worker key for guest";
+    let todo = "test  sgx_quote api for guest";
     let todo = "test preemptive query instance";
     let todo = "tests for query signing";
-    let todo = "guest tip in metrics";
 }

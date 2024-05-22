@@ -38,6 +38,9 @@ service Operation {
     // including the previous metrics nonce reported to the chain. Returns the
     // new worker session and the seed used to derive the session.
   }
+  // Return a signed register info that can be used to register the worker on Phala.
+  rpc SignRegisterInfo(SignRegisterInfoArgs) returns (SignRegisterInfoResponse) {
+  }
   // Terminate the worker.
   rpc WorkerExit(google.protobuf.Empty) returns (google.protobuf.Empty) {
     // Terminates the worker.
@@ -162,6 +165,24 @@ message ModuleLoaderInfo {
   uint32 compiling_handles_len = 6;
   // The number of threads that are currently in the process of compiling.
   uint32 compiling_tasks = 7;
+}
+
+message SignRegisterInfoArgs {
+  // The genesis block hash
+  // @codec scale [u8; 32]
+  bytes genesis_block_hash = 1;
+  // The operator
+  // @codec scale Option<[u8; 32]>
+  bytes operator = 2;
+  // The parachain id
+  uint32 para_id = 3;
+}
+
+message SignRegisterInfoResponse {
+  // @codec scale crate::types::WorkerRegistrationInfoV2
+  bytes encoded_runtime_info = 1;
+  // @codec scale Option<crate::types::AttestationReport>
+  bytes encoded_report = 2;
 }
 
 // An object to be stored in the worker's object storage.
