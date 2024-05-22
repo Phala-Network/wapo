@@ -152,7 +152,7 @@ impl Worker {
             .values()
             .map(|state| state.instances.len())
             .sum::<usize>() as u64;
-        let instance_memory_size = worker.args.max_memory_pages as u64 * 64 * 1024;
+        let instance_memory_size = worker.args.instance_memory_size;
         let info = worker.service.module_loader().info();
         let module_loader_info = if admin {
             Some(pb::ModuleLoaderInfo {
@@ -429,6 +429,11 @@ impl Worker {
     }
 }
 
+fn to_pages(size: u64) -> u64 {
+    let page_size = 1024 * 64u64;
+    (size + page_size - 1) / page_size
+}
+
 impl WorkerState {
     fn start_app(&mut self, address: Address) -> Result<VmStatusReceiver> {
         let vmid = ShortId(address);
@@ -441,7 +446,7 @@ impl WorkerState {
         }
         let config = service::InstanceStartConfig::builder()
             .auto_restart(true)
-            .max_memory_pages(self.args.max_memory_pages as _)
+            .max_memory_pages(to_pages(self.args.instance_memory_size) as _)
             .id(address)
             .weight(1)
             .blobs_dir(blobs_dir())

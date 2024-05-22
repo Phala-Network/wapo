@@ -26,3 +26,4 @@ scale = { package = "parity-scale-codec", version = "3" }
 rand = "0.8.5"
 phala-allocator = "0.1.0"
 memory-stats = { version = "1.1.0", features = ["always_use_statm"] }
+parse-size = { version = "1.0.0", features = ["std"] }

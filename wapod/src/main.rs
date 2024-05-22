@@ -13,9 +13,9 @@ mod worker_key;
 #[derive(Parser, Clone, Debug)]
 #[clap(about = "wapod - a WASM runtime", version, author)]
 pub struct Args {
-    /// Maximum number of memory pages (default: 256). Acceptable range is 1 to 65536.
-    #[arg(long, default_value_t = 256, value_parser = clap::value_parser!(u32).range(1..=65536))]
-    max_memory_pages: u32,
+    /// Maximum memory size for each instance.
+    #[arg(long, default_value = "128M", value_parser = parse_size)]
+    instance_memory_size: u64,
 
     /// Maximum number of instances to run. If not specified, it will be determined by the enclave
     /// size and instance memory size.
@@ -56,17 +56,13 @@ impl Args {
 
     fn max_allowed_instances(&self) -> Option<usize> {
         let enclave_size = enclave_size()?;
-        let page_size = 64 * 1024;
         let est_sys_overhead = 1024 * 1024 * 256;
         let est_vm_overhead = 1024 * 1024;
-        let memory_per_vm = (self.max_memory_pages as usize)
-            .max(1)
-            .saturating_mul(page_size)
-            .saturating_add(est_vm_overhead);
+        let memory_per_vm = self.instance_memory_size.saturating_add(est_vm_overhead);
         let allowed_instances = enclave_size
             .saturating_sub(est_sys_overhead)
             .saturating_div(memory_per_vm);
-        Some(allowed_instances)
+        Some(allowed_instances as usize)
     }
 
     fn validate_mem_size(&self) -> Result<()> {
@@ -86,37 +82,15 @@ impl Args {
     }
 }
 
-fn parse_size(input: &str) -> Result<usize, &'static str> {
-    if input.is_empty() {
-        return Err("invalid size");
-    }
-
-    let (num, unit) = match input.chars().last() {
-        Some(last_char) if last_char.is_alphabetic() => input.split_at(input.len() - 1),
-        Some(_) => (input, ""),
-        None => return Err("invalid size"),
-    };
-
-    let numeric_value: usize = match num.parse() {
-        Ok(value) => value,
-        Err(_) => return Err("invalid size"),
-    };
-
-    match unit {
-        "T" => Ok(numeric_value * 1024 * 1024 * 1024 * 1024),
-        "G" => Ok(numeric_value * 1024 * 1024 * 1024),
-        "M" => Ok(numeric_value * 1024 * 1024),
-        "K" => Ok(numeric_value * 1024),
-        "" => Ok(numeric_value),
-        _ => Err("unknown unit"),
-    }
+fn parse_size(input: &str) -> Result<u64, parse_size::Error> {
+    parse_size::Config::new().with_binary().parse_size(input)
 }
 
-fn enclave_size() -> Option<usize> {
+fn enclave_size() -> Option<u64> {
     let Ok(enclave_mem_size) = std::env::var("WAPOD_ENCLAVE_SIZE") else {
         return None;
     };
-    let enclave_mem_size: usize =
+    let enclave_mem_size: u64 =
         parse_size(&enclave_mem_size).expect("invalid value of WAPOD_ENCLAVE_SIZE");
     Some(enclave_mem_size)
 }
