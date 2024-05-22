@@ -8,7 +8,7 @@ pub fn worker_identity_key() -> &'static Pair {
     static KEY: OnceLock<Pair> = OnceLock::new();
 
     KEY.get_or_init(|| {
-        let keyfile = paths::secret_data_path().join("worker.key");
+        let keyfile = paths::secret_data_dir().join("worker.key");
         match std::fs::read(&keyfile) {
             Ok(secret) => Pair::decode(&mut &secret[..]).expect("failed to load keypair"),
             Err(err) => {
