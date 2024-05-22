@@ -1,9 +1,7 @@
 SGX_SIGNER_KEY ?= ./private.dev.pem
 SGX ?= 1
-RA_TYPE ?= epid
+RA_TYPE ?= dcap
 BUILD ?= release
-
-include ../config.mk
 
 ARCH_LIBDIR ?= /lib/$(shell $(CC) -dumpmachine)
 
@@ -13,6 +11,7 @@ GRAMINE_LOG_LEVEL ?= error
 
 USE_MUSL ?= 0
 
+WORKSPACE = ../..
 BIN_NAME = wapod
 
 DATA_DIRS = data/protected_files \
@@ -27,11 +26,11 @@ LIBOS_BASENAME ?= $(shell basename ${GRAMINE_LIBOS})
 LIBOS ?= ${RUNTIME_DIR}/${LIBOS_BASENAME}
 
 ifeq ($(USE_MUSL),1)
-BIN_FILE = ../target/x86_64-unknown-linux-musl/${BUILD}/${BIN_NAME}
+BIN_FILE = $(WORKSPACE)/target/x86_64-unknown-linux-musl/${BUILD}/${BIN_NAME}
 CARGO_ARGS = --target x86_64-unknown-linux-musl
 HOST_LIBC_DIR = /lib/x86_64-linux-musl
 else
-BIN_FILE = ../target/${BUILD}/${BIN_NAME}
+BIN_FILE = $(WORKSPACE)/target/${BUILD}/${BIN_NAME}
 CARGO_ARGS =
 HOST_LIBC_DIR = /lib/x86_64-linux-gnu
 endif

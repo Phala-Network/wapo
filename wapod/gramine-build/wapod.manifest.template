@@ -1,3 +1,5 @@
+{% set enclave_size = "4G" %}
+
 [libos]
 entrypoint = "wapod"
 
@@ -19,6 +21,8 @@ LD_LIBRARY_PATH = "/lib:/lib/x86_64-linux-gnu"
 MALLOC_ARENA_MAX = "1"
 MALLOC_MMAP_THRESHOLD_ = "262144"
 RUST_LOG_SANITIZED = "true"
+WAPOD_ENCLAVE_SIZE = "{{ enclave_size }}"
+WAPOD_DATA_DIR = "/data"
 RUST_LOG = { passthrough = true }
 all_proxy = { passthrough = true }
 i2p_proxy = { passthrough = true }
@@ -47,7 +51,7 @@ uri = "file:/etc"
 [sgx]
 debug = false
 nonpie_binary = true
-enclave_size = "4G"
+enclave_size = "{{ enclave_size }}"
 thread_num = 32
 max_threads = 128
 remote_attestation = "{{ ra_type }}"

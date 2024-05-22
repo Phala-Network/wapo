@@ -6,9 +6,9 @@ use web_api::crate_worker_state;
 mod allocator;
 mod logger;
 mod paths;
+mod sgx;
 mod web_api;
 mod worker_key;
-mod sgx;
 
 #[derive(Parser, Clone, Debug)]
 #[clap(about = "wapod - a WASM runtime", version, author)]
@@ -71,7 +71,7 @@ impl Args {
 
     fn validate_mem_size(&self) -> Result<()> {
         let Some(allowed_instances) = self.max_allowed_instances() else {
-            warn!("WAPOD_ENCLAVE_MEM_SIZE is not set, skipping validation");
+            warn!("WAPOD_ENCLAVE_SIZE is not set, skipping validation");
             return Ok(());
         };
         if let Some(enclave_size) = enclave_size() {
@@ -86,13 +86,38 @@ impl Args {
     }
 }
 
+fn parse_size(input: &str) -> Result<usize, &'static str> {
+    if input.is_empty() {
+        return Err("invalid size");
+    }
+
+    let (num, unit) = match input.chars().last() {
+        Some(last_char) if last_char.is_alphabetic() => input.split_at(input.len() - 1),
+        Some(_) => (input, ""),
+        None => return Err("invalid size"),
+    };
+
+    let numeric_value: usize = match num.parse() {
+        Ok(value) => value,
+        Err(_) => return Err("invalid size"),
+    };
+
+    match unit {
+        "T" => Ok(numeric_value * 1024 * 1024 * 1024 * 1024),
+        "G" => Ok(numeric_value * 1024 * 1024 * 1024),
+        "M" => Ok(numeric_value * 1024 * 1024),
+        "K" => Ok(numeric_value * 1024),
+        "" => Ok(numeric_value),
+        _ => Err("unknown unit"),
+    }
+}
+
 fn enclave_size() -> Option<usize> {
-    let Ok(enclave_mem_size) = std::env::var("WAPOD_ENCLAVE_MEM_SIZE") else {
+    let Ok(enclave_mem_size) = std::env::var("WAPOD_ENCLAVE_SIZE") else {
         return None;
     };
-    let enclave_mem_size: usize = enclave_mem_size
-        .parse()
-        .expect("WAPOD_ENCLAVE_MEM_SIZE must be an integer");
+    let enclave_mem_size: usize =
+        parse_size(&enclave_mem_size).expect("invalid value of WAPOD_ENCLAVE_SIZE");
     Some(enclave_mem_size)
 }
 
@@ -136,7 +161,6 @@ async fn main() -> Result<()> {
 
 fn todo() {
     let todo = "Store instance logs to disk";
-    let todo = "put RUST_LOG_SANITIZED/WAPOD_ENCLAVE_MEM_SIZE in grame manifest";
     let todo = "add prpc get worker description";
     let todo = "guest tip in metrics";
 

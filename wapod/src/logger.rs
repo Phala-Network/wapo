@@ -92,7 +92,7 @@ pub fn init() {
     let default_fileter = EnvFilter::builder()
         .with_default_directive(LevelFilter::INFO.into())
         .from_env_lossy();
-    if std::env::var("RUST_LOG_SANITIZED") == Ok("1".to_string()) {
+    if std::env::var("RUST_LOG_SANITIZED") == Ok("true".to_string()) {
         let filter = SanitizedFilter(default_fileter);
         let layer = tracing_subscriber::fmt::layer().with_filter(filter);
         tracing_subscriber::registry().with(layer).init();

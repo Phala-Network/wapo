@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 
 fn data_dir() -> PathBuf {
-    let todo = "put WAPOD_DATA_DIR in gramine manifest";
     std::env::var("WAPOD_DATA_DIR")
         .unwrap_or_else(|_| "./data/".to_string())
         .into()
