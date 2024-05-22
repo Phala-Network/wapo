@@ -396,7 +396,7 @@ impl env::OcallFuncs for WapoCtx {
             .or(Err(OcallError::IoError))
     }
 
-    fn object_get(&mut self, hash: &[u8], hash_algorithm: &str) -> Result<Vec<u8>> {
+    fn blob_get(&mut self, hash: &[u8], hash_algorithm: &str) -> Result<Vec<u8>> {
         let obj = self
             .blob_loader
             .get(hash, hash_algorithm)

@@ -186,8 +186,8 @@ async fn prpc_admin_get(
     handle_prpc::<AdminService>(state, method, None, limits, content_type, true).await
 }
 
-#[post("/object/<hash>?<type>", data = "<data>")]
-async fn object_post(
+#[post("/blob/<hash>?<type>", data = "<data>")]
+async fn blob_post(
     _auth: Authorized,
     state: &State<Worker>,
     limits: &Limits,
@@ -208,7 +208,7 @@ async fn object_post(
 }
 
 #[get("/object/<id>")]
-async fn object_get(
+async fn blob_get(
     _auth: Authorized,
     state: &State<Worker>,
     id: HexBytes,
@@ -319,7 +319,7 @@ pub async fn serve_admin(state: Worker, args: Args) -> Result<()> {
         .attach(TimeMeter)
         .manage(auth::ApiToken::new(args.admin_api_token))
         .manage(state)
-        .mount("/", routes![object_post, object_get, console])
+        .mount("/", routes![blob_post, blob_get, console])
         .mount("/prpc", routes![prpc_admin_post, prpc_admin_get])
         .launch()
         .await?;
