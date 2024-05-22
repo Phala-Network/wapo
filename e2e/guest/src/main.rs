@@ -4,6 +4,10 @@ use std::{fmt::Debug, time::Duration};
 use anyhow::{Context, Result};
 use log::{info, warn};
 
+use tokio::io::{split, AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+use wapo::env::messages::HttpResponseHead;
+
 #[wapo::main]
 async fn main() {
     use wapo::logger::{LevelFilter, Logger};
@@ -11,23 +15,61 @@ async fn main() {
 
     info!("started!");
     let query_rx = wapo::channel::incoming_queries();
+    let connection_listener = wapo::channel::incoming_http_connections();
     loop {
-        info!("waiting for query...");
-        let Some(query) = query_rx.next().await else {
-            break;
-        };
-        info!("received query: {:?}", query.path);
-        if query.path == "/return" {
-            break;
+        info!("waiting for requests...");
+        tokio::select! {
+            query = query_rx.next() => {
+                let Some(query) = query else {
+                    break;
+                };
+                info!("received query: {:?}", query.path);
+                if query.path == "/return" {
+                    break;
+                }
+                wapo::spawn(async move {
+                    let result = handle_query(query.path, query.payload).await;
+                    let reply = match result {
+                        Ok(reply) => reply,
+                        Err(err) => format!("QueryError: {err:?}").into_bytes(),
+                    };
+                    query.reply_tx.send(&reply).ignore();
+                });
+            },
+            http = connection_listener.next() => {
+                let Some(conn) = http else {
+                    break;
+                };
+                info!("received http connection: {} {}", conn.head.method, conn.head.url);
+                wapo::spawn(async move {
+                    if let Err(err) = conn.response_tx.send(HttpResponseHead { status: 200, headers: vec![] }) {
+                        warn!("failed to send response head: {err}");
+                        return;
+                    }
+                    let (rx, mut tx) = split(conn.io_stream);
+                    let mut reader = BufReader::new(rx);
+                    loop {
+                        let mut line = String::new();
+                        match reader.read_line(&mut line).await {
+                            Ok(0) => break,
+                            Ok(_) => {
+                                if let Err(err) = tx.write_all(line.as_bytes()).await {
+                                    warn!("failed to write line: {err}");
+                                    break;
+                                }
+                            },
+                            Err(err) => {
+                                warn!("failed to read line: {err}");
+                                break;
+                            }
+                        };
+
+                    }
+                    info!("finished handling http connection");
+                });
+
+            },
         }
-        wapo::spawn(async move {
-            let result = handle_query(query.path, query.payload).await;
-            let reply = match result {
-                Ok(reply) => reply,
-                Err(err) => format!("QueryError: {err:?}").into_bytes(),
-            };
-            query.reply_tx.send(&reply).ignore();
-        });
     }
 }
 
