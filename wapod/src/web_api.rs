@@ -116,13 +116,17 @@ async fn connect_vm<'r>(
     let address =
         id.0.try_into()
             .map_err(|_| (Status::BadRequest, "invalid address".to_string()))?;
-    let Some(command_tx) = state.sender_for(address, 0) else {
-        return Err((Status::NotFound, Default::default()));
-    };
+    let guard = state.prepare_query(address, 0).await.map_err(|err| {
+        warn!("failed to prepare query: {err:?}");
+        (Status::NotFound, err.to_string())
+    })?;
+    let command_tx = state
+        .sender_for(address, 0)
+        .ok_or((Status::NotFound, Default::default()))?;
     let path = path
         .to_str()
         .ok_or((Status::BadRequest, "invalid path".to_string()))?;
-    let result = connect(head, path, body, command_tx).await;
+    let result = connect(head, path, body, command_tx, guard).await;
     match result {
         Ok(response) => Ok(response),
         Err(err) => Err((Status::InternalServerError, err.to_string())),
@@ -209,7 +213,7 @@ async fn blob_post(
         })
 }
 
-#[get("/object/<id>")]
+#[get("/blob/<id>")]
 async fn blob_get(
     _auth: Authorized,
     state: &State<Worker>,

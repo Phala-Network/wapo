@@ -30,11 +30,20 @@ pub struct RequestInfo {
 pub struct StreamResponse {
     head: HttpResponseHead,
     io_stream: DuplexStream,
+    _associated_data: Box<dyn Send + Sync>,
 }
 
 impl StreamResponse {
-    pub fn new(head: HttpResponseHead, io_stream: DuplexStream) -> Self {
-        Self { head, io_stream }
+    pub fn new<T: Send + Sync + 'static>(
+        head: HttpResponseHead,
+        io_stream: DuplexStream,
+        data: T,
+    ) -> Self {
+        Self {
+            head,
+            io_stream,
+            _associated_data: Box::new(data),
+        }
     }
 }
 
@@ -156,11 +165,12 @@ fn is_upgrade_request(req: &RequestInfo) -> bool {
         .unwrap_or(false)
 }
 
-pub async fn connect(
+pub async fn connect<T: Send + Sync + 'static>(
     head: RequestInfo,
     path: &str,
     body: Option<Data<'_>>,
     command_tx: CommandSender,
+    associated_data: T,
 ) -> Result<StreamResponse> {
     let is_upgrade = is_upgrade_request(&head);
     let (response_tx, response_rx) = oneshot_channel();
@@ -196,5 +206,5 @@ pub async fn connect(
     let resposne = response_rx
         .await
         .map_err(|_| anyhow!("Response channel closed"))??;
-    Ok(StreamResponse::new(resposne, stream0))
+    Ok(StreamResponse::new(resposne, stream0, associated_data))
 }

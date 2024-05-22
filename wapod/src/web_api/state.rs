@@ -83,7 +83,7 @@ impl AppState {
     }
 }
 
-struct QueryGuard {
+pub struct QueryGuard {
     worker: Worker,
     address: Address,
 }
@@ -184,7 +184,7 @@ impl Worker {
         self.lock().blob_loader.clone()
     }
 
-    async fn prepare_query(&self, address: Address, query_size: usize) -> Result<QueryGuard> {
+    pub async fn prepare_query(&self, address: Address, query_size: usize) -> Result<QueryGuard> {
         // If the app is start-on-demand, we need to start an instance to serve the query if it is not already.
         let mut start_needed = false;
         let guard = {
