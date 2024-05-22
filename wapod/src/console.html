@@ -488,6 +488,10 @@
                             <label>Max query size:</label>
                             <input type="number" v-model="deployForm.maxQuerySize">
                         </div>
+                        <div class="form-group">
+                            <label>Label:</label>
+                            <input type="text" v-model="deployForm.label">
+                        </div>
                         <button type="submit">Deploy</button>
                     </form>
                 </div>
@@ -496,6 +500,7 @@
                     <thead>
                         <tr>
                             <th>SN</th>
+                            <th>Label</th>
                             <th>Address</th>
                             <th>Resizable</th>
                             <th>Start Mode</th>
@@ -507,6 +512,7 @@
                     <tbody>
                         <tr v-for="app in appsData" :key="app.address">
                             <td>{{ app.sn }}</td>
+                            <td>{{ app.manifest.label }}</td>
                             <td><span class="shortened-address">{{ app.address }}</span></td>
                             <td>{{ app.manifest.resizable ? 'Yes' : 'No' }}</td>
                             <td>{{ app.manifest.on_demand ? 'OnDemand' : 'Background' }}</td>
@@ -675,6 +681,7 @@
                         salt: this.deployForm.salt,
                         resizable: this.deployForm.resizable,
                         max_query_size: this.deployForm.maxQuerySize,
+                        label: this.deployForm.label,
                     };
                     await this.rpcCall('AppDeploy', { manifest });
                     this.loadApps();
@@ -927,6 +934,7 @@
                     salt: '0x00',
                     resizable: false,
                     maxQuerySize: 1024 * 1024,
+                    label: '',
                 },
                 queryForm: {
                     path: '/',

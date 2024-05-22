@@ -240,6 +240,8 @@ message Manifest {
   bytes salt = 8;
   // The maximum size of the query payload.
   uint32 max_query_size = 9;
+  // The optional label of the app.
+  string label = 10;
 }
 
 // Environment variable of an app.
