@@ -22,8 +22,8 @@ fn vm_peak() -> Option<usize> {
     let status = std::fs::read_to_string("/proc/self/status").ok()?;
     for line in status.lines() {
         if line.starts_with("VmPeak:") {
-            let peak = line.split_ascii_whitespace().nth(1)?;
-            return peak.parse().ok();
+            let peak: usize = line.split_ascii_whitespace().nth(1)?.parse().ok()?;
+            return Some(peak * 1024);
         }
     }
     None
@@ -37,8 +37,8 @@ fn mem_free() -> Option<usize> {
     let status = std::fs::read_to_string("/proc/meminfo").ok()?;
     for line in status.lines() {
         if line.starts_with("MemFree:") {
-            let peak = line.split_ascii_whitespace().nth(1)?;
-            return peak.parse().ok();
+            let free: usize = line.split_ascii_whitespace().nth(1)?.parse().ok()?;
+            return Some(free * 1024);
         }
     }
     None
