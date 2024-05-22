@@ -21,6 +21,7 @@ use service::{Command, CommandSender, ServiceHandle};
 use wapo_host::service::{self, VmHandle};
 use wapod_rpc::prpc::Manifest;
 
+use crate::paths::blobs_dir;
 use crate::worker_key::worker_identity_key;
 use crate::Args;
 
@@ -115,7 +116,7 @@ impl Worker {
             inner: Arc::new_cyclic(|weak_self| {
                 Mutex::new(WorkerState {
                     weak_self: weak_self.clone(),
-                    blob_loader: BlobLoader::new(&args.blobs_dir),
+                    blob_loader: BlobLoader::new(&blobs_dir()),
                     apps: HashMap::new(),
                     service,
                     args,
@@ -443,7 +444,7 @@ impl WorkerState {
             .max_memory_pages(self.args.max_memory_pages as _)
             .id(address)
             .weight(1)
-            .blobs_dir(self.args.blobs_dir.as_str().into())
+            .blobs_dir(blobs_dir())
             .runtime_calls(AppRuntimeCalls::new(address))
             .build();
         let (vm_handle, join_handle) = self

@@ -26,6 +26,7 @@ use wapo_host::{
     service, OutgoingRequest,
 };
 
+use crate::paths::blobs_dir;
 use crate::web_api::prpc_service::handle_prpc;
 use crate::{worker_key, Args};
 
@@ -250,7 +251,7 @@ pub fn crate_worker_state(args: Args) -> Result<Worker> {
         args.max_instances().saturating_add(2),
         args.module_cache_size,
         tx,
-        &args.blobs_dir,
+        &blobs_dir(),
     )
     .context("failed to create service")?;
     tokio::spawn(async move {

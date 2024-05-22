@@ -190,7 +190,7 @@ pub fn service(
     worker_threads: usize,
     module_cache_size: usize,
     out_tx: crate::OutgoingRequestSender,
-    blobs_dir: &str,
+    blobs_dir: &PathBuf,
 ) -> Result<(ServiceRun, ServiceHandle)> {
     let worker_threads = worker_threads.max(1);
     let runtime = tokio::runtime::Builder::new_multi_thread()

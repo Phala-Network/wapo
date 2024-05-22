@@ -22,10 +22,6 @@ pub struct Args {
     #[arg(long)]
     max_instances: Option<usize>,
 
-    /// Directory path to store hashed blobs (default: "./blobs").
-    #[arg(long, default_value = "./blobs")]
-    blobs_dir: String,
-
     /// Port number for the admin service to listen on. If not specified, the value will be
     /// read from the configuration file.
     #[arg(long)]
