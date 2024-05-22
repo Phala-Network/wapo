@@ -8,12 +8,15 @@ use rocket::{
     response::status::Custom,
     Data, State,
 };
-use rpc::prpc::{
-    self as pb,
-    server::{Error as RpcError, Service as PrpcService},
-    WorkerInfo,
-};
 use rpc::prpc::{operation_server::OperationRpc, user_server::UserRpc};
+use rpc::{
+    prpc::{
+        self as pb,
+        server::{Error as RpcError, Service as PrpcService},
+        WorkerInfo,
+    },
+    types::{VersionedWorkerEndpoints, WorkerEndpointPayload},
+};
 use scale::Encode;
 use tracing::{error, field::Empty, info};
 use wapo_host::ShortId;
@@ -243,7 +246,7 @@ impl OperationRpc for Call {
     async fn sign_register_info(
         self,
         request: pb::SignRegisterInfoArgs,
-    ) -> anyhow::Result<pb::SignRegisterInfoResponse> {
+    ) -> Result<pb::SignRegisterInfoResponse> {
         let pubkey = worker_identity_key().public().to_array();
         let runtime_info = rpc::types::WorkerRegistrationInfoV2 {
             version: compat_app_version(),
@@ -265,6 +268,25 @@ impl OperationRpc for Call {
             collateral: None,
         });
         Ok(pb::SignRegisterInfoResponse::new(runtime_info, report))
+    }
+
+    async fn sign_endpoints(
+        self,
+        request: pb::SignEndpointsArgs,
+    ) -> Result<pb::SignEndpointsResponse> {
+        let endpoint_payload = WorkerEndpointPayload {
+            pubkey: worker_identity_key().public().to_array(),
+            versioned_endpoints: VersionedWorkerEndpoints::V1(request.endpoints),
+            signing_time: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .context("failed to get time")?
+                .as_millis() as u64,
+        };
+        let signature = worker_identity_key().sign(
+            wapod_crypto::ContentType::EndpointInfo,
+            endpoint_payload.encode(),
+        );
+        Ok(pb::SignEndpointsResponse::new(endpoint_payload, signature))
     }
 }
 

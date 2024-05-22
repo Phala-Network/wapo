@@ -141,7 +141,7 @@ async fn main() -> Result<()> {
 fn todo() {
     let todo = "Store instance logs to disk";
     let todo = "put RUST_LOG_SANITIZED/WAPOD_ENCLAVE_MEM_SIZE in grame manifest";
-    let todo = "add prpc register_info";
+    let todo = "add prpc get worker description";
     let todo = "guest tip in metrics";
 
     let todo = "test  signing with worker key for guest";

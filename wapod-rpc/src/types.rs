@@ -47,3 +47,15 @@ pub enum AttestationReport {
         collateral: Option<()>,
     },
 }
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
+pub enum VersionedWorkerEndpoints {
+    V1(Vec<String>),
+}
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
+pub struct WorkerEndpointPayload {
+    pub pubkey: [u8; 32],
+    pub versioned_endpoints: VersionedWorkerEndpoints,
+    pub signing_time: u64,
+}

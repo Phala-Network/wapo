@@ -39,8 +39,9 @@ service Operation {
     // new worker session and the seed used to derive the session.
   }
   // Return a signed register info that can be used to register the worker on Phala.
-  rpc SignRegisterInfo(SignRegisterInfoArgs) returns (SignRegisterInfoResponse) {
-  }
+  rpc SignRegisterInfo(SignRegisterInfoArgs) returns (SignRegisterInfoResponse) {}
+  // Sign the given endpoint info
+  rpc SignEndpoints (SignEndpointsArgs) returns (SignEndpointsResponse) {}
   // Terminate the worker.
   rpc WorkerExit(google.protobuf.Empty) returns (google.protobuf.Empty) {
     // Terminates the worker.
@@ -183,6 +184,17 @@ message SignRegisterInfoResponse {
   bytes encoded_runtime_info = 1;
   // @codec scale Option<crate::types::AttestationReport>
   bytes encoded_report = 2;
+}
+
+message SignEndpointsArgs {
+  // The endpoint list
+  repeated string endpoints = 1;
+}
+
+message SignEndpointsResponse {
+  // @codec scale crate::types::WorkerEndpointPayload
+  bytes encoded_endpoint_payload = 1;
+  bytes signature = 2;
 }
 
 // An object to be stored in the worker's object storage.
