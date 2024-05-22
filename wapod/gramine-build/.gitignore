@@ -1,0 +1,10 @@
+/*.o
+/OUTPUT
+/wapod
+/wapod.manifest
+/wapod.manifest.sgx
+/wapod.sig
+/wapod.token
+/bin
+/data
+/cruntime
