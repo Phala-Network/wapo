@@ -16,9 +16,11 @@ use wasmtime::{
 
 use crate::runtime::{
     async_context,
-    vm_context::{self as wapo_ctx, LogHandler, WapoCtx},
+    vm_context::{self as wapo_ctx, WapoCtx},
 };
 use crate::{Meter, OutgoingRequestSender, VmId};
+
+pub use crate::runtime::vm_context::RuntimeCalls;
 
 type RuntimeError = anyhow::Error;
 
@@ -63,14 +65,17 @@ impl WasmEngine {
 }
 
 impl WasmModule {
-    pub fn run(&self, config: InstanceConfig) -> Result<WasmRun> {
+    pub fn run<OCalls>(&self, config: InstanceConfig<OCalls>) -> Result<WasmRun>
+    where
+        OCalls: RuntimeCalls + 'static,
+    {
         let InstanceConfig {
             max_memory_pages,
             id,
             scheduler,
             weight,
             event_tx,
-            log_handler,
+            runtime_calls,
             args,
             envs,
             epoch_deadline,
@@ -80,7 +85,7 @@ impl WasmModule {
         let engine = self.engine.inner.clone();
         let mut linker = Linker::<VmCtx>::new(&engine);
 
-        let mut wapo_ctx = wapo_ctx::create_env(id, event_tx, log_handler, blobs_dir, meter);
+        let mut wapo_ctx = WapoCtx::new(id, event_tx, runtime_calls, blobs_dir, meter);
         wapo_ctx.set_weight(weight);
         wapo_ctx::add_ocalls_to_linker(&mut linker, |c| &mut c.wapo_ctx)?;
 
@@ -150,7 +155,7 @@ impl WasmModule {
 }
 
 #[derive(typed_builder::TypedBuilder, Clone)]
-pub struct InstanceConfig {
+pub struct InstanceConfig<OCalls> {
     #[builder(default)]
     id: VmId,
     max_memory_pages: u32,
@@ -161,8 +166,7 @@ pub struct InstanceConfig {
     event_tx: OutgoingRequestSender,
     #[builder(default = 10)]
     epoch_deadline: u64,
-    #[builder(default = None, setter(strip_option))]
-    log_handler: Option<LogHandler>,
+    runtime_calls: OCalls,
     #[builder(default)]
     envs: Vec<(String, String)>,
     #[builder(default)]

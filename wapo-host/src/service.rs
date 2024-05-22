@@ -16,6 +16,7 @@ use wapo_env::messages::{AccountId, HttpHead, HttpResponseHead};
 use wasi_common::I32Exit;
 use wasmtime::Config;
 
+use crate::runtime::vm_context::RuntimeCalls;
 use crate::Meter;
 use crate::{
     blobs::BlobLoader,
@@ -242,28 +243,33 @@ impl ServiceRun {
 }
 
 #[derive(typed_builder::TypedBuilder)]
-pub struct InstanceStartConfig {
+pub struct InstanceStartConfig<OCalls> {
     max_memory_pages: u32,
     id: VmId,
     weight: u32,
     blobs_dir: PathBuf,
     auto_restart: bool,
+    runtime_calls: OCalls,
 }
 
 impl ServiceHandle {
     #[tracing::instrument(parent=None, name="wapo", fields(id = %ShortId(config.id)), skip_all)]
-    pub fn start(
+    pub fn start<OCalls>(
         &self,
         wasm_hash: &[u8],
         wasm_hash_alg: &str,
-        config: InstanceStartConfig,
-    ) -> Result<(VmHandle, JoinHandle<ExitReason>)> {
+        config: InstanceStartConfig<OCalls>,
+    ) -> Result<(VmHandle, JoinHandle<ExitReason>)>
+    where
+        OCalls: RuntimeCalls + Clone,
+    {
         let InstanceStartConfig {
             max_memory_pages,
             id,
             weight,
             blobs_dir,
             auto_restart,
+            runtime_calls,
         } = config;
         let event_tx = self.out_tx.clone();
         let (cmd_tx, mut cmd_rx) = channel(128);
@@ -310,6 +316,7 @@ impl ServiceHandle {
             _ = status_guard.send(VmStatus::CreatingInstance);
 
             info!(target: "wapo", "starting instance...");
+            let todo = "Implement external calls";
             let config = InstanceConfig::builder()
                 .id(id)
                 .max_memory_pages(max_memory_pages)
@@ -317,6 +324,7 @@ impl ServiceHandle {
                 .event_tx(event_tx)
                 .blobs_dir(blobs_dir)
                 .meter(Some(meter_cloned))
+                .runtime_calls(runtime_calls)
                 .build();
             let mut wasm_run = match module.run(config.clone()).context("failed to create instance") {
                 Ok(i) => i,

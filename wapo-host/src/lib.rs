@@ -15,7 +15,9 @@ pub use runtime::vm_context::{
 };
 
 pub type VmId = [u8; 32];
-pub use run::{InstanceConfig, InstanceConfigBuilder, WasmEngine, WasmModule, WasmRun};
+pub use run::{
+    InstanceConfig, InstanceConfigBuilder, RuntimeCalls, WasmEngine, WasmModule, WasmRun,
+};
 pub use wasmtime;
 
 pub use module_loader::{ModuleLoader, ModuleLoaderInfo};

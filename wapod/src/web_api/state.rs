@@ -1,11 +1,12 @@
 use anyhow::{anyhow, bail, Context, Result};
 
 use rand::Rng as _;
-use sp_core::hashing::blake2_256;
+use sp_core::{blake2_256, keccak_256};
 use tokio::sync::oneshot;
 use tracing::{field::display, info, warn, Instrument};
 use wapo_host::{blobs::BlobLoader, Metrics};
 use wapo_host::{ShortId, VmStatus, VmStatusReceiver};
+use wapod_crypto::ContentType;
 use wapod_rpc::prpc::{self as pb};
 
 use std::collections::HashMap;
@@ -328,7 +329,7 @@ impl Worker {
                 encoded.len()
             );
         }
-        let address = sp_core::blake2_256(&encoded);
+        let address = blake2_256(&encoded);
         tracing::Span::current().record("addr", display(ShortId(&address)));
         let on_demand = manifest.on_demand;
         {
@@ -443,6 +444,7 @@ impl WorkerState {
             .id(address)
             .weight(1)
             .blobs_dir(self.args.blobs_dir.as_str().into())
+            .runtime_calls(AppRuntimeCalls::new(address))
             .build();
         let (vm_handle, join_handle) = self
             .service
@@ -599,5 +601,38 @@ impl WorkerState {
         let session = blake2_256(&message);
         self.session = Some(session);
         Ok(seed)
+    }
+}
+
+#[derive(Clone)]
+struct AppRuntimeCalls {
+    address: Address,
+}
+
+impl AppRuntimeCalls {
+    fn new(address: Address) -> Self {
+        Self { address }
+    }
+}
+
+impl wapo_host::RuntimeCalls for AppRuntimeCalls {
+    fn worker_pubkey(&self) -> Vec<u8> {
+        worker_identity_key().public().as_bytes().to_vec()
+    }
+
+    fn sign_app_data(&self, data: &[u8]) -> Vec<u8> {
+        let key = worker_identity_key();
+        let mut final_message = self.address.to_vec();
+        final_message.extend(data);
+        key.sign(ContentType::AppData, &final_message)
+    }
+
+    fn sgx_quote_app_data(&self, data: &[u8]) -> Option<Vec<u8>> {
+        let mut message = self.address.to_vec();
+        message.extend(data);
+        let final_message = ContentType::AppData.wrap_message(message);
+        let hash = keccak_256(&final_message);
+        let todo = "TODO: sgx_quote_app_data";
+        None
     }
 }

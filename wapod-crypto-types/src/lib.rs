@@ -13,6 +13,7 @@ pub enum ContentType {
     RpcResponse,
     RegisterInfo,
     Metrics,
+    AppData,
 }
 
 impl ContentType {

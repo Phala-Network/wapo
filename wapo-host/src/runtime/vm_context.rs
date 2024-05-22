@@ -53,16 +53,6 @@ fn _sizeof_i32_must_eq_to_intptr() {
     let _ = core::mem::transmute::<i32, IntPtr>;
 }
 
-pub fn create_env(
-    id: VmId,
-    out_tx: OutgoingRequestSender,
-    log_handler: Option<LogHandler>,
-    blobs_dir: PathBuf,
-    meter: Option<Arc<Meter>>,
-) -> WapoCtx {
-    WapoCtx::new(id, out_tx, log_handler, blobs_dir, meter)
-}
-
 pub(crate) struct TaskSet {
     awake_tasks: dashmap::DashSet<i32>,
     /// Guest waker ids that are ready to be woken up, or to be dropped if negative.
@@ -99,7 +89,28 @@ impl TaskSet {
     }
 }
 
-pub type LogHandler = fn(VmId, u8, &str);
+pub trait RuntimeCalls: Send + 'static {
+    fn log(&self, level: log::Level, message: &str) {
+        log::log!(target: "wapo", level, "{message}");
+    }
+    fn worker_pubkey(&self) -> Vec<u8>;
+    fn sign_app_data(&self, data: &[u8]) -> Vec<u8>;
+    fn sgx_quote_app_data(&self, data: &[u8]) -> Option<Vec<u8>>;
+}
+
+impl RuntimeCalls for () {
+    fn worker_pubkey(&self) -> Vec<u8> {
+        vec![]
+    }
+
+    fn sign_app_data(&self, _data: &[u8]) -> Vec<u8> {
+        vec![]
+    }
+
+    fn sgx_quote_app_data(&self, _data: &[u8]) -> Option<Vec<u8>> {
+        None
+    }
+}
 
 pub type OutgoingRequestSender = Sender<(VmId, OutgoingRequest)>;
 pub type OutgoingRequestReceiver = Receiver<(VmId, OutgoingRequest)>;
@@ -122,20 +133,23 @@ pub(crate) struct WapoCtx {
     awake_tasks: Arc<TaskSet>,
     weight: u32,
     outgoing_request_tx: OutgoingRequestSender,
-    log_handler: Option<LogHandler>,
+    runtime_calls: Box<dyn RuntimeCalls>,
     _counter: vm_counter::Counter,
     meter: Arc<Meter>,
     blob_loader: BlobLoader,
 }
 
 impl WapoCtx {
-    fn new(
+    pub(crate) fn new<OCalls>(
         id: VmId,
         outgoing_request_tx: OutgoingRequestSender,
-        log_handler: Option<LogHandler>,
+        runtime_calls: OCalls,
         blobs_dir: PathBuf,
         meter: Option<Arc<Meter>>,
-    ) -> Self {
+    ) -> Self
+    where
+        OCalls: RuntimeCalls,
+    {
         Self {
             id,
             resources: Default::default(),
@@ -146,7 +160,7 @@ impl WapoCtx {
             awake_tasks: Arc::new(TaskSet::with_task0()),
             weight: 1,
             outgoing_request_tx,
-            log_handler,
+            runtime_calls: Box::new(runtime_calls),
             _counter: Default::default(),
             meter: meter.unwrap_or_default(),
             blob_loader: BlobLoader::new(blobs_dir),
@@ -329,10 +343,7 @@ impl env::OcallFuncs for WapoCtx {
     }
 
     fn log(&mut self, level: log::Level, message: &str) -> Result<()> {
-        log::log!(target: "wapo", level, "{message}");
-        if let Some(log_handler) = &self.log_handler {
-            log_handler(self.id, level as u8, message);
-        }
+        self.runtime_calls.log(level, message);
         Ok(())
     }
 
@@ -403,6 +414,21 @@ impl env::OcallFuncs for WapoCtx {
             .or(Err(OcallError::IoError))?
             .ok_or(OcallError::NotFound)?;
         Ok(obj)
+    }
+
+    fn sign(&mut self, data: &[u8]) -> Result<Vec<u8>> {
+        if data.len() > 64 {
+            return Err(OcallError::InvalidParameter);
+        }
+        Ok(self.runtime_calls.sign_app_data(data))
+    }
+
+    fn worker_pubkey(&mut self) -> Result<Vec<u8>> {
+        Ok(self.runtime_calls.worker_pubkey())
+    }
+
+    fn sgx_quote(&mut self, data: &[u8]) -> Result<Option<Vec<u8>>> {
+        Ok(self.runtime_calls.sgx_quote_app_data(data))
     }
 }
 
