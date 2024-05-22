@@ -6320,6 +6320,7 @@ dependencies = [
  "parity-scale-codec",
  "phala-scheduler",
  "phala-tokio-proxy",
+ "pin-project",
  "rand",
  "rocket",
  "rustls-pemfile 2.1.2",

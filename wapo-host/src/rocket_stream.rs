@@ -9,7 +9,7 @@ use rocket::{
     Data, Request,
 };
 use tokio::{
-    io::{split, AsyncWriteExt, DuplexStream},
+    io::{split, AsyncRead, AsyncWriteExt, DuplexStream},
     sync::oneshot::channel as oneshot_channel,
 };
 use tracing::error;
@@ -27,22 +27,32 @@ pub struct RequestInfo {
     headers: Vec<(String, String)>,
 }
 
+#[pin_project::pin_project]
 pub struct StreamResponse {
     head: HttpResponseHead,
+    #[pin]
     io_stream: DuplexStream,
-    _associated_data: Box<dyn Send + Sync>,
+    guard: Option<Box<dyn Send + Sync>>,
 }
 
 impl StreamResponse {
-    pub fn new<T: Send + Sync + 'static>(
+    pub fn new(head: HttpResponseHead, io_stream: DuplexStream) -> Self {
+        Self {
+            head,
+            io_stream,
+            guard: None,
+        }
+    }
+
+    pub fn new_with_guard<T: Send + Sync + 'static>(
         head: HttpResponseHead,
         io_stream: DuplexStream,
-        data: T,
+        guard: T,
     ) -> Self {
         Self {
             head,
             io_stream,
-            _associated_data: Box::new(data),
+            guard: Some(Box::new(guard)),
         }
     }
 }
@@ -50,7 +60,11 @@ impl StreamResponse {
 #[rocket::async_trait]
 impl IoHandler for StreamResponse {
     async fn io(self: Pin<Box<Self>>, io: IoStream) -> std::io::Result<()> {
-        let Self { io_stream, .. } = *Pin::into_inner(self);
+        let Self {
+            io_stream,
+            guard: _guard,
+            head: _,
+        } = *Pin::into_inner(self);
         let (mut server_reader, mut server_writer) = split(io_stream);
         let (mut client_reader, mut client_writer) = split(io);
         let (res_c2s, res_s2c) = tokio::join! {
@@ -93,12 +107,22 @@ impl<'r> Responder<'r, 'r> for StreamResponse {
             builder.streamed_body(&[] as &[u8]);
         } else {
             builder.status(Status::new(self.head.status));
-            for (name, value) in self.head.headers.into_iter() {
+            for (name, value) in std::mem::take(&mut self.head.headers) {
                 builder.raw_header_adjoin(name, value);
             }
-            builder.streamed_body(self.io_stream);
+            builder.streamed_body(self);
         }
         Ok(builder.finalize())
+    }
+}
+
+impl AsyncRead for StreamResponse {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &mut tokio::io::ReadBuf<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        self.project().io_stream.poll_read(cx, buf)
     }
 }
 
@@ -170,7 +194,7 @@ pub async fn connect<T: Send + Sync + 'static>(
     path: &str,
     body: Option<Data<'_>>,
     command_tx: CommandSender,
-    associated_data: T,
+    guard: T,
 ) -> Result<StreamResponse> {
     let is_upgrade = is_upgrade_request(&head);
     let (response_tx, response_rx) = oneshot_channel();
@@ -206,5 +230,5 @@ pub async fn connect<T: Send + Sync + 'static>(
     let resposne = response_rx
         .await
         .map_err(|_| anyhow!("Response channel closed"))??;
-    Ok(StreamResponse::new(resposne, stream0, associated_data))
+    Ok(StreamResponse::new_with_guard(resposne, stream0, guard))
 }

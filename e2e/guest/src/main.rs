@@ -4,7 +4,7 @@ use std::{fmt::Debug, time::Duration};
 use anyhow::{Context, Result};
 use log::{info, warn};
 
-use tokio::io::{split, AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::AsyncWriteExt;
 
 use wapo::env::messages::HttpResponseHead;
 
@@ -37,7 +37,7 @@ async fn main() {
                 });
             },
             http = connection_listener.next() => {
-                let Some(conn) = http else {
+                let Some(mut conn) = http else {
                     break;
                 };
                 info!("received http connection: {} {}", conn.head.method, conn.head.url);
@@ -46,24 +46,14 @@ async fn main() {
                         warn!("failed to send response head: {err}");
                         return;
                     }
-                    let (rx, mut tx) = split(conn.io_stream);
-                    let mut reader = BufReader::new(rx);
-                    loop {
-                        let mut line = String::new();
-                        match reader.read_line(&mut line).await {
-                            Ok(0) => break,
-                            Ok(_) => {
-                                if let Err(err) = tx.write_all(line.as_bytes()).await {
-                                    warn!("failed to write line: {err}");
-                                    break;
-                                }
-                            },
-                            Err(err) => {
-                                warn!("failed to read line: {err}");
-                                break;
-                            }
-                        };
-
+                    for i in 0..10 {
+                        info!("sending: {i}");
+                        let message = format!("{i}\n");
+                        if let Err(err)  = conn.io_stream.write_all(message.as_bytes()).await {
+                            warn!("failed to send message: {err}");
+                            break;
+                        }
+                        wapo::time::sleep(Duration::from_secs(1)).await;
                     }
                     info!("finished handling http connection");
                 });
