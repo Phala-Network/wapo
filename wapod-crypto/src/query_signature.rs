@@ -232,30 +232,28 @@ fn non_eip712_verify(
         }
         SignatureType::Ecdsa => sp_core::blake2_256(
             sub_recover::<sp_core::ecdsa::Pair>(pubkey, signature, msg)?.as_ref(),
-        )
-        .into(),
+        ),
         SignatureType::Ed25519WrapBytes => {
             let wrapped = wrap_bytes(msg);
-            sub_recover::<sp_core::ed25519::Pair>(&pubkey, signature, &wrapped)?.into()
+            sub_recover::<sp_core::ed25519::Pair>(pubkey, signature, &wrapped)?.into()
         }
         SignatureType::Sr25519WrapBytes => {
             let wrapped = wrap_bytes(msg);
-            sub_recover::<sp_core::sr25519::Pair>(&pubkey, signature, &wrapped)?.into()
+            sub_recover::<sp_core::sr25519::Pair>(pubkey, signature, &wrapped)?.into()
         }
         SignatureType::EcdsaWrapBytes => {
             let wrapped = wrap_bytes(msg);
             sp_core::blake2_256(
-                sub_recover::<sp_core::ecdsa::Pair>(&pubkey, signature, &wrapped)?.as_ref(),
+                sub_recover::<sp_core::ecdsa::Pair>(pubkey, signature, &wrapped)?.as_ref(),
             )
-            .into()
         }
         SignatureType::EvmEcdsa => account_id_from_evm_pubkey(
-            sub_recover::<sp_core::ecdsa::Pair>(&pubkey, signature, msg)?,
+            sub_recover::<sp_core::ecdsa::Pair>(pubkey, signature, msg)?,
         )?,
         SignatureType::EvmEcdsaWrapBytes => {
             let wrapped = wrap_bytes(msg);
             account_id_from_evm_pubkey(sub_recover::<sp_core::ecdsa::Pair>(
-                &pubkey, signature, &wrapped,
+                pubkey, signature, &wrapped,
             )?)?
         }
         SignatureType::Eip712 => {

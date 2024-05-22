@@ -157,16 +157,17 @@ async fn prpc_get(
     handle_prpc::<UserService>(state, method, None, limits, content_type, true).await
 }
 
+#[allow(clippy::too_many_arguments)]
 #[instrument(target="prpc", name="admin", fields(%id), skip_all)]
 #[post("/<method>?<json>", data = "<data>")]
 async fn prpc_admin_post(
     _auth: Authorized,
     state: &State<Worker>,
     id: TraceId,
-    method: &str,
-    data: Data<'_>,
     limits: &Limits,
     content_type: Option<&ContentType>,
+    method: &str,
+    data: Data<'_>,
     json: bool,
 ) -> Result<Vec<u8>, Custom<Vec<u8>>> {
     let _ = id;

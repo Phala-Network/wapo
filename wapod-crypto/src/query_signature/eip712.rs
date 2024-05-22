@@ -50,7 +50,7 @@ pub(super) fn hash_query(query: &Query, proxy: bool) -> Result<H256> {
         }
     });
     let data = serde_json::from_value::<EIP712>(value).context("Failed to serialize query")?;
-    Ok(hash_structured_data(data).map_err(|err| anyhow!("{err:?}"))?)
+    hash_structured_data(data).map_err(|err| anyhow!("{err:?}"))
 }
 
 pub(super) fn hash_cert(query: &CertificateBody) -> Result<H256> {
@@ -99,7 +99,7 @@ pub(super) fn hash_cert(query: &CertificateBody) -> Result<H256> {
     });
     let data =
         serde_json::from_value::<EIP712>(value).context("Failed to serialize certificate")?;
-    Ok(hash_structured_data(data).map_err(|err| anyhow!("{err:?}"))?)
+    hash_structured_data(data).map_err(|err| anyhow!("{err:?}"))
 }
 
 pub(crate) fn eip721_verify(

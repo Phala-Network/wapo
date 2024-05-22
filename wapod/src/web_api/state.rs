@@ -116,7 +116,7 @@ impl Worker {
             inner: Arc::new_cyclic(|weak_self| {
                 Mutex::new(WorkerState {
                     weak_self: weak_self.clone(),
-                    blob_loader: BlobLoader::new(&blobs_dir()),
+                    blob_loader: BlobLoader::new(blobs_dir()),
                     apps: HashMap::new(),
                     service,
                     args,
@@ -628,7 +628,7 @@ impl wapo_host::RuntimeCalls for AppRuntimeCalls {
     }
 
     fn sign_app_data(&self, data: &[u8]) -> Vec<u8> {
-        worker_identity_key().sign(ContentType::AppData, &self.wrap_message(data))
+        worker_identity_key().sign(ContentType::AppData, self.wrap_message(data))
     }
 
     fn sgx_quote_app_data(&self, data: &[u8]) -> Option<Vec<u8>> {
