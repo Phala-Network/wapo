@@ -11,7 +11,7 @@ mod worker_key;
 mod sgx;
 
 #[derive(Parser, Clone, Debug)]
-#[clap(about = "wapo - a WASM runtime", version, author)]
+#[clap(about = "wapod - a WASM runtime", version, author)]
 pub struct Args {
     /// Maximum number of memory pages (default: 256). Acceptable range is 1 to 65536.
     #[arg(long, default_value_t = 256, value_parser = clap::value_parser!(u32).range(1..=65536))]
