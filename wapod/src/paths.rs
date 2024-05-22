@@ -18,7 +18,7 @@ pub fn blobs_dir() -> PathBuf {
 }
 
 pub fn create_dirs_if_needed() -> Result<()> {
-    for dir in &[data_dir(), blobs_dir()] {
+    for dir in &[secret_data_dir(), blobs_dir()] {
         std::fs::create_dir_all(dir).context("failed to create data directory")?;
     }
     Ok(())
