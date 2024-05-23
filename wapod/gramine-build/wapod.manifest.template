@@ -1,4 +1,4 @@
-{% set enclave_size = "4G" %}
+{% set enclave_size = "16G" %}
 
 [libos]
 entrypoint = "wapod"
