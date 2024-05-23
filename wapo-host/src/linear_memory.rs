@@ -66,15 +66,14 @@ unsafe impl MemoryCreator for VecMemoryCreator {
         if ty.is_64() || ty.is_shared() {
             return Err("unsupported memory type".to_string());
         }
-        if reserved_size_in_bytes.unwrap_or_default() > self.limit {
-            return Err("reserved size too large".to_string());
+        if reserved_size_in_bytes.is_some() {
+            return Err("reserved size is not supported".to_string());
         }
         if guard_size_in_bytes != 0 {
             return Err("guard size is not supported".to_string());
         }
         let limit = maximum.unwrap_or(self.limit).min(self.limit);
-        let mut memory = Vec::with_capacity(limit);
-        memory.resize(minimum, 0);
+        let memory = vec![0u8; minimum];
         Ok(Box::new(VecMemory { limit, memory }))
     }
 }
