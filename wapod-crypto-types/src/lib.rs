@@ -20,6 +20,7 @@ pub enum ContentType {
 impl ContentType {
     pub fn wrap_message(&self, message: impl AsRef<[u8]>) -> Vec<u8> {
         let mut wrapped = Vec::new();
+        wrapped.push(0xff);
         wrapped.push(*self as u8);
         wrapped.extend_from_slice(message.as_ref());
         wrapped
