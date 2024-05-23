@@ -580,8 +580,11 @@
                 }
                 return this.config.consoleHeight - 100
             },
-            async fetchAPI(method, data) {
-                const toastId = this.addToast(`Calling ${method}`);
+            async fetchAPI(method, data, quiet = false) {
+                let toastId;
+                if (!quiet) {
+                    toastId = this.addToast(`Calling ${method}`);
+                }
                 const headers = {
                     'Content-Type': 'application/json',
                 };
@@ -596,10 +599,14 @@
                         body: JSON.stringify(data)
                     });
                     const success = response.ok;
-                    this.updateToast(toastId, success);
+                    if (!quiet) {
+                        this.updateToast(toastId, success);
+                    }
                     return response.json();
                 } catch (err) {
-                    this.updateToast(toastId, false);
+                    if (!quiet) {
+                        this.updateToast(toastId, false);
+                    }
                 }
             },
 
@@ -614,7 +621,7 @@
             },
 
             async updateInfo() {
-                this.workerInfo = await this.fetchAPI('Info');
+                this.workerInfo = await this.fetchAPI('Info', {}, true);
             },
 
             async initWorker() {
