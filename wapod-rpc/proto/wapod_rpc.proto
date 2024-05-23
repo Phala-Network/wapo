@@ -236,12 +236,10 @@ message Manifest {
   bool on_demand = 6;
   // Whether the app can run multiple instances in a single worker.
   bool resizable = 7;
-  // The salt used to derive the app's address.
-  bytes salt = 8;
   // The maximum size of the query payload.
-  uint32 max_query_size = 9;
+  uint32 max_query_size = 8;
   // The optional label of the app.
-  string label = 10;
+  string label = 9;
 }
 
 // Environment variable of an app.

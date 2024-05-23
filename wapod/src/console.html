@@ -473,10 +473,6 @@
                             <textarea v-model="deployForm.envVars"></textarea>
                         </div>
                         <div class="form-group">
-                            <label>Salt:</label>
-                            <input type="text" v-model="deployForm.salt">
-                        </div>
-                        <div class="form-group">
                             <label>On-Demand:</label>
                             <input type="checkbox" v-model="deployForm.onDemand">
                         </div>
@@ -685,7 +681,6 @@
                         args: JSON.parse(this.deployForm.args),
                         env_vars: JSON.parse(this.deployForm.envVars),
                         on_demand: this.deployForm.onDemand,
-                        salt: this.deployForm.salt,
                         resizable: this.deployForm.resizable,
                         max_query_size: this.deployForm.maxQuerySize,
                         label: this.deployForm.label,
@@ -944,7 +939,6 @@
                     args: '[]',
                     envVars: '[]',
                     onDemand: false,
-                    salt: '0x00',
                     resizable: false,
                     maxQuerySize: 1024 * 1024,
                     label: '',
