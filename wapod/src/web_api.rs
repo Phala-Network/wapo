@@ -263,6 +263,11 @@ pub fn crate_worker_state(args: Args) -> Result<Worker> {
         tx,
         &blobs_dir(),
         max_memory,
+        if args.no_mem_pool {
+            0
+        } else {
+            args.max_instances
+        },
     )
     .context("failed to create service")?;
     tokio::spawn(async move {

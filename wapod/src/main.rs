@@ -41,6 +41,10 @@ pub struct Args {
     /// Number of compiled WebAssembly modules that can be cached (default: 16).
     #[arg(long, default_value_t = 16)]
     module_cache_size: usize,
+
+    /// Disable memory pool for instances.
+    #[arg(long)]
+    no_mem_pool: bool,
 }
 
 impl Args {

@@ -191,7 +191,8 @@ pub fn service(
     module_cache_size: usize,
     out_tx: crate::OutgoingRequestSender,
     blobs_dir: &PathBuf,
-    max_memory: usize,
+    mem_limit: usize,
+    mem_pool_size: usize,
 ) -> Result<(ServiceRun, ServiceHandle)> {
     let worker_threads = worker_threads.max(1);
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -207,8 +208,8 @@ pub fn service(
     let (report_tx, report_rx) = channel(100);
     let run = ServiceRun { runtime, report_rx };
     let blob_loader = BlobLoader::new(blobs_dir);
-    let engine =
-        WasmEngine::new(Config::new(), 10, max_memory).context("failed to create Wasm engine")?;
+    let engine = WasmEngine::new(Config::new(), 10, mem_limit, mem_pool_size)
+        .context("failed to create Wasm engine")?;
     let module_loader = ModuleLoader::new(engine, blob_loader, module_cache_size);
     let spawner = ServiceHandle {
         runtime_handle,

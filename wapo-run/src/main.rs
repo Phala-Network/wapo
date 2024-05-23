@@ -73,6 +73,7 @@ pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
         engine_config,
         args.tick_time_ms,
         args.max_memory_pages.saturating_mul(64 * 1024) as _,
+        0,
     )
     .context("failed to create Wasm engine")?;
     let t0 = std::time::Instant::now();

@@ -15,7 +15,7 @@ use wasmtime::{
     TypedFunc, UpdateDeadline,
 };
 
-use crate::linear_memory::VecMemoryCreator;
+use crate::linear_memory::MemoryPool;
 use crate::runtime::{
     async_context,
     vm_context::{self as wapo_ctx, WapoCtx},
@@ -38,9 +38,14 @@ pub struct WasmEngine {
 }
 
 impl WasmEngine {
-    pub fn new(mut config: Config, tick_time_ms: u64, max_memory: usize) -> Result<Self> {
-        if max_memory > u32::MAX as usize {
-            bail!("Memory size too large: {} bytes", max_memory);
+    pub fn new(
+        mut config: Config,
+        tick_time_ms: u64,
+        mem_limit: usize,
+        mem_pool_size: usize,
+    ) -> Result<Self> {
+        if mem_limit > u32::MAX as usize {
+            bail!("Memory size too large: {} bytes", mem_limit);
         }
         config
             .consume_fuel(true)
@@ -49,7 +54,7 @@ impl WasmEngine {
             .static_memory_maximum_size(0)
             .static_memory_guard_size(0)
             .dynamic_memory_guard_size(0)
-            .with_host_memory(Arc::new(VecMemoryCreator::new(max_memory)))
+            .with_host_memory(Arc::new(MemoryPool::new(mem_limit, mem_pool_size)))
             .guard_before_linear_memory(false);
         let engine = Engine::new(&config).context("failed to create Wasm engine")?;
         if tick_time_ms > 0 {
