@@ -322,6 +322,9 @@ impl Worker {
         if manifest.resizable && manifest.on_demand {
             bail!("on-demand app can not be resizable");
         }
+        if manifest.label.len() > 64 {
+            bail!("label too long");
+        }
         let encoded = scale::Encode::encode(&manifest);
         const MAX_MANIFEST_SIZE: usize = 1024 * 16;
         if encoded.len() > MAX_MANIFEST_SIZE {
