@@ -626,7 +626,7 @@
             },
 
             async loadApps() {
-                const response = await this.fetchAPI('AppList');
+                const response = await this.fetchAPI('AppList', null, true);
                 // sort the apps by sn
                 response.apps.sort((a, b) => a.sn - b.sn);
                 this.appsData = response.apps;
@@ -914,6 +914,7 @@
                     await sleep(500);
                     if (m.config.autoRefresh) {
                         await m.updateInfo();
+                        await m.loadApps();
                     }
                 }
             }
