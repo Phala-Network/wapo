@@ -95,7 +95,8 @@ fn handel_alloc(data: &[u8]) -> Result<Vec<u8>> {
     let size: usize = s.parse().context("invalid size")?;
     const MB: usize = 1024 * 1024;
     if size < 16 * MB {
-        let _tmp = vec![1u8; size];
+        let tmp = vec![1u8; size];
+        info!("allocated: {}", tmp.len());
     } else {
         let mut alloced = vec![];
         for i in 1.. {

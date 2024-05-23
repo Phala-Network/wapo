@@ -1,4 +1,5 @@
-use tracing::info;
+use anyhow::Result;
+use tracing::{info, warn};
 use wasmtime::{LinearMemory, MemoryCreator, MemoryType};
 
 pub struct VecMemoryCreator {
@@ -25,7 +26,11 @@ unsafe impl LinearMemory for VecMemory {
         Some(self.limit)
     }
 
-    fn grow_to(&mut self, new_size: usize) -> anyhow::Result<()> {
+    fn grow_to(&mut self, new_size: usize) -> Result<()> {
+        if new_size > self.limit {
+            warn!(new_size, limit = self.limit, "memory limit exceeded");
+            return Err(anyhow::anyhow!("memory limit exceeded"));
+        }
         if new_size > self.memory.len() {
             self.memory.resize(new_size, 0);
         }
@@ -67,12 +72,8 @@ unsafe impl MemoryCreator for VecMemoryCreator {
         if guard_size_in_bytes != 0 {
             return Err("guard size is not supported".to_string());
         }
-        let buf = vec![0u8; minimum];
-        let max = maximum.unwrap_or(self.limit).min(self.limit);
-        let mem = VecMemory {
-            limit: max,
-            memory: buf,
-        };
-        Ok(Box::new(mem))
+        let memory = vec![0u8; minimum];
+        let limit = maximum.unwrap_or(self.limit).min(self.limit);
+        Ok(Box::new(VecMemory { limit, memory }))
     }
 }
