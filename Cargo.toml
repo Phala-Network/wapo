@@ -12,7 +12,9 @@ members = [
     "wapod-crypto",
     "wapod-crypto-types",
     "e2e/guest",
+    "phaxt",
 ]
+exclude = ["wapod-pherry"]
 
 [profile.release]
 panic = "abort"

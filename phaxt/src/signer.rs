@@ -1,7 +1,7 @@
 use sp_core::Pair as PairT;
 use sp_runtime::{
     traits::{IdentifyAccount, Verify},
-    AccountId32 as SpAccountId32, MultiSignature as SpMultiSignature,
+    MultiSignature as SpMultiSignature,
 };
 use subxt::Config;
 use subxt::{tx::Signer, utils::MultiSignature};
@@ -18,17 +18,15 @@ impl<T, Pair> PairSigner<T, Pair>
 where
     T: Config,
     Pair: PairT,
-    // We go via an `sp_runtime::MultiSignature`. We can probably generalise this
-    // by implementing some of these traits on our built-in MultiSignature and then
-    // requiring them on all T::Signatures, to avoid any go-between.
     <SpMultiSignature as Verify>::Signer: From<Pair::Public>,
-    T::AccountId: From<SpAccountId32>,
+    T::AccountId: From<[u8; 32]>,
 {
     /// Creates a new [`Signer`] from an [`sp_core::Pair`].
     pub fn new(signer: Pair) -> Self {
         let account_id = <SpMultiSignature as Verify>::Signer::from(signer.public()).into_account();
+        let account_array: [u8; 32] = account_id.into();
         Self {
-            account_id: account_id.into(),
+            account_id: account_array.into(),
             signer,
             nonce: 0,
         }

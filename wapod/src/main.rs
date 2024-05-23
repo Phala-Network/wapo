@@ -138,8 +138,8 @@ fn todo() {
     let todo = "add prpc get worker description";
     let todo = "guest tip in metrics";
 
-    let todo = "test  signing with worker key for guest";
-    let todo = "test  sgx_quote api for guest";
+    let todo = "test signing with worker key for guest";
+    let todo = "test sgx_quote api for guest";
     let todo = "test preemptive query instance";
     let todo = "tests for query signing";
 }
