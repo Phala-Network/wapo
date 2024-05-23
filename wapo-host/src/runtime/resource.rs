@@ -9,6 +9,7 @@ use tokio::sync::mpsc::Receiver;
 use tokio::sync::oneshot::Sender;
 use tokio::time::Sleep;
 use tokio_rustls::rustls::ServerConfig;
+use tracing::error;
 use wapo_env::{OcallError, Result};
 use Resource::*;
 
@@ -68,7 +69,7 @@ impl Resource {
                         Ok(Resource::TcpStream(Box::new(stream)))
                     }
                     Ready(Err(err)) => {
-                        log::error!("tcp connect error: {}", err);
+                        error!("tcp connect error: {}", err);
                         Err(OcallError::IoError)
                     }
                 }
@@ -82,7 +83,7 @@ impl Resource {
                         Ok(Resource::TlsStream(Box::new(stream)))
                     }
                     Ready(Err(err)) => {
-                        log::error!("tls connect error: {}", err);
+                        error!("tls connect error: {}", err);
                         Err(OcallError::IoError)
                     }
                 }

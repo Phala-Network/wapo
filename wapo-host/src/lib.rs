@@ -1,4 +1,5 @@
 mod error;
+mod linear_memory;
 mod module_loader;
 #[cfg(feature = "rocket-stream")]
 pub mod rocket_stream;

@@ -69,8 +69,12 @@ pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
     let (event_tx, mut event_rx) = crate_outgoing_request_channel();
     let mut engine_config = Config::new();
     engine_config.strategy(args.compiler.into());
-    let engine = WasmEngine::new(engine_config, args.tick_time_ms)
-        .context("failed to create Wasm engine")?;
+    let engine = WasmEngine::new(
+        engine_config,
+        args.tick_time_ms,
+        args.max_memory_pages.saturating_mul(64 * 1024) as _,
+    )
+    .context("failed to create Wasm engine")?;
     let t0 = std::time::Instant::now();
     info!(target: "wapo", "compiling wasm module");
     let module = engine.compile(&code)?;

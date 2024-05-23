@@ -252,11 +252,17 @@ fn sign_http_response(data: &[u8]) -> Option<String> {
 
 pub fn crate_worker_state(args: Args) -> Result<Worker> {
     let (tx, mut rx) = crate_outgoing_request_channel();
+    let n_threads = args.max_instances().saturating_add(2);
+    let max_memory = args
+        .instance_memory_size
+        .try_into()
+        .context("invalid memory size")?;
     let (run, spawner) = service::service(
-        args.max_instances().saturating_add(2),
+        n_threads,
         args.module_cache_size,
         tx,
         &blobs_dir(),
+        max_memory,
     )
     .context("failed to create service")?;
     tokio::spawn(async move {

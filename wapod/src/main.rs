@@ -19,8 +19,8 @@ pub struct Args {
 
     /// Maximum number of instances to run. If not specified, it will be determined by the enclave
     /// size and instance memory size.
-    #[arg(long)]
-    max_instances: Option<usize>,
+    #[arg(long, default_value_t = 8)]
+    max_instances: usize,
 
     /// Port number for the admin service to listen on. If not specified, the value will be
     /// read from the configuration file.
@@ -46,7 +46,6 @@ pub struct Args {
 impl Args {
     fn max_instances(&self) -> usize {
         self.max_instances
-            .unwrap_or_else(|| self.max_allowed_instances().unwrap_or(32))
     }
 
     fn validate(&self) -> Result<()> {
@@ -100,12 +99,9 @@ async fn main() -> Result<()> {
     logger::init();
 
     info!("starting wapod server...");
-    let mut args = Args::parse();
+    let args = Args::parse();
 
     info!("args: {:?}", args);
-
-    // To speed up later access
-    args.max_instances = Some(args.max_instances());
 
     args.validate().context("invalid args")?;
 

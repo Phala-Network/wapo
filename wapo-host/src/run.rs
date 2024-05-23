@@ -11,9 +11,11 @@ use wasi_common::sync::WasiCtxBuilder;
 use wasi_common::WasiCtx;
 
 use wasmtime::{
-    AsContext, Config, Engine, Linker, Module, Store, StoreLimits, TypedFunc, UpdateDeadline,
+    AsContext, Config, Engine, InstanceAllocationStrategy, Linker, Module, Store, StoreLimits,
+    TypedFunc, UpdateDeadline,
 };
 
+use crate::linear_memory::VecMemoryCreator;
 use crate::runtime::{
     async_context,
     vm_context::{self as wapo_ctx, WapoCtx},
@@ -36,11 +38,18 @@ pub struct WasmEngine {
 }
 
 impl WasmEngine {
-    pub fn new(mut config: Config, tick_time_ms: u64) -> Result<Self> {
+    pub fn new(mut config: Config, tick_time_ms: u64, max_memory: usize) -> Result<Self> {
+        if max_memory > u32::MAX as usize {
+            bail!("Memory size too large: {} bytes", max_memory);
+        }
         config
             .consume_fuel(true)
             .epoch_interruption(true)
+            .allocation_strategy(InstanceAllocationStrategy::OnDemand)
             .static_memory_maximum_size(0)
+            .static_memory_guard_size(0)
+            .dynamic_memory_guard_size(0)
+            .with_host_memory(Arc::new(VecMemoryCreator::new(max_memory)))
             .guard_before_linear_memory(false);
         let engine = Engine::new(&config).context("failed to create Wasm engine")?;
         if tick_time_ms > 0 {
