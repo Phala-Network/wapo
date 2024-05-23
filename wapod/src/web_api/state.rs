@@ -1,6 +1,7 @@
 use anyhow::{anyhow, bail, Context, Result};
 
 use rand::Rng as _;
+use scale::Encode;
 use sp_core::blake2_256;
 use tokio::sync::oneshot;
 use tracing::{field::display, info, warn, Instrument};
@@ -325,8 +326,14 @@ impl Worker {
         if manifest.label.len() > 64 {
             bail!("label too long");
         }
-        let encoded = scale::Encode::encode(&manifest);
         const MAX_MANIFEST_SIZE: usize = 1024 * 16;
+        if manifest.size_hint() > MAX_MANIFEST_SIZE {
+            bail!(
+                "manifest too large, max={MAX_MANIFEST_SIZE}, size_hint={}",
+                manifest.size_hint()
+            );
+        }
+        let encoded = scale::Encode::encode(&manifest);
         if encoded.len() > MAX_MANIFEST_SIZE {
             bail!(
                 "manifest too large, max={MAX_MANIFEST_SIZE}, actual={}",
