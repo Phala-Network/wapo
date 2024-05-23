@@ -683,6 +683,10 @@
                         max_query_size: this.deployForm.maxQuerySize,
                         label: this.deployForm.label,
                     };
+                    if (manifest.label.length == 0) {
+                        alert('Please add a label for the app');
+                        return;
+                    }
                     await this.rpcCall('AppDeploy', { manifest });
                     this.loadApps();
                 } catch (error) {
