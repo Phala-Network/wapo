@@ -79,20 +79,20 @@ const INDEX: &[u8] = br#"Index:
 "#;
 
 async fn handle_query(path: String, payload: Vec<u8>) -> Result<Vec<u8>> {
-    let reply = match path.as_str() {
-        "/" => INDEX.to_vec(),
-        "/echo" => payload,
-        "/sleep" => handle_sleep(&payload).await?,
-        "/exit" => handle_exit(&payload)?,
-        "/alloc" => handel_alloc(&payload)?,
+    let parts: Vec<_> = path.split('/').skip(1).collect();
+    let reply = match &parts[..] {
+        [""] => INDEX.to_vec(),
+        ["echo"] => payload,
+        ["sleep", v] => handle_sleep(v).await?,
+        ["exit", v] => handle_exit(v)?,
+        ["alloc", v] => handel_alloc(v)?,
         _ => b"404".to_vec(),
     };
     Ok(reply)
 }
 
-fn handel_alloc(data: &[u8]) -> Result<Vec<u8>> {
-    let s = String::from_utf8_lossy(data);
-    let size: usize = s.parse().context("invalid size")?;
+fn handel_alloc(data: &str) -> Result<Vec<u8>> {
+    let size: usize = parse_size::parse_size(data).context("invalid size")? as _;
     const MB: usize = 1024 * 1024;
     if size < 16 * MB {
         let tmp = vec![1u8; size];
@@ -111,18 +111,14 @@ fn handel_alloc(data: &[u8]) -> Result<Vec<u8>> {
     Ok(b"allocated".to_vec())
 }
 
-async fn handle_sleep(data: &[u8]) -> Result<Vec<u8>> {
-    let ms = String::from_utf8_lossy(data)
-        .parse()
-        .context("invalid time")?;
+async fn handle_sleep(data: &str) -> Result<Vec<u8>> {
+    let ms = data.parse().context("invalid time")?;
     wapo::time::sleep(Duration::from_millis(ms)).await;
     Ok(format!("Slept {ms} ms").into_bytes())
 }
 
-fn handle_exit(data: &[u8]) -> Result<Vec<u8>> {
-    let code = String::from_utf8_lossy(data)
-        .parse()
-        .context("invalid time")?;
+fn handle_exit(data: &str) -> Result<Vec<u8>> {
+    let code = data.parse().context("invalid time")?;
     std::process::exit(code);
 }
 
