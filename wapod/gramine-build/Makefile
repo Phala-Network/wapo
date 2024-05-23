@@ -130,7 +130,7 @@ dist: pre-dist ${BIN_NAME}.manifest signed-sgx-artifacts
 	cp ${BIN_NAME}.manifest.sgx ${PREFIX}/
 	cp ${BIN_NAME}.sig ${PREFIX}/
 	cp gramine-sgx ${PREFIX}/
-	gramine-sgx-sigstruct-view ${BIN_NAME}.sig
+	./gramine-sgx-sigstruct-view ${BIN_NAME}.sig
 else
 dist: pre-dist ${BIN_NAME}.manifest
 	cp ${BIN_NAME}.manifest ${PREFIX}/
