@@ -32,9 +32,11 @@ pub async fn register(args: RegisterArgs) -> Result<()> {
         pccs_url,
     } = args;
     let worker_client = WorkerClient::new(worker_uri, token);
+    info!("connecting to the chain");
     let chain_client = phaxt::connect(&chain_uri)
         .await
         .context("failed to connect to the chain")?;
+    info!("getting paraid");
     let para_id = chain_client.get_paraid().await?;
     let genesis_block_hash = chain_client.genesis_hash();
     let operator = if operator.is_empty() {
@@ -46,12 +48,13 @@ pub async fn register(args: RegisterArgs) -> Result<()> {
                 .0,
         )
     };
+    info!("requesting worker to sign register data");
     let register_info = SignRegisterInfoArgs::new(genesis_block_hash.into(), operator, para_id);
     let response = worker_client
         .operation()
         .sign_register_info(register_info)
         .await?;
-    info!("register_info response: {:?}", response);
+    info!("got signed register data");
     let attestation = response.decode_report()?;
     let report = match attestation {
         Some(AttestationReport::SgxDcap {
@@ -87,6 +90,6 @@ pub async fn register(args: RegisterArgs) -> Result<()> {
     chain_client
         .register_worker(response.encoded_runtime_info, report, &mut signer)
         .await?;
-    info!("register_worker tx finalized");
+    info!("done");
     Ok(())
 }

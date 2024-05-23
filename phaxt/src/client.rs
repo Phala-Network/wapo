@@ -3,9 +3,8 @@ use jsonrpsee::{async_client::ClientBuilder, client_transport::ws::WsTransportCl
 use scale::{Decode, Encode};
 use std::ops::Deref;
 use subxt::ext::scale_value::At;
-use subxt::tx::Payload as _;
 use subxt::{dynamic::Value, storage::StaticStorageKey};
-use tracing::{debug, info};
+use tracing::info;
 
 use crate::signer::{PairSigner, ToMultiSignature};
 use crate::ExtrinsicParamsBuilder;
@@ -52,16 +51,18 @@ impl ChainApi {
 
     pub async fn get_paraid(&self) -> Result<u32> {
         let address = subxt::dynamic::storage("ParachainInfo", "ParachainId", ());
-        let id = self
+        let Some(id) = self
             .storage()
             .at_latest()
             .await?
             .fetch(&address)
             .await
             .context("Failed to get current set_id")?
-            .ok_or_else(|| anyhow!("No paraid found"))?
-            .to_value()?;
+        else {
+            return Ok(0);
+        };
         let id = id
+            .to_value()?
             .at(0)
             .ok_or_else(|| anyhow!("Invalid paraid"))?
             .as_u128()
@@ -97,6 +98,7 @@ impl ChainApi {
     pub async fn mk_params(&self, longevity: u64, tip: u128) -> Result<ExtrinsicParamsBuilder> {
         let params = if longevity > 0 {
             let block = self.blocks().at_latest().await?;
+            info!("using tx longevity: {longevity}");
             ExtrinsicParamsBuilder::new()
                 .tip(tip)
                 .mortal(block.header(), longevity)
@@ -116,16 +118,9 @@ impl ChainApi {
         P: sp_core::Pair,
         P::Signature: ToMultiSignature,
     {
-        let params = self.mk_params(4, 0).await?.build();
+        let params = self.mk_params(8, 0).await?.build();
         let tx = crate::dynamic::tx::update_worker_endpoint(encoded_endpoints, signature);
-        let encoded_call_data = tx
-            .encode_call_data(&self.metadata())
-            .expect("should encoded");
-        debug!(
-            "update_worker_endpoints call: 0x{}",
-            hex::encode(encoded_call_data)
-        );
-
+        info!("seding update_worker_endpoints");
         let progress = self
             .tx()
             .create_signed(&tx, signer, params)
@@ -156,13 +151,9 @@ impl ChainApi {
         P: sp_core::Pair,
         P::Signature: ToMultiSignature,
     {
-        let params = self.mk_params(4, 0).await?.build();
+        let params = self.mk_params(8, 0).await?.build();
         let tx = crate::dynamic::tx::register_worker(encoded_runtime_info, attestation, true);
-        let encoded_call_data = tx
-            .encode_call_data(&self.metadata())
-            .expect("should encoded");
-        debug!("register_worker call: 0x{}", hex::encode(encoded_call_data));
-
+        info!("sending register_worker");
         let progress = self
             .tx()
             .create_signed(&tx, signer, params)

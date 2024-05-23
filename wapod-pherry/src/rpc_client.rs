@@ -33,7 +33,7 @@ impl WorkerClient {
 impl RequestClient for WorkerClient {
     async fn request(&self, path: &str, body: Vec<u8>) -> Result<Vec<u8>, Error> {
         let base_url = self.base_url.trim_end_matches('/');
-        let url = format!("{}/{}", base_url, path);
+        let url = format!("{}/prpc/{}", base_url, path);
         let request_builder = self.http_client.post(url);
         let request_builder = if self.token.is_empty() {
             request_builder

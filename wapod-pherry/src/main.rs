@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 use wapod_pherry::{
     endpoints::{update_endpoint, UpdateEndpointArgs},
     register::{register, RegisterArgs},
@@ -23,8 +24,12 @@ struct Args {
 #[derive(Subcommand, Clone, Debug)]
 enum Command {
     Register {
-        #[arg(long, default_value = "//Alice")]
+        #[arg(
+            long,
+            default_value = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+        )]
         operator: String,
+        #[arg(long)]
         pccs: String,
     },
     UpdateEndpoint {
@@ -35,7 +40,10 @@ enum Command {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt().init();
+    let filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into())
+        .from_env_lossy();
+    tracing_subscriber::fmt().with_env_filter(filter).init();
 
     let args = Args::parse();
     match args.command {
