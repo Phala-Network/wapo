@@ -7,8 +7,7 @@ use wapod_pherry::{
 };
 
 #[derive(Parser, Clone, Debug)]
-#[clap(version, author)]
-struct Args {
+struct CommonArgs {
     #[arg(long)]
     chain_uri: String,
     #[arg(long)]
@@ -17,6 +16,11 @@ struct Args {
     token: String,
     #[arg(long, default_value = "//Alice")]
     signer: String,
+}
+
+#[derive(Parser, Clone, Debug)]
+#[clap(version, author)]
+struct Args {
     #[command(subcommand)]
     command: Command,
 }
@@ -24,6 +28,8 @@ struct Args {
 #[derive(Subcommand, Clone, Debug)]
 enum Command {
     Register {
+        #[command(flatten)]
+        other: CommonArgs,
         #[arg(
             long,
             default_value = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
@@ -32,7 +38,9 @@ enum Command {
         #[arg(long)]
         pccs: String,
     },
-    UpdateEndpoint {
+    Update {
+        #[command(flatten)]
+        other: CommonArgs,
         #[arg(long)]
         endpoint: String,
     },
@@ -47,24 +55,24 @@ async fn main() -> Result<()> {
 
     let args = Args::parse();
     match args.command {
-        Command::Register { operator, pccs } => {
+        Command::Register { operator, pccs, other } => {
             let args = RegisterArgs {
-                worker_uri: args.worker_uri,
-                token: args.token,
-                chain_uri: args.chain_uri,
-                signer: args.signer,
+                worker_uri: other.worker_uri,
+                token: other.token,
+                chain_uri: other.chain_uri,
+                signer: other.signer,
                 operator,
                 pccs_url: pccs,
             };
             register(args).await?;
         }
-        Command::UpdateEndpoint { endpoint } => {
+        Command::Update { endpoint, other } => {
             let args = UpdateEndpointArgs {
-                worker_uri: args.worker_uri,
-                token: args.token,
-                chain_uri: args.chain_uri,
+                worker_uri: other.worker_uri,
+                token: other.token,
+                chain_uri: other.chain_uri,
+                signer: other.signer,
                 endpoint,
-                signer: args.signer,
             };
             update_endpoint(args).await?;
         }
