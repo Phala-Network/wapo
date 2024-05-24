@@ -90,25 +90,25 @@ async fn handle_query(path: String, payload: Vec<u8>) -> Result<Vec<u8>> {
         ["echo"] => payload,
         ["sleep", v] => handle_sleep(v).await?,
         ["exit", v] => handle_exit(v)?,
-        ["alloc", v] => handel_alloc(v)?,
-        ["sign"] => handel_sign(&payload)?,
-        ["quote"] => handel_quote(&payload)?,
+        ["alloc", v] => handle_alloc(v)?,
+        ["sign"] => handle_sign(&payload)?,
+        ["quote"] => handle_quote(&payload)?,
         _ => b"404".to_vec(),
     };
     Ok(reply)
 }
 
-fn handel_sign(data: &[u8]) -> Result<Vec<u8>> {
+fn handle_sign(data: &[u8]) -> Result<Vec<u8>> {
     wapo::ocall::sign(data).map_err(Into::into)
 }
 
-fn handel_quote(data: &[u8]) -> Result<Vec<u8>> {
+fn handle_quote(data: &[u8]) -> Result<Vec<u8>> {
     wapo::ocall::sgx_quote(data)
         .map(|quote| quote.unwrap_or_default())
         .map_err(Into::into)
 }
 
-fn handel_alloc(data: &str) -> Result<Vec<u8>> {
+fn handle_alloc(data: &str) -> Result<Vec<u8>> {
     let size: usize = parse_size::parse_size(data).context("invalid size")? as _;
     const MB: usize = 1024 * 1024;
     if size < 16 * MB {
