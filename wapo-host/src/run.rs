@@ -20,7 +20,7 @@ use crate::runtime::{
     async_context,
     vm_context::{self as wapo_ctx, WapoCtx},
 };
-use crate::{Meter, OutgoingRequestSender, VmId};
+use crate::{Meter, VmId};
 
 pub use crate::runtime::vm_context::RuntimeCalls;
 
@@ -88,7 +88,6 @@ impl WasmModule {
             id,
             scheduler,
             weight,
-            event_tx,
             runtime_calls,
             args,
             envs,
@@ -99,7 +98,7 @@ impl WasmModule {
         let engine = self.engine.inner.clone();
         let mut linker = Linker::<VmCtx>::new(&engine);
 
-        let mut wapo_ctx = WapoCtx::new(id, event_tx, runtime_calls, blobs_dir, meter);
+        let mut wapo_ctx = WapoCtx::new(id, runtime_calls, blobs_dir, meter);
         wapo_ctx.set_weight(weight);
         wapo_ctx::add_ocalls_to_linker(&mut linker, |c| &mut c.wapo_ctx)?;
 
@@ -177,7 +176,6 @@ pub struct InstanceConfig<OCalls> {
     scheduler: Option<TaskScheduler<VmId>>,
     #[builder(default = 1)]
     weight: u32,
-    event_tx: OutgoingRequestSender,
     #[builder(default = 10)]
     epoch_deadline: u64,
     runtime_calls: OCalls,

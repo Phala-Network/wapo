@@ -182,14 +182,12 @@ pub struct ServiceRun {
 pub struct ServiceHandle {
     runtime_handle: tokio::runtime::Handle,
     report_tx: Sender<Report>,
-    out_tx: crate::OutgoingRequestSender,
     module_loader: ModuleLoader,
 }
 
 pub fn service(
     worker_threads: usize,
     module_cache_size: usize,
-    out_tx: crate::OutgoingRequestSender,
     blobs_dir: &PathBuf,
     mem_limit: usize,
     mem_pool_size: usize,
@@ -214,7 +212,6 @@ pub fn service(
     let spawner = ServiceHandle {
         runtime_handle,
         report_tx,
-        out_tx,
         module_loader,
     };
     Ok((run, spawner))
@@ -274,7 +271,6 @@ impl ServiceHandle {
             auto_restart,
             runtime_calls,
         } = config;
-        let event_tx = self.out_tx.clone();
         let (cmd_tx, mut cmd_rx) = channel(128);
         let (ctl_cmd_tx, mut ctl_cmd_rx) = unbounded_channel();
         let (stop_signal_tx, stop_signal_rx) = tokio::sync::oneshot::channel();
@@ -323,7 +319,6 @@ impl ServiceHandle {
                 .id(id)
                 .max_memory_pages(max_memory_pages)
                 .weight(weight)
-                .event_tx(event_tx)
                 .blobs_dir(blobs_dir)
                 .meter(Some(meter_cloned))
                 .runtime_calls(runtime_calls)
@@ -460,10 +455,6 @@ impl ServiceHandle {
         fut: impl Future<Output = O> + Send + 'static,
     ) -> JoinHandle<O> {
         self.runtime_handle.spawn(fut.in_current_span())
-    }
-
-    pub fn event_tx(&self) -> crate::OutgoingRequestSender {
-        self.out_tx.clone()
     }
 
     pub fn module_loader(&self) -> &ModuleLoader {

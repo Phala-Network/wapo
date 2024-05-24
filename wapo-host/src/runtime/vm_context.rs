@@ -12,10 +12,7 @@ use anyhow::Context;
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::oneshot::Sender as OneshotSender,
-    sync::{
-        mpsc::{Receiver, Sender},
-        oneshot,
-    },
+    sync::{mpsc::Sender, oneshot},
 };
 use tracing::{debug, info, warn, Instrument, Span};
 
@@ -96,6 +93,7 @@ pub trait RuntimeCalls: Send + 'static {
     fn worker_pubkey(&self) -> Vec<u8>;
     fn sign_app_data(&self, data: &[u8]) -> Vec<u8>;
     fn sgx_quote_app_data(&self, data: &[u8]) -> Option<Vec<u8>>;
+    fn emit_output(&self, _output: &[u8]);
 }
 
 impl RuntimeCalls for () {
@@ -110,17 +108,8 @@ impl RuntimeCalls for () {
     fn sgx_quote_app_data(&self, _data: &[u8]) -> Option<Vec<u8>> {
         None
     }
-}
 
-pub type OutgoingRequestSender = Sender<(VmId, OutgoingRequest)>;
-pub type OutgoingRequestReceiver = Receiver<(VmId, OutgoingRequest)>;
-pub fn crate_outgoing_request_channel() -> (OutgoingRequestSender, OutgoingRequestReceiver) {
-    tokio::sync::mpsc::channel(20)
-}
-
-pub enum OutgoingRequest {
-    // Used by Js Engine to send js eval result
-    Output(Vec<u8>),
+    fn emit_output(&self, _output: &[u8]) {}
 }
 
 pub(crate) struct WapoCtx {
@@ -132,7 +121,6 @@ pub(crate) struct WapoCtx {
     http_connect_tx: Option<Sender<Vec<u8>>>,
     awake_tasks: Arc<TaskSet>,
     weight: u32,
-    outgoing_request_tx: OutgoingRequestSender,
     runtime_calls: Box<dyn RuntimeCalls>,
     _counter: vm_counter::Counter,
     meter: Arc<Meter>,
@@ -142,7 +130,6 @@ pub(crate) struct WapoCtx {
 impl WapoCtx {
     pub(crate) fn new<OCalls>(
         id: VmId,
-        outgoing_request_tx: OutgoingRequestSender,
         runtime_calls: OCalls,
         blobs_dir: PathBuf,
         meter: Option<Arc<Meter>>,
@@ -159,7 +146,6 @@ impl WapoCtx {
             http_connect_tx: None,
             awake_tasks: Arc::new(TaskSet::with_task0()),
             weight: 1,
-            outgoing_request_tx,
             runtime_calls: Box::new(runtime_calls),
             _counter: Default::default(),
             meter: meter.unwrap_or_default(),
@@ -400,11 +386,8 @@ impl env::OcallFuncs for WapoCtx {
     }
 
     fn emit_program_output(&mut self, output: &[u8]) -> Result<()> {
-        let from = self.id;
-        let request = OutgoingRequest::Output(output.to_vec());
-        self.outgoing_request_tx
-            .try_send((from, request))
-            .or(Err(OcallError::IoError))
+        self.runtime_calls.emit_output(output);
+        Ok(())
     }
 
     fn blob_get(&mut self, hash: &[u8], hash_algorithm: &str) -> Result<Vec<u8>> {

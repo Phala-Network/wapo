@@ -5,10 +5,7 @@ use clap::{Parser, ValueEnum};
 use pink_types::js::JsValue;
 use scale::Decode;
 use tracing::{error, info};
-use wapo_host::{
-    crate_outgoing_request_channel, wasmtime::Config, InstanceConfig, Meter, OutgoingRequest,
-    WasmEngine,
-};
+use wapo_host::{wasmtime::Config, InstanceConfig, Meter, WasmEngine};
 
 /// The compiler backend to use
 #[derive(ValueEnum, Clone, Debug)]
@@ -66,7 +63,6 @@ pub struct Args {
 
 pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
     let code = tokio::fs::read(&args.program).await?;
-    let (event_tx, mut event_rx) = crate_outgoing_request_channel();
     let mut engine_config = Config::new();
     engine_config.strategy(args.compiler.into());
     let engine = WasmEngine::new(
@@ -106,10 +102,9 @@ pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
     let config = InstanceConfig::builder()
         .epoch_deadline(args.epoch_deadline)
         .max_memory_pages(args.max_memory_pages)
-        .event_tx(event_tx)
         .args(vm_args)
         .envs(vm_envs)
-        .blobs_dir("./data/blobs".into())
+        .blobs_dir("./data/storage_files/blobs".into())
         .runtime_calls(())
         .build();
     let mut wasm_run = module.run(config).context("failed to start the instance")?;
@@ -121,25 +116,10 @@ pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
             meter.stop();
         });
     }
-    let mut output = None;
-    tokio::select! {
-        rv = &mut wasm_run => {
-            if let Err(err) = rv {
-                error!(target: "wapo", ?err, "JS runtime exited with error.");
-            }
-        }
-        _ = async {
-            if let Some((_vmid, OutgoingRequest::Output(output_bytes))) = event_rx.recv().await {
-                output = Some(output_bytes);
-            }
-        } => {}
+    if let Err(err) = (&mut wasm_run).await {
+        error!(target: "wapo", ?err, "JS runtime exited with error.");
     }
-    if output.is_none() {
-        if let Ok((_vmid, OutgoingRequest::Output(output_bytes))) = event_rx.try_recv() {
-            output = Some(output_bytes);
-        }
-    }
-    Ok((output.unwrap_or_default(), wasm_run.meter()))
+    Ok((vec![], wasm_run.meter()))
 }
 
 #[tokio::main]

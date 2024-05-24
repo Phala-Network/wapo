@@ -15,7 +15,7 @@ use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
 use tracing::{info, instrument, warn};
 
 use wapo_host::service::Report;
-use wapo_host::{crate_outgoing_request_channel, ShortId};
+use wapo_host::ShortId;
 use wapod_rpc::prpc::server::{ComposedService, Service};
 use wapod_rpc::prpc::{operation_server::OperationServer, user_server::UserServer};
 
@@ -23,7 +23,7 @@ use std::path::PathBuf;
 
 use wapo_host::{
     rocket_stream::{connect, RequestInfo, StreamResponse},
-    service, OutgoingRequest,
+    service,
 };
 
 use crate::paths::blobs_dir;
@@ -251,7 +251,6 @@ fn sign_http_response(data: &[u8]) -> Option<String> {
 }
 
 pub fn crate_worker_state(args: Args) -> Result<Worker> {
-    let (tx, mut rx) = crate_outgoing_request_channel();
     let n_threads = args.max_instances().saturating_add(2);
     let max_memory = args
         .instance_memory_size
@@ -260,7 +259,6 @@ pub fn crate_worker_state(args: Args) -> Result<Worker> {
     let (run, spawner) = service::service(
         n_threads,
         args.module_cache_size,
-        tx,
         &blobs_dir(),
         max_memory,
         if args.no_mem_pool {
@@ -270,16 +268,6 @@ pub fn crate_worker_state(args: Args) -> Result<Worker> {
         },
     )
     .context("failed to create service")?;
-    tokio::spawn(async move {
-        while let Some((id, message)) = rx.recv().await {
-            let vmid = ShortId(id);
-            match message {
-                OutgoingRequest::Output(output) => {
-                    info!(%vmid, "outgoing message: {output:?}");
-                }
-            }
-        }
-    });
     std::thread::spawn(move || {
         run.blocking_run(|evt| match evt {
             Report::VmTerminated { id, reason } => {

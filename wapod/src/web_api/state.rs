@@ -649,4 +649,6 @@ impl wapo_host::RuntimeCalls for AppRuntimeCalls {
     fn sgx_quote_app_data(&self, data: &[u8]) -> Option<Vec<u8>> {
         crate::sgx::quote(ContentType::AppData, &self.wrap_message(data))
     }
+
+    fn emit_output(&self, _output: &[u8]) {}
 }
