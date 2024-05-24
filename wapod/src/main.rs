@@ -144,4 +144,5 @@ fn todo() {
     let todo = "tests for query signing";
     let todo = "whether the mr_enclave changes if signer changes?";
     let todo = "limit wasm blob size";
+    let todo = "demo for quote/sign verification";
 }
