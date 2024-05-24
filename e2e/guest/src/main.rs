@@ -77,6 +77,10 @@ const INDEX: &[u8] = br#"Index:
         => return the main function
     /alloc
         => test memory allocation
+    /sign
+        => sign a piece of data using the worker's private key
+    /quote
+        => get sgx quote for given data
 "#;
 
 async fn handle_query(path: String, payload: Vec<u8>) -> Result<Vec<u8>> {
@@ -87,9 +91,21 @@ async fn handle_query(path: String, payload: Vec<u8>) -> Result<Vec<u8>> {
         ["sleep", v] => handle_sleep(v).await?,
         ["exit", v] => handle_exit(v)?,
         ["alloc", v] => handel_alloc(v)?,
+        ["sign"] => handel_sign(&payload)?,
+        ["quote"] => handel_quote(&payload)?,
         _ => b"404".to_vec(),
     };
     Ok(reply)
+}
+
+fn handel_sign(data: &[u8]) -> Result<Vec<u8>> {
+    wapo::ocall::sign(data).map_err(Into::into)
+}
+
+fn handel_quote(data: &[u8]) -> Result<Vec<u8>> {
+    wapo::ocall::sgx_quote(data)
+        .map(|quote| quote.unwrap_or_default())
+        .map_err(Into::into)
 }
 
 fn handel_alloc(data: &str) -> Result<Vec<u8>> {
