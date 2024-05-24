@@ -1,4 +1,5 @@
-#![no_main]
+#![cfg_attr(not(test), no_main)]
+
 use std::{fmt::Debug, time::Duration};
 
 use anyhow::{Context, Result};

@@ -14,12 +14,12 @@ mod worker_key;
 #[clap(about = "wapod - a WASM runtime", version, author)]
 pub struct Args {
     /// Maximum memory size for each instance.
-    #[arg(long, default_value = "128M", value_parser = parse_size)]
+    #[arg(long, short='m', default_value = "128M", value_parser = parse_size)]
     instance_memory_size: u64,
 
     /// Maximum number of instances to run. If not specified, it will be determined by the enclave
     /// size and instance memory size.
-    #[arg(long, default_value_t = 8)]
+    #[arg(long, short='c', default_value_t = 8)]
     max_instances: usize,
 
     /// Port number for the admin service to listen on. If not specified, the value will be
@@ -30,7 +30,7 @@ pub struct Args {
     /// API token required for accessing the admin service. If empty, no token is required.
     /// When provided, the token must be included in the `Authorization: Bearer` header for
     /// each incoming request.
-    #[arg(long, default_value_t = String::new())]
+    #[arg(long, short='t', default_value_t = String::new())]
     admin_api_token: String,
 
     /// Port number for the user service to listen on. If not specified, the value will be
