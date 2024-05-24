@@ -105,7 +105,7 @@ pub trait OcallFuncs {
     #[ocall(id = 244, encode_output)]
     fn blob_get(hash: &[u8], hash_algorithm: &str) -> Result<Vec<u8>>;
 
-    /// Sign data of max 64 bytes.
+    /// Request the worker to sign data of max 64 bytes.
     #[ocall(id = 250, encode_output)]
     fn sign(data: &[u8]) -> Result<Vec<u8>>;
 
@@ -113,7 +113,7 @@ pub trait OcallFuncs {
     #[ocall(id = 251, encode_output)]
     fn worker_pubkey() -> Result<Vec<u8>>;
 
-    /// Generate SGX quote with given data. Returns None if SGX is not supported.
+    /// Generate SGX quote with given data of max 64 bytes. Returns None if SGX is not supported.
     #[ocall(id = 252, encode_output)]
     fn sgx_quote(data: &[u8]) -> Result<Option<Vec<u8>>>;
 }

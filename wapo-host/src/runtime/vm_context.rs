@@ -428,6 +428,9 @@ impl env::OcallFuncs for WapoCtx {
     }
 
     fn sgx_quote(&mut self, data: &[u8]) -> Result<Option<Vec<u8>>> {
+        if data.len() > 64 {
+            return Err(OcallError::InvalidParameter);
+        }
         Ok(self.runtime_calls.sgx_quote_app_data(data))
     }
 }
