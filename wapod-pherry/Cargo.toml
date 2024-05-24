@@ -17,3 +17,4 @@ rustls-pki-types = "=0.2.1"
 scale = { version = "3.6.12", package = "parity-scale-codec" }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tracing = "0.1.40"
+hex = "0.4.3"

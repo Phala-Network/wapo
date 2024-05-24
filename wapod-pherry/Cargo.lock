@@ -5500,6 +5500,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "hex",
  "parity-scale-codec",
  "phaxt",
  "reqwest 0.12.4",

@@ -90,6 +90,7 @@ pub async fn register(args: RegisterArgs) -> Result<()> {
     chain_client
         .register_worker(response.encoded_runtime_info, report, &mut signer)
         .await?;
-    info!("done");
+    let info = worker_client.operation().info().await?;
+    info!("worker 0x{} registered successfully", hex::encode(info.pubkey));
     Ok(())
 }
