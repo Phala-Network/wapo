@@ -447,6 +447,7 @@ fn to_pages(size: u64) -> u64 {
 impl WorkerState {
     fn start_app(&mut self, address: Address) -> Result<VmStatusReceiver> {
         let vmid = ShortId(address);
+        let app_name = hex::encode(&address);
         let app = self
             .apps
             .get_mut(&address)
@@ -461,6 +462,20 @@ impl WorkerState {
             .weight(1)
             .blobs_dir(blobs_dir())
             .runtime_calls(AppRuntimeCalls::new(address))
+            .args(
+                [app_name]
+                    .into_iter()
+                    .chain(app.manifest.args.iter().cloned())
+                    .collect(),
+            )
+            .envs(
+                app.manifest
+                    .env_vars
+                    .iter()
+                    .cloned()
+                    .map(|x| (x.key, x.value))
+                    .collect(),
+            )
             .build();
         let (vm_handle, join_handle) = self
             .service

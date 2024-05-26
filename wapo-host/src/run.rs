@@ -179,9 +179,7 @@ pub struct InstanceConfig<OCalls> {
     #[builder(default = 10)]
     epoch_deadline: u64,
     runtime_calls: OCalls,
-    #[builder(default)]
     envs: Vec<(String, String)>,
-    #[builder(default)]
     args: Vec<String>,
     blobs_dir: PathBuf,
     #[builder(default)]

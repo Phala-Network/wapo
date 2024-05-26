@@ -250,6 +250,8 @@ pub struct InstanceStartConfig<OCalls> {
     blobs_dir: PathBuf,
     auto_restart: bool,
     runtime_calls: OCalls,
+    args: Vec<String>,
+    envs: Vec<(String, String)>,
 }
 
 impl ServiceHandle {
@@ -270,6 +272,8 @@ impl ServiceHandle {
             blobs_dir,
             auto_restart,
             runtime_calls,
+            args,
+            envs,
         } = config;
         let (cmd_tx, mut cmd_rx) = channel(128);
         let (ctl_cmd_tx, mut ctl_cmd_rx) = unbounded_channel();
@@ -322,6 +326,8 @@ impl ServiceHandle {
                 .blobs_dir(blobs_dir)
                 .meter(Some(meter_cloned))
                 .runtime_calls(runtime_calls)
+                .args(args)
+                .envs(envs)
                 .build();
             let mut wasm_run = match module.run(config.clone()).context("failed to create instance") {
                 Ok(i) => i,
