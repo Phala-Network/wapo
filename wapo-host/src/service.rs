@@ -5,6 +5,7 @@ use std::future::Future;
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::io::DuplexStream;
 use tokio::{
     sync::mpsc::{channel, unbounded_channel, Receiver, Sender, UnboundedSender},
@@ -348,6 +349,10 @@ impl ServiceHandle {
             }
 
             _ = status_guard.send(VmStatus::Running);
+
+            let mut start_time = Instant::now();
+            const MIN_LIVE_TIME: Duration = Duration::from_secs(10);
+
             let reason = loop {
                 tokio::select! {
                     rv = &mut wasm_run => {
@@ -357,17 +362,18 @@ impl ServiceHandle {
                                 break ExitReason::Exited(0);
                             }
                             Err(err) => {
+                                let live_time_allow_restart = start_time.elapsed() > MIN_LIVE_TIME;
                                 match err.downcast() {
                                     Ok(I32Exit(code)) => {
                                         info!(target: "wapo", code, "the instance exited via proc_exit()");
-                                        if code == 0 || !auto_restart {
+                                        if code == 0 || !auto_restart || !live_time_allow_restart {
                                             break ExitReason::Exited(code);
                                         }
                                         // fallthrough to restart
                                     }
                                     Err(err) => {
                                         info!(target: "wapo", ?err, "the instance exited.");
-                                        if !auto_restart {
+                                        if !auto_restart || !live_time_allow_restart {
                                             break ExitReason::Trap;
                                         }
                                         // fallthrough to restart
@@ -376,6 +382,7 @@ impl ServiceHandle {
                             }
                         }
                         info!(target: "wapo", "restarting...");
+                        start_time = Instant::now();
                         wasm_run = match module.run(config.clone()) {
                             Ok(run) => run,
                             Err(err) => {
