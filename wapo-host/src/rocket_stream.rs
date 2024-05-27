@@ -12,7 +12,7 @@ use tokio::{
     io::{split, AsyncRead, AsyncWriteExt, DuplexStream},
     sync::oneshot::channel as oneshot_channel,
 };
-use tracing::error;
+use tracing::{debug, error};
 use wapo_env::messages::{HttpHead, HttpResponseHead};
 
 use crate::{
@@ -67,9 +67,21 @@ impl IoHandler for StreamResponse {
         } = *Pin::into_inner(self);
         let (mut server_reader, mut server_writer) = split(io_stream);
         let (mut client_reader, mut client_writer) = split(io);
+        let c2s_task = async {
+            let result = tokio::io::copy(&mut client_reader, &mut server_writer).await;
+            debug!(target: "wapo", "copy from client to server done");
+            server_writer.shutdown().await.ok();
+            result
+        };
+        let s2c_task = async {
+            let result = tokio::io::copy(&mut server_reader, &mut client_writer).await;
+            debug!(target: "wapo", "copy from server to client done");
+            client_writer.shutdown().await.ok();
+            result
+        };
         let (res_c2s, res_s2c) = tokio::join! {
-            tokio::io::copy(&mut client_reader, &mut server_writer),
-            tokio::io::copy(&mut server_reader, &mut client_writer),
+            c2s_task,
+            s2c_task,
         };
         if let Err(err) = res_c2s {
             error!(target: "wapo", "failed to copy from client to server: {err}");
