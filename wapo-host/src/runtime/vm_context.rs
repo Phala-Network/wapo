@@ -646,7 +646,6 @@ impl WapoCtx {
             payload,
             reply_tx,
         };
-        // TODO: event if returns Ok, it may still fail to send the query. The res would leak in this case.
         let result = tx.try_send(query.encode());
         if result.is_err() {
             let _ = self.close(reply_tx);
@@ -697,7 +696,6 @@ impl WapoCtx {
             response_tx,
             io_stream: body_stream,
         };
-        // TODO: event if returns Ok, it may still fail to send the query. The res would leak in this case.
         let result = connect_tx.try_send(query.encode());
         if result.is_err() {
             let _ = self.close(response_tx);
