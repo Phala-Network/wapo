@@ -85,7 +85,7 @@ async fn read_data(data: Data<'_>, limit: ByteUnit) -> Result<Vec<u8>, ReadDataE
     Ok(data.into_inner())
 }
 
-#[post("/vm/<id>/<path..>", data = "<body>")]
+#[post("/app/<id>/<path..>", data = "<body>")]
 async fn connect_vm_post<'r>(
     state: &State<Worker>,
     head: RequestInfo,
@@ -96,7 +96,7 @@ async fn connect_vm_post<'r>(
     connect_vm(state, head, id, path, Some(body)).await
 }
 
-#[get("/vm/<id>/<path..>")]
+#[get("/app/<id>/<path..>")]
 async fn connect_vm_get<'r>(
     state: &State<Worker>,
     head: RequestInfo,
