@@ -1,15 +1,14 @@
 use anyhow::{Context, Result};
+use args::Args;
 use hex_fmt::HexFmt;
 use tracing::info;
-use wapod::{
-    config::{DefaultWorkerConfig, KeyProvider, Paths},
-    Args,
-};
+use wapod::config::{DefaultWorkerConfig, KeyProvider, Paths};
 use web_api::{serve_admin, serve_user};
 
 type Config = DefaultWorkerConfig;
 type Worker = wapod::Worker<Config>;
 
+mod args;
 mod logger;
 mod web_api;
 
@@ -28,7 +27,8 @@ async fn main() -> Result<()> {
 
     info!("worker pubkey: 0x{}", HexFmt(Config::get_key().public()));
 
-    let worker = Worker::crate_running(args.clone()).context("failed to create worker state")?;
+    let worker =
+        Worker::crate_running(args.clone().into()).context("failed to create worker state")?;
 
     let admin_service = serve_admin(worker.clone(), args.clone());
     let user_service = async move {

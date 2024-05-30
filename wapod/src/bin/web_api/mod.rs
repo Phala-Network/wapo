@@ -19,9 +19,9 @@ use wapod_rpc::prpc::server::Service;
 use wapo_host::rocket_stream::{RequestInfo, StreamResponse};
 
 use wapod::prpc_service::{connect_vm, handle_prpc, HexBytes};
-use wapod::{config::KeyProvider, Args};
+use wapod::{config::KeyProvider};
 
-use crate::{Config, Worker};
+use crate::{Config, Worker, Args};
 
 type UserService = wapod::prpc_service::UserService<Config>;
 type AdminService = wapod::prpc_service::AdminService<Config>;

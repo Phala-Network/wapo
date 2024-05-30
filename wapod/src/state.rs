@@ -23,12 +23,24 @@ use service::{Command, CommandSender, ServiceHandle};
 use wapo_host::service::{self, Report, VmHandle};
 use wapod_rpc::prpc::Manifest;
 
-use crate::{
-    config::{AddressGenerator, KeyProvider, Paths, WorkerConfig},
-    Args,
-};
+use crate::config::{AddressGenerator, KeyProvider, Paths, WorkerConfig};
 
 type Address = [u8; 32];
+#[derive(Clone, Debug, typed_builder::TypedBuilder)]
+pub struct WorkerArgs {
+    /// Maximum memory size for each instance.
+    pub instance_memory_size: u64,
+    /// Maximum number of instances to run. If not specified, it will be determined by the enclave
+    /// size and instance memory size.
+    pub max_instances: usize,
+    /// Number of compiled WebAssembly modules that can be cached (default: 16).
+    pub module_cache_size: usize,
+    /// Disable memory pool for instances.
+    pub no_mem_pool: bool,
+    /// Disable memory pool for instances.
+    #[builder(default)]
+    pub use_winch: bool,
+}
 
 struct Instance {
     sequence_number: u64,
@@ -53,6 +65,7 @@ pub struct AppState {
     instances: Vec<Instance>,
     on_going_queries: usize,
     last_query_done: Instant,
+    auto_restart: bool,
 }
 
 impl AppState {
@@ -102,7 +115,7 @@ impl<T: WorkerConfig> Drop for QueryGuard<T> {
 struct WorkerState<T> {
     weak_self: Weak<Mutex<WorkerState<T>>>,
     apps: HashMap<Address, AppState>,
-    args: Args,
+    args: WorkerArgs,
     service: ServiceHandle,
     blob_loader: BlobLoader,
     session: Option<[u8; 32]>,
@@ -121,8 +134,8 @@ impl<T> Clone for Worker<T> {
 }
 
 impl<T: WorkerConfig> Worker<T> {
-    pub fn crate_running(args: Args) -> Result<Self> {
-        let n_threads = args.max_instances().saturating_add(2);
+    pub fn crate_running(args: WorkerArgs) -> Result<Self> {
+        let n_threads = args.max_instances.saturating_add(2);
         let max_memory = args
             .instance_memory_size
             .try_into()
@@ -137,6 +150,7 @@ impl<T: WorkerConfig> Worker<T> {
             } else {
                 args.max_instances
             },
+            args.use_winch,
         )
         .context("failed to create service")?;
         std::thread::spawn(move || {
@@ -149,7 +163,7 @@ impl<T: WorkerConfig> Worker<T> {
         Ok(Self::new(spawner, args))
     }
 
-    pub fn new(service: ServiceHandle, args: Args) -> Self {
+    pub fn new(service: ServiceHandle, args: WorkerArgs) -> Self {
         Self {
             inner: Arc::new_cyclic(|weak_self| {
                 Mutex::new(WorkerState {
@@ -189,7 +203,7 @@ impl<T: WorkerConfig> Worker<T> {
 impl<T: WorkerConfig> Worker<T> {
     pub fn info(&self, admin: bool) -> pb::WorkerInfo {
         let worker = self.lock();
-        let max_instances = worker.args.max_instances() as u64;
+        let max_instances = worker.args.max_instances as u64;
         let deployed_apps = worker.apps.len() as u64;
         let running_instances = worker
             .apps
@@ -359,7 +373,7 @@ impl<T: WorkerConfig> Worker<T> {
         Ok(())
     }
 
-    pub async fn deploy_app(&self, manifest: Manifest) -> Result<AppInfo> {
+    pub async fn deploy_app(&self, manifest: Manifest, auto_restart: bool) -> Result<AppInfo> {
         if manifest.version != 1 {
             bail!("unsupported manifest version {}", manifest.version);
         }
@@ -395,6 +409,7 @@ impl<T: WorkerConfig> Worker<T> {
                 instances: vec![],
                 on_going_queries: 0,
                 last_query_done: Instant::now(),
+                auto_restart,
             };
             worker.apps.insert(address, state);
         }
@@ -492,7 +507,7 @@ impl<T: WorkerConfig> WorkerState<T> {
             return Err(anyhow!("Instance already started"));
         }
         let config = service::InstanceStartConfig::builder()
-            .auto_restart(true)
+            .auto_restart(app.auto_restart)
             .max_memory_pages(to_pages(self.args.instance_memory_size) as _)
             .id(address)
             .weight(1)
@@ -651,7 +666,7 @@ impl<T: WorkerConfig> WorkerState<T> {
     }
 
     fn available_slots(&self) -> usize {
-        let max = self.args.max_instances();
+        let max = self.args.max_instances;
         max.saturating_sub(self.running_instances())
     }
 

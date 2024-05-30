@@ -153,7 +153,7 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
         }
         let manifest = request.manifest.ok_or(anyhow::Error::msg("No manifest"))?;
         let info = self
-            .deploy_app(manifest)
+            .deploy_app(manifest, true)
             .await
             .context("failed to deploy app")?;
         info!("app deployed, address={}", hex_fmt::HexFmt(&info.address));

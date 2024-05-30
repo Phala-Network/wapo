@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use tracing::{info, warn};
 use typed_builder::TypedBuilder;
+use wapod::WorkerArgs;
 
 #[derive(Parser, Clone, Debug, TypedBuilder)]
 #[clap(about = "wapod - a WASM runtime", version, author)]
@@ -45,6 +46,18 @@ pub struct Args {
     #[arg(long)]
     #[builder(default)]
     pub no_mem_pool: bool,
+}
+
+impl From<Args> for WorkerArgs {
+    fn from(value: Args) -> Self {
+        WorkerArgs {
+            instance_memory_size: value.instance_memory_size,
+            max_instances: value.max_instances,
+            module_cache_size: value.module_cache_size,
+            no_mem_pool: value.no_mem_pool,
+            use_winch: false,
+        }
+    }
 }
 
 impl Args {

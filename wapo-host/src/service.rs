@@ -15,7 +15,7 @@ use tokio::{
 use tracing::{debug, error, info, warn, Instrument};
 use wapo_env::messages::{AccountId, HttpHead, HttpResponseHead};
 use wasi_common::I32Exit;
-use wasmtime::Config;
+use wasmtime::{Config, Strategy};
 
 use crate::runtime::vm_context::RuntimeCalls;
 use crate::Meter;
@@ -192,6 +192,7 @@ pub fn service(
     blobs_dir: &PathBuf,
     mem_limit: usize,
     mem_pool_size: usize,
+    use_winch: bool,
 ) -> Result<(ServiceRun, ServiceHandle)> {
     let worker_threads = worker_threads.max(1);
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -207,7 +208,14 @@ pub fn service(
     let (report_tx, report_rx) = channel(100);
     let run = ServiceRun { runtime, report_rx };
     let blob_loader = BlobLoader::new(blobs_dir);
-    let engine = WasmEngine::new(Config::new(), 10, mem_limit, mem_pool_size)
+    let config = Config::new()
+        .strategy(if use_winch {
+            Strategy::Winch
+        } else {
+            Strategy::Cranelift
+        })
+        .to_owned();
+    let engine = WasmEngine::new(config, 10, mem_limit, mem_pool_size)
         .context("failed to create Wasm engine")?;
     let module_loader = ModuleLoader::new(engine, blob_loader, module_cache_size);
     let spawner = ServiceHandle {
