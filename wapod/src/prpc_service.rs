@@ -1,10 +1,11 @@
-use std::ops::Deref;
+use std::{ops::Deref, path::PathBuf};
 
 use anyhow::{anyhow, bail, Context, Result};
 use rand::Rng;
 use rocket::{
     data::{ByteUnit, Limits, ToByteUnit as _},
     http::{ContentType, Status},
+    request::FromParam,
     response::status::Custom,
     Data, State,
 };
@@ -18,34 +19,86 @@ use rpc::{
     types::{VersionedWorkerEndpoints, WorkerEndpointPayload},
 };
 use scale::Encode;
-use tracing::{error, field::Empty, info};
-use wapo_host::ShortId;
+use tracing::{error, field::Empty, info, warn};
+use wapo_host::{
+    rocket_stream::{RequestInfo, StreamResponse},
+    ShortId,
+};
 use wapod_crypto::query_signature::{Query, Signer};
-use wapod_rpc as rpc;
+use wapod_rpc::{
+    self as rpc,
+    prpc::{operation_server::OperationServer, server::ComposedService, user_server::UserServer},
+};
 
-use crate::worker_key::worker_identity_key;
+use crate::{
+    config::{KeyProvider, WorkerConfig},
+    Worker,
+};
 
-use super::{read_data, Worker};
+pub type UserService<T> = ComposedService<Call<T>, (UserServer<Call<T>>,)>;
+pub type AdminService<T> = ComposedService<Call<T>, (OperationServer<Call<T>>,)>;
 
-pub struct Call {
-    worker: Worker,
+#[derive(Debug)]
+pub struct HexBytes(pub Vec<u8>);
+impl<'r> FromParam<'r> for HexBytes {
+    type Error = &'static str;
+
+    fn from_param(param: &str) -> Result<Self, Self::Error> {
+        let param = param.trim_start_matches("0x");
+        let bytes = hex::decode(param).map_err(|_| "Invalid hex string")?;
+        Ok(HexBytes(bytes))
+    }
 }
 
-impl Deref for Call {
-    type Target = Worker;
+pub enum ReadDataError {
+    IoError,
+    PayloadTooLarge,
+}
+
+impl From<ReadDataError> for Custom<&'static str> {
+    fn from(value: ReadDataError) -> Self {
+        match value {
+            ReadDataError::IoError => Custom(Status::ServiceUnavailable, "Read body failed"),
+            ReadDataError::PayloadTooLarge => Custom(Status::PayloadTooLarge, "Entity too large"),
+        }
+    }
+}
+
+impl From<ReadDataError> for Custom<Vec<u8>> {
+    fn from(value: ReadDataError) -> Self {
+        let custom = Custom::<&'static str>::from(value);
+        Custom(custom.0, custom.1.as_bytes().to_vec())
+    }
+}
+
+async fn read_data(data: Data<'_>, limit: ByteUnit) -> Result<Vec<u8>, ReadDataError> {
+    let stream = data.open(limit);
+    let data = stream.into_bytes().await.or(Err(ReadDataError::IoError))?;
+    if !data.is_complete() {
+        return Err(ReadDataError::PayloadTooLarge);
+    }
+    Ok(data.into_inner())
+}
+
+pub struct Call<T> {
+    worker: Worker<T>,
+}
+
+impl<T> Deref for Call<T> {
+    type Target = Worker<T>;
 
     fn deref(&self) -> &Self::Target {
         &self.worker
     }
 }
 
-impl Call {
-    pub fn new(worker: Worker) -> Self {
+impl<T: WorkerConfig> Call<T> {
+    pub fn new(worker: Worker<T>) -> Self {
         Self { worker }
     }
 }
 
-impl OperationRpc for Call {
+impl<T: WorkerConfig> OperationRpc for Call<T> {
     async fn worker_init(self, request: pb::InitArgs) -> Result<pb::InitResponse> {
         if request.salt.len() > 64 {
             bail!("the salt is too long");
@@ -156,7 +209,7 @@ impl OperationRpc for Call {
         });
         let encoded_metrics = metrics.encode();
         let signature =
-            worker_identity_key().sign(wapod_crypto::ContentType::Metrics, encoded_metrics);
+            T::KeyProvider::get_key().sign(wapod_crypto::ContentType::Metrics, encoded_metrics);
         Ok(pb::AppMetricsResponse::new(metrics, signature))
     }
 
@@ -235,7 +288,7 @@ impl OperationRpc for Call {
         self,
         mut request: pb::EncryptedQueryArgs,
     ) -> Result<pb::QueryResponse> {
-        let decrypted = worker_identity_key()
+        let decrypted = T::KeyProvider::get_key()
             .decrypt_message(&request.pubkey, &mut request.encrypted_payload)
             .context("failed to decrypt the payload")?;
         let args: pb::QueryArgs = pb::Message::decode(&mut decrypted.as_slice())
@@ -247,7 +300,7 @@ impl OperationRpc for Call {
         self,
         request: pb::SignRegisterInfoArgs,
     ) -> Result<pb::SignRegisterInfoResponse> {
-        let pubkey = worker_identity_key().public().to_array();
+        let pubkey = T::KeyProvider::get_key().public().to_array();
         let runtime_info = rpc::types::WorkerRegistrationInfoV2 {
             version: compat_app_version(),
             machine_id: vec![],
@@ -275,14 +328,14 @@ impl OperationRpc for Call {
         request: pb::SignEndpointsArgs,
     ) -> Result<pb::SignEndpointsResponse> {
         let endpoint_payload = WorkerEndpointPayload {
-            pubkey: worker_identity_key().public().to_array(),
+            pubkey: T::KeyProvider::get_key().public().to_array(),
             versioned_endpoints: VersionedWorkerEndpoints::V1(request.endpoints),
             signing_time: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .context("failed to get time")?
                 .as_millis() as u64,
         };
-        let signature = worker_identity_key().sign(
+        let signature = T::KeyProvider::get_key().sign(
             wapod_crypto::ContentType::EndpointInfo,
             endpoint_payload.encode(),
         );
@@ -295,7 +348,7 @@ fn compat_app_version() -> u32 {
     (major << 16) + (minor << 8) + patch
 }
 
-impl UserRpc for Call {
+impl<T: WorkerConfig> UserRpc for Call<T> {
     async fn info(self) -> Result<WorkerInfo> {
         Ok(self.worker.info(false))
     }
@@ -309,8 +362,8 @@ impl UserRpc for Call {
     }
 }
 
-pub async fn handle_prpc<S>(
-    worker: &State<Worker>,
+pub async fn handle_prpc<S, T>(
+    worker: &State<Worker<T>>,
     method: &str,
     data: Option<Data<'_>>,
     limits: &Limits,
@@ -318,7 +371,8 @@ pub async fn handle_prpc<S>(
     json: bool,
 ) -> Result<Vec<u8>, Custom<Vec<u8>>>
 where
-    S: From<Call> + PrpcService,
+    S: From<Call<T>> + PrpcService,
+    T: WorkerConfig,
 {
     let data = match data {
         Some(data) => {
@@ -386,4 +440,31 @@ async fn dispatch_prpc(
         }
     };
     (code, data)
+}
+
+pub async fn connect_vm<'r, T: WorkerConfig>(
+    state: &State<Worker<T>>,
+    head: RequestInfo,
+    id: HexBytes,
+    path: PathBuf,
+    body: Option<Data<'r>>,
+) -> Result<StreamResponse, (Status, String)> {
+    let address =
+        id.0.try_into()
+            .map_err(|_| (Status::BadRequest, "invalid address".to_string()))?;
+    let guard = state.prepare_query(address, 0).await.map_err(|err| {
+        warn!("failed to prepare query: {err:?}");
+        (Status::NotFound, err.to_string())
+    })?;
+    let command_tx = state
+        .sender_for(address, 0)
+        .ok_or((Status::NotFound, Default::default()))?;
+    let path = path
+        .to_str()
+        .ok_or((Status::BadRequest, "invalid path".to_string()))?;
+    let result = wapo_host::rocket_stream::connect(head, path, body, command_tx, guard).await;
+    match result {
+        Ok(response) => Ok(response),
+        Err(err) => Err((Status::InternalServerError, err.to_string())),
+    }
 }

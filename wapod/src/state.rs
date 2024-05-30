@@ -12,6 +12,7 @@ use wapod_rpc::prpc::{self as pb};
 
 use std::collections::HashMap;
 
+use std::marker::PhantomData;
 use std::ops::Add;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
@@ -19,12 +20,13 @@ use std::time::Instant;
 
 use service::{Command, CommandSender, ServiceHandle};
 
-use wapo_host::service::{self, VmHandle};
+use wapo_host::service::{self, Report, VmHandle};
 use wapod_rpc::prpc::Manifest;
 
-use crate::paths::blobs_dir;
-use crate::worker_key::worker_identity_key;
-use crate::Args;
+use crate::{
+    config::{AddressGenerator, KeyProvider, Paths, WorkerConfig},
+    Args,
+};
 
 type Address = [u8; 32];
 
@@ -84,12 +86,12 @@ impl AppState {
     }
 }
 
-pub struct QueryGuard {
-    worker: Worker,
+pub struct QueryGuard<T: WorkerConfig> {
+    worker: Worker<T>,
     address: Address,
 }
 
-impl Drop for QueryGuard {
+impl<T: WorkerConfig> Drop for QueryGuard<T> {
     fn drop(&mut self) {
         if let Err(err) = self.worker.end_query(self.address) {
             info!("end query error: {err}");
@@ -97,8 +99,8 @@ impl Drop for QueryGuard {
     }
 }
 
-struct WorkerState {
-    weak_self: Weak<Mutex<WorkerState>>,
+struct WorkerState<T> {
+    weak_self: Weak<Mutex<WorkerState<T>>>,
     apps: HashMap<Address, AppState>,
     args: Args,
     service: ServiceHandle,
@@ -106,18 +108,53 @@ struct WorkerState {
     session: Option<[u8; 32]>,
 }
 
-#[derive(Clone)]
-pub struct Worker {
-    inner: Arc<Mutex<WorkerState>>,
+pub struct Worker<T> {
+    inner: Arc<Mutex<WorkerState<T>>>,
 }
 
-impl Worker {
+impl<T> Clone for Worker<T> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+impl<T: WorkerConfig> Worker<T> {
+    pub fn crate_running(args: Args) -> Result<Self> {
+        let n_threads = args.max_instances().saturating_add(2);
+        let max_memory = args
+            .instance_memory_size
+            .try_into()
+            .context("invalid memory size")?;
+        let (run, spawner) = service::service(
+            n_threads,
+            args.module_cache_size,
+            &T::Paths::blobs_dir(),
+            max_memory,
+            if args.no_mem_pool {
+                0
+            } else {
+                args.max_instances
+            },
+        )
+        .context("failed to create service")?;
+        std::thread::spawn(move || {
+            run.blocking_run(|evt| match evt {
+                Report::VmTerminated { id, reason } => {
+                    info!(target: "wapod", id=%ShortId(id), ?reason, "instance terminated");
+                }
+            });
+        });
+        Ok(Self::new(spawner, args))
+    }
+
     pub fn new(service: ServiceHandle, args: Args) -> Self {
         Self {
             inner: Arc::new_cyclic(|weak_self| {
                 Mutex::new(WorkerState {
                     weak_self: weak_self.clone(),
-                    blob_loader: BlobLoader::new(blobs_dir()),
+                    blob_loader: BlobLoader::new(T::Paths::blobs_dir()),
                     apps: HashMap::new(),
                     service,
                     args,
@@ -127,7 +164,7 @@ impl Worker {
         }
     }
 
-    fn lock(&self) -> MutexGuard<'_, WorkerState> {
+    fn lock(&self) -> MutexGuard<'_, WorkerState<T>> {
         self.inner.lock().expect("worker lock poisoned")
     }
 
@@ -144,6 +181,12 @@ impl Worker {
         Some(handle)
     }
 
+    pub fn blob_loader(&self) -> BlobLoader {
+        self.lock().blob_loader.clone()
+    }
+}
+
+impl<T: WorkerConfig> Worker<T> {
     pub fn info(&self, admin: bool) -> pb::WorkerInfo {
         let worker = self.lock();
         let max_instances = worker.args.max_instances() as u64;
@@ -169,7 +212,7 @@ impl Worker {
             None
         };
         pb::WorkerInfo {
-            pubkey: worker_identity_key().public().as_bytes().to_vec(),
+            pubkey: T::KeyProvider::get_key().public().as_bytes().to_vec(),
             deployed_apps,
             running_instances,
             max_instances,
@@ -181,11 +224,11 @@ impl Worker {
         }
     }
 
-    pub fn blob_loader(&self) -> BlobLoader {
-        self.lock().blob_loader.clone()
-    }
-
-    pub async fn prepare_query(&self, address: Address, query_size: usize) -> Result<QueryGuard> {
+    pub async fn prepare_query(
+        &self,
+        address: Address,
+        query_size: usize,
+    ) -> Result<QueryGuard<T>> {
         // If the app is start-on-demand, we need to start an instance to serve the query if it is not already.
         let mut start_needed = false;
         let guard = {
@@ -333,14 +376,7 @@ impl Worker {
                 manifest.size_hint()
             );
         }
-        let encoded = scale::Encode::encode(&manifest);
-        if encoded.len() > MAX_MANIFEST_SIZE {
-            bail!(
-                "manifest too large, max={MAX_MANIFEST_SIZE}, actual={}",
-                encoded.len()
-            );
-        }
-        let address = blake2_256(&encoded);
+        let address = T::AddressGenerator::generate_address(&manifest);
         tracing::Span::current().record("addr", display(ShortId(&address)));
         let on_demand = manifest.on_demand;
         {
@@ -444,10 +480,10 @@ fn to_pages(size: u64) -> u64 {
     (size + page_size - 1) / page_size
 }
 
-impl WorkerState {
+impl<T: WorkerConfig> WorkerState<T> {
     fn start_app(&mut self, address: Address) -> Result<VmStatusReceiver> {
         let vmid = ShortId(address);
-        let app_name = hex::encode(&address);
+        let app_name = hex::encode(address);
         let app = self
             .apps
             .get_mut(&address)
@@ -460,8 +496,8 @@ impl WorkerState {
             .max_memory_pages(to_pages(self.args.instance_memory_size) as _)
             .id(address)
             .weight(1)
-            .blobs_dir(blobs_dir())
-            .runtime_calls(AppRuntimeCalls::new(address))
+            .blobs_dir(T::Paths::blobs_dir())
+            .runtime_calls(AppRuntimeCalls::<T>::new(address))
             .args(
                 [app_name]
                     .into_iter()
@@ -635,14 +671,26 @@ impl WorkerState {
     }
 }
 
-#[derive(Clone)]
-struct AppRuntimeCalls {
+struct AppRuntimeCalls<T> {
     address: Address,
+    _phantom: PhantomData<fn() -> T>,
 }
 
-impl AppRuntimeCalls {
+impl<T> Clone for AppRuntimeCalls<T> {
+    fn clone(&self) -> Self {
+        Self {
+            address: self.address,
+            _phantom: self._phantom,
+        }
+    }
+}
+
+impl<T: WorkerConfig> AppRuntimeCalls<T> {
     fn new(address: Address) -> Self {
-        Self { address }
+        Self {
+            address,
+            _phantom: PhantomData,
+        }
     }
 
     fn wrap_message(&self, message: impl AsRef<[u8]>) -> Vec<u8> {
@@ -652,13 +700,13 @@ impl AppRuntimeCalls {
     }
 }
 
-impl wapo_host::RuntimeCalls for AppRuntimeCalls {
+impl<T: WorkerConfig + 'static> wapo_host::RuntimeCalls for AppRuntimeCalls<T> {
     fn worker_pubkey(&self) -> Vec<u8> {
-        worker_identity_key().public().as_bytes().to_vec()
+        T::KeyProvider::get_key().public().as_bytes().to_vec()
     }
 
     fn sign_app_data(&self, data: &[u8]) -> Vec<u8> {
-        worker_identity_key().sign(ContentType::AppData, self.wrap_message(data))
+        T::KeyProvider::get_key().sign(ContentType::AppData, self.wrap_message(data))
     }
 
     fn sgx_quote_app_data(&self, data: &[u8]) -> Option<Vec<u8>> {

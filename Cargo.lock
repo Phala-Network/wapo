@@ -7890,6 +7890,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.18",
+ "typed-builder",
  "uuid 1.8.0",
  "wapo-host",
  "wapod-crypto",

@@ -1,44 +1,34 @@
 use anyhow::{Context, Result};
 use phala_rocket_middleware::{RequestTracer, ResponseSigner, TimeMeter, TraceId};
-use rocket::data::{ByteUnit, Limits, ToByteUnit};
+use rocket::data::{Limits, ToByteUnit};
 use rocket::figment::{
     providers::{Env, Format, Toml},
     Figment,
 };
 use rocket::fs::NamedFile;
 use rocket::http::{ContentType, Method, Status};
-use rocket::request::FromParam;
 use rocket::response::content::RawHtml;
 use rocket::response::status::Custom;
 use rocket::{get, post, routes, Data, State};
 use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
 use tracing::{info, instrument, warn};
 
-use wapo_host::service::Report;
-use wapo_host::ShortId;
-use wapod_rpc::prpc::server::{ComposedService, Service};
-use wapod_rpc::prpc::{operation_server::OperationServer, user_server::UserServer};
-
 use std::path::PathBuf;
+use wapod_rpc::prpc::server::Service;
 
-use wapo_host::{
-    rocket_stream::{connect, RequestInfo, StreamResponse},
-    service,
-};
+use wapo_host::rocket_stream::{RequestInfo, StreamResponse};
 
-use crate::paths::blobs_dir;
-use crate::web_api::prpc_service::handle_prpc;
-use crate::{worker_key, Args};
+use wapod::prpc_service::{connect_vm, handle_prpc, HexBytes};
+use wapod::{config::KeyProvider, Args};
 
-use state::Worker;
+use crate::{Config, Worker};
 
-use prpc_service::Call;
+type UserService = wapod::prpc_service::UserService<Config>;
+type AdminService = wapod::prpc_service::AdminService<Config>;
 
-use self::auth::Authorized;
+use auth::Authorized;
 
 mod auth;
-mod prpc_service;
-mod state;
 
 #[post("/app/<id>/<path..>", data = "<body>")]
 async fn connect_vm_post<'r>(
@@ -61,33 +51,6 @@ async fn connect_vm_get<'r>(
     connect_vm(state, head, id, path, None).await
 }
 
-async fn connect_vm<'r>(
-    state: &State<Worker>,
-    head: RequestInfo,
-    id: HexBytes,
-    path: PathBuf,
-    body: Option<Data<'r>>,
-) -> Result<StreamResponse, (Status, String)> {
-    let address =
-        id.0.try_into()
-            .map_err(|_| (Status::BadRequest, "invalid address".to_string()))?;
-    let guard = state.prepare_query(address, 0).await.map_err(|err| {
-        warn!("failed to prepare query: {err:?}");
-        (Status::NotFound, err.to_string())
-    })?;
-    let command_tx = state
-        .sender_for(address, 0)
-        .ok_or((Status::NotFound, Default::default()))?;
-    let path = path
-        .to_str()
-        .ok_or((Status::BadRequest, "invalid path".to_string()))?;
-    let result = connect(head, path, body, command_tx, guard).await;
-    match result {
-        Ok(response) => Ok(response),
-        Err(err) => Err((Status::InternalServerError, err.to_string())),
-    }
-}
-
 #[instrument(target="prpc", name="user", fields(%id), skip_all)]
 #[post("/<method>?<json>", data = "<data>")]
 async fn prpc_post(
@@ -100,7 +63,7 @@ async fn prpc_post(
     json: bool,
 ) -> Result<Vec<u8>, Custom<Vec<u8>>> {
     let _ = id;
-    handle_prpc::<UserService>(state, method, Some(data), limits, content_type, json).await
+    handle_prpc::<UserService, _>(state, method, Some(data), limits, content_type, json).await
 }
 
 #[instrument(target="prpc", name="user", fields(%id), skip_all)]
@@ -113,7 +76,7 @@ async fn prpc_get(
     content_type: Option<&ContentType>,
 ) -> Result<Vec<u8>, Custom<Vec<u8>>> {
     let _ = id;
-    handle_prpc::<UserService>(state, method, None, limits, content_type, true).await
+    handle_prpc::<UserService, _>(state, method, None, limits, content_type, true).await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -130,7 +93,7 @@ async fn prpc_admin_post(
     json: bool,
 ) -> Result<Vec<u8>, Custom<Vec<u8>>> {
     let _ = id;
-    handle_prpc::<AdminService>(state, method, Some(data), limits, content_type, json).await
+    handle_prpc::<AdminService, _>(state, method, Some(data), limits, content_type, json).await
 }
 
 #[instrument(target="prpc", name="admin", fields(%id), skip_all)]
@@ -144,7 +107,7 @@ async fn prpc_admin_get(
     content_type: Option<&ContentType>,
 ) -> Result<Vec<u8>, Custom<Vec<u8>>> {
     let _ = id;
-    handle_prpc::<AdminService>(state, method, None, limits, content_type, true).await
+    handle_prpc::<AdminService, _>(state, method, None, limits, content_type, true).await
 }
 
 #[post("/blob/<hash>?<type>", data = "<data>")]
@@ -199,38 +162,9 @@ fn cors_options() -> CorsOptions {
     }
 }
 
-fn sign_http_response(data: &[u8]) -> Option<String> {
-    let pair = worker_key::worker_identity_key();
-    let signature = pair.sign(wapod_crypto::ContentType::RpcResponse, data);
+fn sign_http_response<K: KeyProvider>(data: &[u8]) -> Option<String> {
+    let signature = K::get_key().sign(wapod_crypto::ContentType::RpcResponse, data);
     Some(hex::encode(signature))
-}
-
-pub fn crate_worker_state(args: Args) -> Result<Worker> {
-    let n_threads = args.max_instances().saturating_add(2);
-    let max_memory = args
-        .instance_memory_size
-        .try_into()
-        .context("invalid memory size")?;
-    let (run, spawner) = service::service(
-        n_threads,
-        args.module_cache_size,
-        &blobs_dir(),
-        max_memory,
-        if args.no_mem_pool {
-            0
-        } else {
-            args.max_instances
-        },
-    )
-    .context("failed to create service")?;
-    std::thread::spawn(move || {
-        run.blocking_run(|evt| match evt {
-            Report::VmTerminated { id, reason } => {
-                info!(target: "wapod", id=%ShortId(id), ?reason, "instance terminated");
-            }
-        });
-    });
-    Ok(Worker::new(spawner, args))
 }
 
 pub async fn serve_user(state: Worker, args: Args) -> Result<()> {
@@ -242,7 +176,7 @@ pub async fn serve_user(state: Worker, args: Args) -> Result<()> {
     if let Some(user_port) = args.user_port {
         figment = figment.merge(("port", user_port));
     }
-    let signer = ResponseSigner::new(1024 * 1024 * 10, sign_http_response);
+    let signer = ResponseSigner::new(1024 * 1024 * 10, sign_http_response::<Config>);
     let _rocket = rocket::custom(figment)
         .attach(
             cors_options()
