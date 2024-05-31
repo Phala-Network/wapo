@@ -19,15 +19,12 @@ impl AddressGenerator for DefaultWorkerConfig {
 }
 
 pub trait KeyProvider {
-    fn get_key() -> &'static Pair;
-}
-
-impl KeyProvider for DefaultWorkerConfig {
+    type Paths: Paths;
     fn get_key() -> &'static Pair {
         static KEY: OnceLock<Pair> = OnceLock::new();
 
         KEY.get_or_init(|| {
-            let keyfile = Self::secret_data_dir().join("worker.key");
+            let keyfile = Self::Paths::secret_data_dir().join("worker.key");
             match std::fs::read(&keyfile) {
                 Ok(secret) => Pair::decode(&mut &secret[..]).expect("failed to load keypair"),
                 Err(err) => {
@@ -41,6 +38,10 @@ impl KeyProvider for DefaultWorkerConfig {
             }
         })
     }
+}
+
+impl KeyProvider for DefaultWorkerConfig {
+    type Paths = Self;
 }
 
 pub trait Paths {
