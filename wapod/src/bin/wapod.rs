@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use args::Args;
 use hex_fmt::HexFmt;
 use tracing::info;
-use wapod::config::{DefaultWorkerConfig, KeyProvider, Paths};
+use wapod::config::{DefaultWorkerConfig, KeyProvider, Paths, WorkerConfig};
 use web_api::{serve_admin, serve_user};
 
 type Config = DefaultWorkerConfig;
@@ -25,7 +25,10 @@ async fn main() -> Result<()> {
 
     Config::create_dirs_if_needed().context("failed to create directories")?;
 
-    info!("worker pubkey: 0x{}", HexFmt(Config::get_key().public()));
+    info!(
+        "worker pubkey: 0x{}",
+        HexFmt(<Config as WorkerConfig>::KeyProvider::get_key().public())
+    );
 
     let worker =
         Worker::crate_running(args.clone().into()).context("failed to create worker state")?;

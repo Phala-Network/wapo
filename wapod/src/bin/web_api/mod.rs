@@ -12,16 +12,17 @@ use rocket::response::status::Custom;
 use rocket::{get, post, routes, Data, State};
 use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
 use tracing::{info, instrument, warn};
+use wapod::config::WorkerConfig;
 
 use std::path::PathBuf;
 use wapod_rpc::prpc::server::Service;
 
 use wapo_host::rocket_stream::{RequestInfo, StreamResponse};
 
+use wapod::config::KeyProvider;
 use wapod::prpc_service::{connect_vm, handle_prpc, HexBytes};
-use wapod::{config::KeyProvider};
 
-use crate::{Config, Worker, Args};
+use crate::{Args, Config, Worker};
 
 type UserService = wapod::prpc_service::UserService<Config>;
 type AdminService = wapod::prpc_service::AdminService<Config>;
@@ -176,7 +177,10 @@ pub async fn serve_user(state: Worker, args: Args) -> Result<()> {
     if let Some(user_port) = args.user_port {
         figment = figment.merge(("port", user_port));
     }
-    let signer = ResponseSigner::new(1024 * 1024 * 10, sign_http_response::<Config>);
+    let signer = ResponseSigner::new(
+        1024 * 1024 * 10,
+        sign_http_response::<<Config as WorkerConfig>::KeyProvider>,
+    );
     let _rocket = rocket::custom(figment)
         .attach(
             cors_options()

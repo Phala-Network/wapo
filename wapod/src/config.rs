@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::OnceLock};
+use std::{marker::PhantomData, path::PathBuf, sync::OnceLock};
 
 use anyhow::{Context, Result};
 use scale::{Decode as _, Encode};
@@ -19,12 +19,17 @@ impl AddressGenerator for DefaultWorkerConfig {
 }
 
 pub trait KeyProvider {
-    type Paths: Paths;
+    fn get_key() -> &'static Pair;
+}
+
+pub struct DefaultKerProvider<P>(PhantomData<P>);
+
+impl<P: Paths> KeyProvider for DefaultKerProvider<P> {
     fn get_key() -> &'static Pair {
         static KEY: OnceLock<Pair> = OnceLock::new();
 
         KEY.get_or_init(|| {
-            let keyfile = Self::Paths::secret_data_dir().join("worker.key");
+            let keyfile = P::secret_data_dir().join("worker.key");
             match std::fs::read(&keyfile) {
                 Ok(secret) => Pair::decode(&mut &secret[..]).expect("failed to load keypair"),
                 Err(err) => {
@@ -38,10 +43,6 @@ pub trait KeyProvider {
             }
         })
     }
-}
-
-impl KeyProvider for DefaultWorkerConfig {
-    type Paths = Self;
 }
 
 pub trait Paths {
@@ -83,6 +84,6 @@ pub trait WorkerConfig: 'static {
 
 impl WorkerConfig for DefaultWorkerConfig {
     type AddressGenerator = Self;
-    type KeyProvider = Self;
+    type KeyProvider = DefaultKerProvider<Self>;
     type Paths = Self;
 }
