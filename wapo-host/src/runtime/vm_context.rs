@@ -88,7 +88,7 @@ impl TaskSet {
 
 pub trait RuntimeCalls: Send + 'static {
     fn log(&self, level: log::Level, message: &str) {
-        log::log!(target: "wapo", level, "{message}");
+        log::log!(target: "wapo::guest", level, "{message}");
     }
     fn worker_pubkey(&self) -> Vec<u8>;
     fn sign_app_data(&self, data: &[u8]) -> Vec<u8>;
