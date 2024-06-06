@@ -7,7 +7,9 @@ version = "0.1.0"
 crate-type = ["cdylib"]
 
 [dependencies]
+hex = "0.4.3"
 log = "0.4.16"
+sha2 = "0.10.8"
 anyhow = "1.0.86"
 wapo = { version = "0.1", path = "../../wapo", features = ["hyper-v1"]}
 hyper = { version = "1", features = ["server", "http1"] }

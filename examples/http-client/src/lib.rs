@@ -7,8 +7,6 @@ use wapo::net::hyper_v0::HttpConnector;
 #[wapo::main]
 async fn main() {
     wapo::logger::init();
-    wapo::ocall::enable_ocall_trace(true).unwrap();
-
     let url = "https://example.com/";
     info!("Connecting to {}", url);
     let connector = HttpConnector::new();

@@ -1,6 +1,8 @@
 use log::info;
 use std::convert::Infallible;
 
+mod util;
+
 use hyper::{server::conn::http1, service::service_fn, Request, Response};
 use wapo::{env::tls::TlsServerConfig, hyper_rt::HyperTokioIo};
 
@@ -22,18 +24,33 @@ Opx/F0Tr1zhEpxNMhbZVY3Y9DUzV09pvj1s7sbI7z1QVkf7aQ5XY01vA
 -----END PRIVATE KEY-----";
 
 async fn handle(request: Request<hyper::body::Incoming>) -> Result<Response<String>, Infallible> {
-    info!("Incoming request: {}", request.uri().path());
-    Ok(Response::new("Hello, World!\n".into()))
+    let path = request.uri().path();
+    info!("Incoming request: {path}");
+    let response = match path {
+        "/" => "Hello, World!\n".to_string(),
+        "/certQuote" => {
+            let quote_content = format!("Quoted cert:\n{CERT}\n");
+            let content_hash = util::sha256_digest(quote_content.as_bytes());
+            let quote = wapo::ocall::sgx_quote(&content_hash)
+                .map(|quote| quote.unwrap_or_default())
+                .expect("quote api should never fail");
+            hex::encode(quote)
+        }
+        _ => {
+            return Ok(Response::builder()
+                .status(404)
+                .body("Not Found".into())
+                .unwrap())
+        }
+    };
+    Ok(Response::new(response))
 }
 
 #[wapo::main]
 async fn main() -> anyhow::Result<()> {
     wapo::logger::init();
-    wapo::ocall::enable_ocall_trace(true).unwrap();
 
-    let address = "0.0.0.0:1999";
-    info!("Listening on https://{}", address);
-
+    let address = "127.0.0.1:1999";
     let listener = wapo::net::TcpListener::bind_tls(
         address,
         TlsServerConfig::V0 {
@@ -44,6 +61,7 @@ async fn main() -> anyhow::Result<()> {
     .await
     .unwrap();
 
+    info!("Listening on https://{}", address);
     loop {
         let (stream, _) = listener.accept().await?;
         wapo::spawn(async move {
