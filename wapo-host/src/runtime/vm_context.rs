@@ -2,6 +2,8 @@ use std::{
     borrow::Cow,
     collections::VecDeque,
     fmt, io,
+    net::SocketAddr,
+    ops::RangeInclusive,
     path::PathBuf,
     sync::{Arc, Mutex},
     task::Poll::{Pending, Ready},
@@ -112,6 +114,11 @@ impl RuntimeCalls for () {
     fn emit_output(&self, _output: &[u8]) {}
 }
 
+#[derive(typed_builder::TypedBuilder, Debug)]
+pub struct WapoVmConfig {
+    pub tcp_listen_port_range: RangeInclusive<u16>,
+}
+
 pub(crate) struct WapoCtx {
     id: VmId,
     resources: ResourceTable,
@@ -125,6 +132,7 @@ pub(crate) struct WapoCtx {
     _counter: vm_counter::Counter,
     meter: Arc<Meter>,
     blob_loader: BlobLoader,
+    config: WapoVmConfig,
 }
 
 impl WapoCtx {
@@ -133,6 +141,7 @@ impl WapoCtx {
         runtime_calls: OCalls,
         blobs_dir: PathBuf,
         meter: Option<Arc<Meter>>,
+        config: WapoVmConfig,
     ) -> Self
     where
         OCalls: RuntimeCalls,
@@ -150,6 +159,7 @@ impl WapoCtx {
             _counter: Default::default(),
             meter: meter.unwrap_or_default(),
             blob_loader: BlobLoader::new(blobs_dir),
+            config,
         }
     }
     pub(crate) fn close(&mut self, resource_id: i32) -> Result<()> {
@@ -254,6 +264,10 @@ impl env::OcallFuncs for WapoCtx {
     }
 
     fn tcp_listen(&mut self, addr: Cow<str>, tls_config: Option<TlsServerConfig>) -> Result<i32> {
+        let address: SocketAddr = addr.parse().or(Err(OcallError::InvalidParameter))?;
+        if !self.config.tcp_listen_port_range.contains(&address.port()) {
+            return Err(OcallError::Forbiden);
+        }
         let std_listener = std::net::TcpListener::bind(&*addr).or(Err(OcallError::IoError))?;
         std_listener
             .set_nonblocking(true)

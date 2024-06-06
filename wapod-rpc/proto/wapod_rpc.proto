@@ -133,6 +133,8 @@ message WorkerInfo {
   MemoryUsage memory_usage = 7;
   // The information of the module loader.
   ModuleLoaderInfo module_loader_info = 8;
+  // The port range for TCP listen.
+  string tcp_listen_port_range = 10;
   // next 10
 }
 

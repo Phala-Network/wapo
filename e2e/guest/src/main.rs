@@ -11,8 +11,7 @@ use wapo::env::messages::HttpResponseHead;
 
 #[wapo::main]
 async fn main() {
-    use wapo::logger::{LevelFilter, Logger};
-    Logger::with_max_level(LevelFilter::Info).init();
+    wapo::logger::init();
 
     info!("started!");
     let query_rx = wapo::channel::incoming_queries();

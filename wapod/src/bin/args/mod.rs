@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{bail, Context as _, Result};
 use clap::Parser;
 use tracing::{info, warn};
 use typed_builder::TypedBuilder;
@@ -46,6 +46,28 @@ pub struct Args {
     #[arg(long)]
     #[builder(default)]
     pub no_mem_pool: bool,
+
+    /// Tcp port range for the worker to listen on.
+    #[arg(long, value_parser = parse_port_range)]
+    pub tcp_listen_port_range: Option<(u16, u16)>,
+}
+
+fn parse_port_range(input: &str) -> anyhow::Result<(u16, u16)> {
+    let mut parts = input.split("..");
+    let start = parts
+        .next()
+        .context("invalid port range")?
+        .parse()
+        .context("invalid port range")?;
+    let end = parts
+        .next()
+        .context("invalid port range")?
+        .parse()
+        .context("invalid port range")?;
+    if start > end {
+        bail!("invalid port range");
+    }
+    Ok((start, end))
 }
 
 impl From<Args> for WorkerArgs {
@@ -56,6 +78,7 @@ impl From<Args> for WorkerArgs {
             module_cache_size: value.module_cache_size,
             no_mem_pool: value.no_mem_pool,
             use_winch: false,
+            tcp_listen_port_range: value.tcp_listen_port_range.map_or(1..=0, |(f, t)| f..=t),
         }
     }
 }
@@ -96,7 +119,7 @@ impl Args {
         info!("possible instances: {allowed_instances}");
         info!("set max instances: {}", self.max_instances());
         if self.max_instances() > allowed_instances {
-            anyhow::bail!("max_instances is too large");
+            bail!("max_instances is too large");
         }
         Ok(())
     }

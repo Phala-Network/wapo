@@ -1,7 +1,7 @@
 use anyhow::{bail, Context as _, Result};
 use phala_scheduler::TaskScheduler;
 use std::future::Future;
-use std::ops::{Deref, DerefMut};
+use std::ops::{Deref, DerefMut, RangeInclusive};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -16,6 +16,7 @@ use wasmtime::{
 };
 
 use crate::linear_memory::MemoryPool;
+use crate::runtime::vm_context::WapoVmConfig;
 use crate::runtime::{
     async_context,
     vm_context::{self as wapo_ctx, WapoCtx},
@@ -94,11 +95,15 @@ impl WasmModule {
             epoch_deadline,
             blobs_dir,
             meter,
+            tcp_listen_port_range,
         } = config;
         let engine = self.engine.inner.clone();
         let mut linker = Linker::<VmCtx>::new(&engine);
 
-        let mut wapo_ctx = WapoCtx::new(id, runtime_calls, blobs_dir, meter);
+        let vm_config = WapoVmConfig::builder()
+            .tcp_listen_port_range(tcp_listen_port_range)
+            .build();
+        let mut wapo_ctx = WapoCtx::new(id, runtime_calls, blobs_dir, meter, vm_config);
         wapo_ctx.set_weight(weight);
         wapo_ctx::add_ocalls_to_linker(&mut linker, |c| &mut c.wapo_ctx)?;
 
@@ -184,6 +189,7 @@ pub struct InstanceConfig<OCalls> {
     blobs_dir: PathBuf,
     #[builder(default)]
     meter: Option<Arc<Meter>>,
+    tcp_listen_port_range: RangeInclusive<u16>,
 }
 
 pub struct WasmRun {

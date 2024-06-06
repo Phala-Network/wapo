@@ -106,6 +106,7 @@ pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
         .envs(vm_envs)
         .blobs_dir("./data/storage_files/blobs".into())
         .runtime_calls(())
+        .tcp_listen_port_range(0..=65535)
         .build();
     let mut wasm_run = module.run(config).context("failed to start the instance")?;
     if let Some(kill_timeout) = args.kill_timeout {

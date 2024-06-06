@@ -65,8 +65,8 @@ pub enum OcallError {
     AlreadyExists = 15,
     /// There is a data corruption occurred.
     DataCorruption = 16,
-    /// Reserved for future use
-    Reserved17 = 17,
+    /// The operation is forbidden.
+    Forbiden = 17,
     /// Reserved for future use
     Reserved18 = 18,
     /// Reserved for future use

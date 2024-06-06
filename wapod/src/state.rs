@@ -13,7 +13,7 @@ use wapod_rpc::prpc::{self as pb};
 use std::collections::HashMap;
 
 use std::marker::PhantomData;
-use std::ops::Add;
+use std::ops::{Add, RangeInclusive};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::time::Instant;
@@ -40,6 +40,8 @@ pub struct WorkerArgs {
     /// Disable memory pool for instances.
     #[builder(default)]
     pub use_winch: bool,
+    /// The port range to allow the worker to listen on.
+    pub tcp_listen_port_range: RangeInclusive<u16>,
 }
 
 struct Instance {
@@ -235,6 +237,14 @@ impl<T: WorkerConfig> Worker<T> {
             memory_usage: Some(crate::allocator::mem_usage()),
             module_loader_info,
             vm_instances: wapo_host::vm_count() as _,
+            tcp_listen_port_range: {
+                if worker.args.tcp_listen_port_range.is_empty() {
+                    "".to_string()
+                } else {
+                    let (start, end) = worker.args.tcp_listen_port_range.clone().into_inner();
+                    format!("{start}-{end}")
+                }
+            },
         }
     }
 
@@ -527,6 +537,7 @@ impl<T: WorkerConfig> WorkerState<T> {
                     .map(|x| (x.key, x.value))
                     .collect(),
             )
+            .tcp_listen_port_range(self.args.tcp_listen_port_range.clone())
             .build();
         let (vm_handle, join_handle) = self
             .service
