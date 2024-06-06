@@ -1,8 +1,8 @@
-use log::{error, info};
+use log::info;
 use std::convert::Infallible;
 
-use hyper::{Body, Request, Response};
-use wapo::env::tls::TlsServerConfig;
+use hyper::{server::conn::http1, service::service_fn, Request, Response};
+use wapo::{env::tls::TlsServerConfig, hyper_rt::HyperTokioIo};
 
 const CERT: &str = "-----BEGIN CERTIFICATE-----
 MIIBZzCCAQ2gAwIBAgIIbELHFTzkfHAwCgYIKoZIzj0EAwIwITEfMB0GA1UEAwwW
@@ -21,21 +21,17 @@ tGzUOSAaOmjQbZMJQ2Z9eBnzh3+hRANCAATqEc3RGoBQ2X/4pu/WeSVMnlz/emMM
 Opx/F0Tr1zhEpxNMhbZVY3Y9DUzV09pvj1s7sbI7z1QVkf7aQ5XY01vA
 -----END PRIVATE KEY-----";
 
-async fn handle(request: Request<Body>) -> Result<Response<Body>, Infallible> {
+async fn handle(request: Request<hyper::body::Incoming>) -> Result<Response<String>, Infallible> {
     info!("Incoming request: {}", request.uri().path());
     Ok(Response::new("Hello, World!\n".into()))
 }
 
 #[wapo::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     wapo::logger::init();
     wapo::ocall::enable_ocall_trace(true).unwrap();
 
-    let make_svc = hyper::service::make_service_fn(|_conn| async {
-        Ok::<_, Infallible>(hyper::service::service_fn(handle))
-    });
-
-    let address = "127.0.0.1:1999";
+    let address = "0.0.0.0:1999";
     info!("Listening on https://{}", address);
 
     let listener = wapo::net::TcpListener::bind_tls(
@@ -48,10 +44,15 @@ async fn main() {
     .await
     .unwrap();
 
-    let server = hyper::Server::builder(listener)
-        .executor(wapo::hyper_rt::HyperExecutor)
-        .serve(make_svc);
-    if let Err(e) = server.await {
-        error!("server error: {}", e);
+    loop {
+        let (stream, _) = listener.accept().await?;
+        wapo::spawn(async move {
+            if let Err(err) = http1::Builder::new()
+                .serve_connection(HyperTokioIo::new(stream), service_fn(handle))
+                .await
+            {
+                println!("Error serving connection: {:?}", err);
+            }
+        });
     }
 }

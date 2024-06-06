@@ -22,8 +22,31 @@ fn patch_or_err(input: TokenStream) -> syn::Result<TokenStream> {
         }
         #[no_mangle]
         fn wapo_main_future() -> std::pin::Pin<std::boxed::Box<dyn std::future::Future<Output = ()>>> {
+            use core::fmt::Debug;
 
-            #input
+            trait MaybeError {
+                type Error: Debug;
+                fn into_error(self) -> Option<Self::Error>;
+            }
+            impl MaybeError for () {
+                type Error = ();
+                fn into_error(self) -> Option<()> {
+                    None
+                }
+            }
+            impl<E: Debug> MaybeError for Result<(), E> {
+                type Error = E;
+                fn into_error(self) -> Option<E> {
+                    self.err()
+                }
+            }
+
+            async fn #main_ident() {
+                #input
+                if let Some(err) = MaybeError::into_error(#main_ident().await) {
+                    panic!("Error: {:?}", err);
+                }
+            }
 
             Box::pin(#main_ident())
         }
