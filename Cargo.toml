@@ -13,6 +13,8 @@ members = [
     "wapod-crypto-types",
     "e2e/guest",
     "phaxt",
+    "examples/http-server",
+    "examples/http-client",
 ]
 exclude = ["wapod-pherry"]
 
