@@ -15,7 +15,7 @@ async fn main() {
 
     info!("started!");
     let query_rx = wapo::channel::incoming_queries();
-    let connection_listener = wapo::channel::incoming_http_connections();
+    let http_listener = wapo::channel::incoming_http_requests();
     loop {
         info!("waiting for requests...");
         tokio::select! {
@@ -36,20 +36,20 @@ async fn main() {
                     query.reply_tx.send(&reply).ignore();
                 });
             },
-            http = connection_listener.next() => {
-                let Some(mut conn) = http else {
+            http = http_listener.next() => {
+                let Some(mut request) = http else {
                     break;
                 };
-                info!("received http connection: {} {}", conn.head.method, conn.head.url);
+                info!("received http connection: {} {}", request.head.method, request.head.url);
                 wapo::spawn(async move {
-                    if let Err(err) = conn.response_tx.send(HttpResponseHead { status: 200, headers: vec![] }) {
+                    if let Err(err) = request.response_tx.send(HttpResponseHead { status: 200, headers: vec![] }) {
                         warn!("failed to send response head: {err}");
                         return;
                     }
                     for i in 0..10 {
                         info!("sending: {i}");
                         let message = format!("{i}\n");
-                        if let Err(err)  = conn.io_stream.write_all(message.as_bytes()).await {
+                        if let Err(err)  = request.io_stream.write_all(message.as_bytes()).await {
                             warn!("failed to send message: {err}");
                             break;
                         }

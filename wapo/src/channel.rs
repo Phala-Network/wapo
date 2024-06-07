@@ -170,7 +170,7 @@ impl Future for Next<'_, HttpRequest> {
     }
 }
 
-/// Incoming HTTP connections.
-pub fn incoming_http_connections() -> &'static Receiver<HttpRequest> {
+/// Listen to incoming HTTP requests.
+pub fn incoming_http_requests() -> &'static Receiver<HttpRequest> {
     singleton_channel!(HttpRequest)
 }
