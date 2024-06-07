@@ -42,7 +42,7 @@ impl Log for Logger {
 
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
-            let message = format!("{}", record.args());
+            let message = format!("{}: {}", record.target(), record.args());
 
             let _ = ocall::log(record.level(), &message);
         }
