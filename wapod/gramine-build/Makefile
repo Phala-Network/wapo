@@ -14,9 +14,6 @@ USE_MUSL ?= 0
 WORKSPACE = ../..
 BIN_NAME = wapod
 
-DATA_DIRS = data/protected_files \
-            data/storage_files
-
 GRAMINE_DIR ?= $(shell ./gramine-dir libs)
 GRAMINE_LIBOS ?= $(shell ./gramine-dir libos)
 GRAMINE_RUNTIME_DIR ?= $(shell ./gramine-dir runtime)
@@ -39,7 +36,7 @@ ifeq ($(V),1)
 CARGO_ARGS += -vv
 endif
 
-PREFIX ?= ../bin
+PREFIX ?= ./dist
 DATA_DIR ?= data
 SEAL_DIR ?= ${DATA_DIR}/protected_files
 STORAGE_DIR ?= ${DATA_DIR}/storage_files
@@ -99,12 +96,6 @@ ${BIN_NAME}.token: ${BIN_NAME}.sig
 .PHONY: token
 token: ${BIN_NAME}.token
 
-.PHONY: dirs
-dirs: ${DATA_DIRS}
-
-${DATA_DIRS}:
-	mkdir -p $@
-
 .PHONY: clean
 clean:
 	$(RM) *.token *.sig *.manifest.sgx *.manifest ${BIN_NAME}.o ${BIN_NAME} OUTPUT
@@ -122,6 +113,8 @@ pre-dist: all
 	cp ${BIN_NAME} ${PREFIX}/
 	cp ../Wapod.toml ${PREFIX}/
 	cp -rfL ${RUNTIME_DIR} ${PREFIX}/
+	cp gramine-sgx ${PREFIX}/
+	cp mkdirs.sh ${PREFIX}/
 
 .PHONY: dist
 ifeq ($(SGX),1)
@@ -129,7 +122,6 @@ dist: pre-dist ${BIN_NAME}.manifest signed-sgx-artifacts
 	cp ${BIN_NAME}.manifest ${PREFIX}/
 	cp ${BIN_NAME}.manifest.sgx ${PREFIX}/
 	cp ${BIN_NAME}.sig ${PREFIX}/
-	cp gramine-sgx ${PREFIX}/
 	./gramine-sgx-sigstruct-view ${BIN_NAME}.sig
 else
 dist: pre-dist ${BIN_NAME}.manifest
@@ -138,6 +130,12 @@ endif
 
 token-dist: token dist
 	cp ${BIN_NAME}.token ${PREFIX}/
+
+.PHONY: dirs
+dirs:
+	rm -rf data/
+	mkdir -p data/protected_files
+	mkdir -p data/storage_files
 
 .PHONY: run
 run: all token

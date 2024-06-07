@@ -48,11 +48,14 @@ pub struct Args {
     pub no_mem_pool: bool,
 
     /// Tcp port range for the worker to listen on.
-    #[arg(long, value_parser = parse_port_range)]
+    #[arg(long, short = 'l', value_parser = parse_port_range)]
     pub tcp_listen_port_range: Option<(u16, u16)>,
 }
 
-fn parse_port_range(input: &str) -> anyhow::Result<(u16, u16)> {
+fn parse_port_range(input: &str) -> anyhow::Result<Option<(u16, u16)>> {
+    if input == "none" {
+        return Ok(None);
+    }
     let mut parts = input.split("..");
     let start = parts
         .next()
@@ -67,7 +70,7 @@ fn parse_port_range(input: &str) -> anyhow::Result<(u16, u16)> {
     if start > end {
         bail!("invalid port range");
     }
-    Ok((start, end))
+    Ok(Some((start, end)))
 }
 
 impl From<Args> for WorkerArgs {

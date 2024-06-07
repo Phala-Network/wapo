@@ -59,7 +59,7 @@ async fn main() -> anyhow::Result<()> {
         },
     )
     .await
-    .unwrap();
+    .expect("Failed to bind on the address");
 
     info!("Listening on https://{}", address);
     loop {
