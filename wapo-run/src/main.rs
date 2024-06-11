@@ -53,7 +53,6 @@ pub struct Args {
     program: String,
     /// The rest of the arguments are passed to the WASM program
     #[arg(
-        last = true,
         trailing_var_arg = true,
         allow_hyphen_values = true,
         hide = true
