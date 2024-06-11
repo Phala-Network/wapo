@@ -48,7 +48,7 @@ pub struct Args {
     pub no_mem_pool: bool,
 
     /// Tcp port range for the worker to listen on.
-    #[arg(long, short = 'l', default_value = "1000..5000", value_parser = parse_port_range)]
+    #[arg(long, short = 'l', value_parser = parse_port_range)]
     pub tcp_listen_port_range: Option<(u16, u16)>,
 }
 
