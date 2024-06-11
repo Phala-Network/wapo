@@ -7,9 +7,11 @@ use rocket::figment::{
 };
 use rocket::fs::NamedFile;
 use rocket::http::{ContentType, Method, Status};
+use rocket::request::{FromRequest, Outcome};
 use rocket::response::content::RawHtml;
 use rocket::response::status::Custom;
-use rocket::{get, post, routes, Data, State};
+use rocket::response::Redirect;
+use rocket::{get, post, routes, Data, Request, State};
 use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
 use tracing::{info, instrument, warn};
 use wapod::config::WorkerConfig;
@@ -31,7 +33,31 @@ use auth::Authorized;
 
 mod auth;
 
-#[post("/app/<id>/<path..>", data = "<body>")]
+struct NoEndSlash;
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for NoEndSlash {
+    type Error = ();
+    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
+        if request.uri().path().as_str().ends_with('/') {
+            Outcome::Forward(Status::NotFound)
+        } else {
+            Outcome::Success(NoEndSlash)
+        }
+    }
+}
+
+#[post("/app/<id>", rank = 1)]
+async fn redirect_connect_vm_post(id: &str, _guard: NoEndSlash) -> Redirect {
+    Redirect::permanent(format!("/app/{}/", id))
+}
+
+#[get("/app/<id>", rank = 1)]
+async fn redirect_connect_vm_get(id: &str, _guard: NoEndSlash) -> Redirect {
+    Redirect::permanent(format!("/app/{}/", id))
+}
+
+#[post("/app/<id>/<path..>", data = "<body>", rank = 2)]
 async fn connect_vm_post<'r>(
     state: &State<Worker>,
     head: RequestInfo,
@@ -42,7 +68,7 @@ async fn connect_vm_post<'r>(
     connect_vm(state, head, id, path, Some(body)).await
 }
 
-#[get("/app/<id>/<path..>")]
+#[get("/app/<id>/<path..>", rank = 2)]
 async fn connect_vm_get<'r>(
     state: &State<Worker>,
     head: RequestInfo,
@@ -191,7 +217,15 @@ pub async fn serve_user(state: Worker, args: Args) -> Result<()> {
         .attach(RequestTracer::default())
         .attach(TimeMeter)
         .manage(state)
-        .mount("/", routes![connect_vm_get, connect_vm_post])
+        .mount(
+            "/",
+            routes![
+                connect_vm_get,
+                connect_vm_post,
+                redirect_connect_vm_get,
+                redirect_connect_vm_post
+            ],
+        )
         .mount("/prpc", routes![prpc_post, prpc_get])
         .launch()
         .await?;
