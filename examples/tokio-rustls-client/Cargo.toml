@@ -1,0 +1,17 @@
+[package]
+name = "tokio-rustls-client"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+log = "0.4.16"
+anyhow = "1.0.86"
+hyper = { version = "1", features = ["client", "http1"] }
+wapo = { version = "0.1", path = "../../wapo", features = ["hyper-v1", "tokio"]}
+tokio-rustls = { version = "0.26.0", default-features = false, features = ["tls12", "ring"] }
+webpki-roots = "0.26"
+rustls-pki-types = "1"
+http-body-util = "0.1.2"
