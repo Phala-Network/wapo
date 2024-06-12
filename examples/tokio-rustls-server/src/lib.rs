@@ -1,11 +1,11 @@
-use std::{convert::Infallible, io, sync::Arc};
+use std::{convert::Infallible, sync::Arc};
 
 use anyhow::{bail, Context, Result};
 use hyper::{body::Incoming, service::service_fn, Request, Response};
 use log::{error, info};
 use rustls_pemfile::Item;
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
-use tokio_rustls::{rustls, TlsAcceptor};
+use tokio_rustls::TlsAcceptor;
 use wapo::net::TcpListener;
 
 const CERT: &str = "-----BEGIN CERTIFICATE-----
@@ -58,10 +58,20 @@ async fn main() -> Result<()> {
     let certs = load_certs(CERT)?;
     let key = load_private_key(KEY)?;
 
+    let mut cert_resolver = rustls::server::ResolvesServerCertUsingSni::new();
+
+    let signer = rustls::crypto::ring::sign::any_supported_type(&key)?;
+    // Select a certificate based on the SNI value.
+    cert_resolver
+        .add(
+            "localhost",
+            rustls::sign::CertifiedKey::new(certs.clone(), signer),
+        )
+        .context("Failed to add certificate")?;
+
     let config = rustls::ServerConfig::builder()
         .with_no_client_auth()
-        .with_single_cert(certs, key)
-        .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
+        .with_cert_resolver(Arc::new(cert_resolver));
     let acceptor = TlsAcceptor::from(Arc::new(config));
 
     let listener = TcpListener::bind(&address).await?;
@@ -73,14 +83,26 @@ async fn main() -> Result<()> {
 
         let fut = async move {
             let stream = acceptor.accept(stream).await?;
-            if let Err(err) = hyper::server::conn::http1::Builder::new()
-                .serve_connection(
-                    wapo::hyper_rt::HyperTokioIo::new(stream),
-                    service_fn(handle),
-                )
-                .await
-            {
-                error!("Error serving connection: {:?}", err);
+            let Some(server_name) = stream.get_ref().1.server_name() else {
+                bail!("No server name");
+            };
+            // App can dispatch the connection to correct handler based on server_name
+            match server_name {
+                "localhost" => {
+                    info!("TLS connection established with localhost");
+                    if let Err(err) = hyper::server::conn::http1::Builder::new()
+                        .serve_connection(
+                            wapo::hyper_rt::HyperTokioIo::new(stream),
+                            service_fn(handle),
+                        )
+                        .await
+                    {
+                        error!("Error serving connection: {:?}", err);
+                    }
+                }
+                _ => {
+                    error!("Unknown server name: {server_name:?}");
+                }
             }
             Ok(()) as Result<()>
         };
