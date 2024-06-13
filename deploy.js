@@ -1,4 +1,4 @@
-#!/usr/bin/env nodejs
+#!/usr/bin/env node
 const fs = require('fs');
 const http = require('http');
 
@@ -14,7 +14,6 @@ class WorkerClient {
     async initWorkerIfNot() {
         console.log('Checking worker info...');
         const workerInfo = await this.rpcCall("Info", {});
-        await this.rpcCall("AppRemoveAll", {});
         if (!workerInfo.session || workerInfo.session === "0x") {
             console.log('No active session found, initializing worker...');
             await this.rpcCall("WorkerInit", {});
