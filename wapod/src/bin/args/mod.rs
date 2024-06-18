@@ -47,9 +47,12 @@ pub struct Args {
     #[builder(default)]
     pub no_mem_pool: bool,
 
-    /// Tcp port range for the worker to listen on.
+    /// TCP port range for the worker to listen on.
     #[arg(long, short = 'l', value_parser = parse_port_range)]
     pub tcp_listen_port_range: Option<(u16, u16)>,
+
+    /// The TCP port to listen on TLS connections which would be dispatched based on SNI.
+    pub tls_port: Option<u16>,
 }
 
 fn parse_port_range(input: &str) -> anyhow::Result<(u16, u16)> {
@@ -82,6 +85,7 @@ impl From<Args> for WorkerArgs {
             no_mem_pool: value.no_mem_pool,
             use_winch: false,
             tcp_listen_port_range: value.tcp_listen_port_range.map_or(1..=0, |(f, t)| f..=t),
+            tls_port: value.tls_port,
         }
     }
 }

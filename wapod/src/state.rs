@@ -6,7 +6,7 @@ use sp_core::blake2_256;
 use tokio::sync::oneshot;
 use tracing::{field::display, info, warn, Instrument};
 use wapo_host::{blobs::BlobLoader, Metrics};
-use wapo_host::{ShortId, VmStatus, VmStatusReceiver};
+use wapo_host::{ShortId, SniTlsListener, VmStatus, VmStatusReceiver};
 use wapod_crypto::ContentType;
 use wapod_rpc::prpc::{self as pb};
 
@@ -42,6 +42,8 @@ pub struct WorkerArgs {
     pub use_winch: bool,
     /// The port range to allow the worker to listen on.
     pub tcp_listen_port_range: RangeInclusive<u16>,
+    /// The tcp port that SNI TLS listener to use.
+    pub tls_port: Option<u16>,
 }
 
 struct Instance {
@@ -121,6 +123,7 @@ struct WorkerState<T> {
     service: ServiceHandle,
     blob_loader: BlobLoader,
     session: Option<[u8; 32]>,
+    sni_tls_listener: Option<SniTlsListener>,
 }
 
 pub struct Worker<T> {
@@ -136,12 +139,20 @@ impl<T> Clone for Worker<T> {
 }
 
 impl<T: WorkerConfig> Worker<T> {
-    pub fn crate_running(args: WorkerArgs) -> Result<Self> {
+    pub async fn create_running(args: WorkerArgs) -> Result<Self> {
         let n_threads = args.max_instances.saturating_add(2);
         let max_memory = args
             .instance_memory_size
             .try_into()
             .context("invalid memory size")?;
+        let sni_tcp_listener = match args.tls_port {
+            Some(port) => Some(
+                SniTlsListener::bind("0.0.0.0", port)
+                    .await
+                    .context("failed to bind sni tls listener")?,
+            ),
+            None => None,
+        };
         let (run, spawner) = service::service(
             n_threads,
             args.module_cache_size,
@@ -162,10 +173,14 @@ impl<T: WorkerConfig> Worker<T> {
                 }
             });
         });
-        Ok(Self::new(spawner, args))
+        Ok(Self::new(spawner, args, sni_tcp_listener))
     }
 
-    pub fn new(service: ServiceHandle, args: WorkerArgs) -> Self {
+    pub fn new(
+        service: ServiceHandle,
+        args: WorkerArgs,
+        sni_tls_listener: Option<SniTlsListener>,
+    ) -> Self {
         Self {
             inner: Arc::new_cyclic(|weak_self| {
                 Mutex::new(WorkerState {
@@ -175,6 +190,7 @@ impl<T: WorkerConfig> Worker<T> {
                     service,
                     args,
                     session: None,
+                    sni_tls_listener,
                 })
             }),
         }
@@ -538,6 +554,7 @@ impl<T: WorkerConfig> WorkerState<T> {
                     .collect(),
             )
             .tcp_listen_port_range(self.args.tcp_listen_port_range.clone())
+            .sni_tls_listener(self.sni_tls_listener.clone())
             .build();
         let (vm_handle, join_handle) = self
             .service

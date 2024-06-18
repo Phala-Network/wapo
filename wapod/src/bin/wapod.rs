@@ -30,8 +30,9 @@ async fn main() -> Result<()> {
         HexFmt(<Config as WorkerConfig>::KeyProvider::get_key().public())
     );
 
-    let worker =
-        Worker::crate_running(args.clone().into()).context("failed to create worker state")?;
+    let worker = Worker::create_running(args.clone().into())
+        .await
+        .context("failed to create worker state")?;
 
     let admin_service = serve_admin(worker.clone(), args.clone());
     let user_service = async move {

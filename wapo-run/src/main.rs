@@ -5,7 +5,7 @@ use clap::{Parser, ValueEnum};
 use pink_types::js::JsValue;
 use scale::Decode;
 use tracing::{error, info};
-use wapo_host::{wasmtime::Config, InstanceConfig, Meter, WasmEngine};
+use wapo_host::{wasmtime::Config, InstanceConfig, Meter, SniTlsListener, WasmEngine};
 
 /// The compiler backend to use
 #[derive(ValueEnum, Clone, Debug)]
@@ -37,6 +37,9 @@ pub struct Args {
     /// The epoch timeout
     #[arg(long, short = 'T')]
     kill_timeout: Option<u64>,
+    /// The port to listen sni based tls
+    #[arg(long, short = 'T')]
+    tls_port: Option<u16>,
     /// The time of a single epoch tick
     #[arg(long, default_value_t = 10)]
     tick_time_ms: u64,
@@ -52,11 +55,7 @@ pub struct Args {
     /// The WASM program to run
     program: String,
     /// The rest of the arguments are passed to the WASM program
-    #[arg(
-        trailing_var_arg = true,
-        allow_hyphen_values = true,
-        hide = true
-    )]
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true, hide = true)]
     args: Vec<String>,
 }
 
@@ -98,6 +97,14 @@ pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
             }
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let sni_tls_listener = match args.tls_port {
+        Some(port) => Some(
+            SniTlsListener::bind("0.0.0.0", port)
+                .await
+                .context("failed to bind sni tls listener")?,
+        ),
+        None => None,
+    };
     let config = InstanceConfig::builder()
         .epoch_deadline(args.epoch_deadline)
         .max_memory_pages(args.max_memory_pages)
@@ -106,6 +113,7 @@ pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
         .blobs_dir("./data/storage_files/blobs".into())
         .runtime_calls(())
         .tcp_listen_port_range(0..=65535)
+        .sni_tls_listener(sni_tls_listener)
         .build();
     let mut wasm_run = module.run(config).context("failed to start the instance")?;
     if let Some(kill_timeout) = args.kill_timeout {

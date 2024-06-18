@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use scopeguard::ScopeGuard;
 use serde::{Deserialize, Serialize};
+use sni_tls_listener::SniTlsListener;
 use std::future::Future;
 use std::ops::{Deref, RangeInclusive};
 use std::path::PathBuf;
@@ -262,6 +263,7 @@ pub struct InstanceStartConfig<OCalls> {
     args: Vec<String>,
     envs: Vec<(String, String)>,
     tcp_listen_port_range: RangeInclusive<u16>,
+    sni_tls_listener: Option<SniTlsListener>,
 }
 
 impl ServiceHandle {
@@ -285,6 +287,7 @@ impl ServiceHandle {
             args,
             envs,
             tcp_listen_port_range,
+            sni_tls_listener,
         } = config;
         let (cmd_tx, mut cmd_rx) = channel(128);
         let (ctl_cmd_tx, mut ctl_cmd_rx) = unbounded_channel();
@@ -340,6 +343,7 @@ impl ServiceHandle {
                 .args(args)
                 .envs(envs)
                 .tcp_listen_port_range(tcp_listen_port_range)
+                .sni_tls_listener(sni_tls_listener)
                 .build();
             let mut wasm_run = match module.run(config.clone()).context("failed to create instance") {
                 Ok(i) => i,

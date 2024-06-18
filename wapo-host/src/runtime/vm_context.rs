@@ -11,6 +11,7 @@ use std::{
 };
 
 use anyhow::Context;
+use sni_tls_listener::{wrap_certified_key, SniTlsListener};
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::oneshot::Sender as OneshotSender,
@@ -29,7 +30,7 @@ use wapo_env as env;
 use wasmtime::Caller;
 
 use super::{
-    async_context::{get_task_cx, set_task_env, GuestWaker},
+    async_context::{get_task_cx, poll_in_task_cx, set_task_env, GuestWaker},
     metrics::Meter,
     resource::{PollContext, Resource, ResourceTable, TcpListenerResource},
     tls::{load_tls_config, TlsStream},
@@ -117,6 +118,7 @@ impl RuntimeCalls for () {
 #[derive(typed_builder::TypedBuilder, Debug)]
 pub struct WapoVmConfig {
     pub tcp_listen_port_range: RangeInclusive<u16>,
+    pub sni_tls_listener: Option<SniTlsListener>,
 }
 
 pub(crate) struct WapoCtx {
@@ -162,6 +164,7 @@ impl WapoCtx {
             config,
         }
     }
+
     pub(crate) fn close(&mut self, resource_id: i32) -> Result<()> {
         match self.resources.take(resource_id) {
             None => Err(OcallError::NotFound),
@@ -286,23 +289,43 @@ impl env::OcallFuncs for WapoCtx {
         let waker = ctx.waker;
         let (res, remote_addr) = {
             let res = self.resources.get_mut(tcp_res_id)?;
-            let res = match res {
-                Resource::TcpListener(res) => res,
-                _ => return Err(OcallError::UnsupportedOperation),
-            };
-            let (stream, addr) = match get_task_cx(waker, |ct| res.listener.poll_accept(ct)) {
-                Pending => return Err(OcallError::Pending),
-                Ready(result) => result.or(Err(OcallError::IoError))?,
-            };
-            // A typical tcp connect consumes hundreds of bytes.
-            ctx.meter.record_net_ingress(128);
-            let res = match &res.tls_config {
-                Some(tls_config) => {
-                    Resource::TlsStream(Box::new(TlsStream::accept(stream, tls_config.clone())))
+            match res {
+                Resource::TcpListener(res) => {
+                    let (stream, addr) = match get_task_cx(waker, |ct| res.listener.poll_accept(ct))
+                    {
+                        Pending => return Err(OcallError::Pending),
+                        Ready(result) => result.or(Err(OcallError::IoError))?,
+                    };
+                    // A typical tcp connect consumes hundreds of bytes.
+                    ctx.meter.record_net_ingress(128);
+                    let res = match &res.tls_config {
+                        Some(tls_config) => {
+                            ctx.meter.record_net_ingress(1024);
+                            ctx.meter.record_net_egress(1024);
+                            Resource::TlsStream(Box::new(TlsStream::accept(
+                                stream,
+                                tls_config.clone(),
+                            )))
+                        }
+                        None => Resource::TcpStream(Box::new(stream)),
+                    };
+                    (res, addr)
                 }
-                None => Resource::TcpStream(Box::new(stream)),
-            };
-            (res, addr)
+                Resource::SniSubscription(res) => {
+                    let fut = res.next();
+                    futures::pin_mut!(fut);
+                    let (stream, addr) = match poll_in_task_cx(waker, fut) {
+                        Ready(Some(data)) => data,
+                        Ready(None) => return Err(OcallError::EndOfFile),
+                        Pending => return Err(OcallError::Pending),
+                    };
+                    ctx.meter.record_net_ingress(1024);
+                    ctx.meter.record_net_egress(1024);
+                    let res = Resource::TlsStream(Box::new(TlsStream::ServerStreaming(stream)));
+                    (res, addr)
+                }
+                _ => return Err(OcallError::UnsupportedOperation),
+            }
         };
         self.resources
             .push(res)
@@ -340,6 +363,28 @@ impl env::OcallFuncs for WapoCtx {
         };
         self.meter.record_tls_connect_start();
         self.resources.push(Resource::TlsConnect(Box::pin(fut)))
+    }
+
+    fn tls_listen_sni(&mut self, sni: Cow<str>, config: TlsServerConfig) -> Result<i32> {
+        let (cert, key) = match config {
+            TlsServerConfig::V0 { cert, key } => (cert, key),
+        };
+        let listener = self
+            .config
+            .sni_tls_listener
+            .as_ref()
+            .ok_or(OcallError::Forbiden)?;
+        let listener = listener.clone();
+        let subscription = {
+            let certified_key = wrap_certified_key(cert.as_bytes(), key.as_bytes())
+                .or(Err(OcallError::InvalidParameter))?;
+            let subscription = listener
+                .subscribe(sni.as_ref(), certified_key.into())
+                .or(Err(OcallError::InvalidParameter))?;
+            subscription
+        };
+        self.resources
+            .push(Resource::SniSubscription(Box::new(subscription)))
     }
 
     fn log(&mut self, level: log::Level, message: &str) -> Result<()> {

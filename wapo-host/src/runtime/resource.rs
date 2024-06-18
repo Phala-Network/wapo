@@ -1,3 +1,4 @@
+use sni_tls_listener::Subscription as SniSubscription;
 use std::future::Future;
 use std::io::ErrorKind;
 use std::pin::Pin;
@@ -37,6 +38,7 @@ pub enum Resource {
     TcpConnect(Pin<Box<dyn Future<Output = std::io::Result<TcpStream>> + Send>>),
     TlsConnect(Pin<Box<dyn Future<Output = std::io::Result<TlsStream>> + Send>>),
     DuplexStream(DuplexStream),
+    SniSubscription(Box<SniSubscription>),
 }
 
 impl Resource {

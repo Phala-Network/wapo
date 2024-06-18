@@ -1,5 +1,6 @@
 use anyhow::{bail, Context as _, Result};
 use phala_scheduler::TaskScheduler;
+use sni_tls_listener::SniTlsListener;
 use std::future::Future;
 use std::ops::{Deref, DerefMut, RangeInclusive};
 use std::path::PathBuf;
@@ -96,12 +97,14 @@ impl WasmModule {
             blobs_dir,
             meter,
             tcp_listen_port_range,
+            sni_tls_listener,
         } = config;
         let engine = self.engine.inner.clone();
         let mut linker = Linker::<VmCtx>::new(&engine);
 
         let vm_config = WapoVmConfig::builder()
             .tcp_listen_port_range(tcp_listen_port_range)
+            .sni_tls_listener(sni_tls_listener)
             .build();
         let mut wapo_ctx = WapoCtx::new(id, runtime_calls, blobs_dir, meter, vm_config);
         wapo_ctx.set_weight(weight);
@@ -190,6 +193,7 @@ pub struct InstanceConfig<OCalls> {
     #[builder(default)]
     meter: Option<Arc<Meter>>,
     tcp_listen_port_range: RangeInclusive<u16>,
+    sni_tls_listener: Option<SniTlsListener>,
 }
 
 pub struct WasmRun {

@@ -85,6 +85,10 @@ pub trait OcallFuncs {
     #[ocall(id = 214, encode_input)]
     fn tcp_connect_tls(host: String, port: u16, config: TlsClientConfig) -> Result<i32>;
 
+    /// Listen to incoming TLS connections dispatched by SNI server name.
+    #[ocall(id = 215, encode_input)]
+    fn tls_listen_sni(sni: Cow<str>, config: TlsServerConfig) -> Result<i32>;
+
     /// Print log message.
     #[ocall(id = 220)]
     fn log(level: log::Level, message: &str) -> Result<()>;

@@ -10,6 +10,10 @@ use env::tls::TlsServerConfig;
 use crate::env::{self, tasks, Result};
 use crate::{ocall, ResourceId};
 
+mod sni_listener;
+
+pub use sni_listener::{SniTlsAcceptor, SniTlsListener};
+
 /// A TCP socket server, listening for connections.
 pub struct TcpListener {
     res_id: ResourceId,
@@ -32,22 +36,29 @@ pub struct Acceptor<'a> {
     listener: &'a TcpListener,
 }
 
+fn poll_tcp_accept(
+    res_id: &ResourceId,
+    cx: &mut Context<'_>,
+) -> Poll<Result<(TcpStream, SocketAddr)>> {
+    use env::OcallError;
+    let waker_id = tasks::intern_waker(cx.waker().clone());
+    match ocall::tcp_accept(waker_id, res_id.0) {
+        Ok((res_id, remote_addr)) => Poll::Ready(Ok((
+            TcpStream::new(ResourceId(res_id)),
+            remote_addr
+                .parse()
+                .expect("ocall::tcp_accept returned an invalid remote address"),
+        ))),
+        Err(OcallError::Pending) => Poll::Pending,
+        Err(err) => Poll::Ready(Err(err)),
+    }
+}
+
 impl Future for Acceptor<'_> {
     type Output = Result<(TcpStream, SocketAddr)>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        use env::OcallError;
-        let waker_id = tasks::intern_waker(cx.waker().clone());
-        match ocall::tcp_accept(waker_id, self.listener.res_id.0) {
-            Ok((res_id, remote_addr)) => Poll::Ready(Ok((
-                TcpStream::new(ResourceId(res_id)),
-                remote_addr
-                    .parse()
-                    .expect("ocall::tcp_accept returned an invalid remote address"),
-            ))),
-            Err(OcallError::Pending) => Poll::Pending,
-            Err(err) => Poll::Ready(Err(err)),
-        }
+        poll_tcp_accept(&self.listener.res_id, cx)
     }
 }
 

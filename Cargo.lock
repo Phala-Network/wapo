@@ -6267,6 +6267,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "sni-tls-listener"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "rustls 0.23.9",
+ "rustls-pemfile 2.1.2",
+ "rustls-pki-types",
+ "tokio",
+ "tokio-rustls 0.26.0",
+ "tracing",
+]
+
+[[package]]
 name = "socket2"
 version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7903,6 +7916,7 @@ dependencies = [
  "scopeguard",
  "serde",
  "sha2 0.10.8",
+ "sni-tls-listener",
  "tokio",
  "tokio-rustls 0.26.0",
  "tracing",
