@@ -376,11 +376,17 @@ impl env::OcallFuncs for WapoCtx {
             .ok_or(OcallError::Forbiden)?;
         let listener = listener.clone();
         let subscription = {
-            let certified_key = wrap_certified_key(cert.as_bytes(), key.as_bytes())
-                .or(Err(OcallError::InvalidParameter))?;
+            let certified_key =
+                wrap_certified_key(cert.as_bytes(), key.as_bytes()).map_err(|e| {
+                    warn!(target: "wapo::tls", "failed to wrap certified key: {e}");
+                    OcallError::InvalidParameter
+                })?;
             let subscription = listener
                 .subscribe(sni.as_ref(), certified_key.into())
-                .or(Err(OcallError::InvalidParameter))?;
+                .map_err(|e| {
+                    warn!(target: "wapo::tls", "failed to subscribe TLS connection: {e}");
+                    OcallError::InvalidParameter
+                })?;
             subscription
         };
         self.resources

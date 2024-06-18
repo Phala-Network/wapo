@@ -146,11 +146,12 @@ impl<T: WorkerConfig> Worker<T> {
             .try_into()
             .context("invalid memory size")?;
         let sni_tcp_listener = match args.tls_port {
-            Some(port) => Some(
+            Some(port) => Some({
+                SniTlsListener::install_ring_provider();
                 SniTlsListener::bind("0.0.0.0", port)
                     .await
-                    .context("failed to bind sni tls listener")?,
-            ),
+                    .context("failed to bind sni tls listener")?
+            }),
             None => None,
         };
         let (run, spawner) = service::service(

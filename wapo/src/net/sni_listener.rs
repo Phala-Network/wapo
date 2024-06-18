@@ -23,7 +23,7 @@ impl SniTlsListener {
     }
 
     /// Accept a new incoming connection.
-    pub fn accept(&self) -> SniTlsAcceptor {
+    pub fn accept(&mut self) -> SniTlsAcceptor {
         SniTlsAcceptor { listener: self }
     }
 }

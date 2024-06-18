@@ -13,11 +13,12 @@ members = [
     "wapod-crypto-types",
     "e2e/guest",
     "phaxt",
+    "sni-tls-listener",
     "examples/http-server",
     "examples/http-client",
     "examples/tokio-rustls-server",
     "examples/tokio-rustls-client",
-    "sni-tls-listener",
+    "examples/sni-tls-server",
 ]
 exclude = ["wapod-pherry"]
 

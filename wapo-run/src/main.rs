@@ -98,11 +98,12 @@ pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
         })
         .collect::<Result<Vec<_>, _>>()?;
     let sni_tls_listener = match args.tls_port {
-        Some(port) => Some(
+        Some(port) => Some({
+            SniTlsListener::install_ring_provider();
             SniTlsListener::bind("0.0.0.0", port)
                 .await
-                .context("failed to bind sni tls listener")?,
-        ),
+                .context("failed to bind sni tls listener")?
+        }),
         None => None,
     };
     let config = InstanceConfig::builder()
@@ -125,7 +126,7 @@ pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
         });
     }
     if let Err(err) = (&mut wasm_run).await {
-        error!(target: "wapo", ?err, "JS runtime exited with error.");
+        error!(target: "wapo", ?err, "the WASM program exited with error.");
     }
     Ok((vec![], wasm_run.meter()))
 }
