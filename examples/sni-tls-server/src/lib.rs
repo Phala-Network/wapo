@@ -41,15 +41,7 @@ async fn main() -> anyhow::Result<()> {
     wapo::logger::init();
 
     let address = "localhost";
-    let listener = wapo::net::SniTlsListener::bind(
-        address,
-        TlsServerConfig::V0 {
-            cert: CERT.to_string(),
-            key: KEY.to_string(),
-        },
-    )
-    .expect("Failed to bind on the address");
-    let listener = wapo::net::SniTlsListener::bind(
+    let mut listener = wapo::net::SniTlsListener::bind(
         address,
         TlsServerConfig::V0 {
             cert: CERT.to_string(),
