@@ -388,13 +388,12 @@ impl env::OcallFuncs for WapoCtx {
                     OcallError::InvalidParameter
                 })?;
             }
-            let subscription = listener
-                .subscribe(sni.as_ref(), certified_key.into())
+            listener
+                .subscribe(sni.as_ref(), certified_key)
                 .map_err(|e| {
                     warn!(target: "wapo::tls", "failed to subscribe TLS connection: {e}");
                     OcallError::InvalidParameter
-                })?;
-            subscription
+                })?
         };
         self.resources
             .push(Resource::SniSubscription(Box::new(subscription)))

@@ -111,7 +111,6 @@ impl SniTlsListener {
     }
 
     pub fn subscribe(&self, server_name: &str, key: Arc<CertifiedKey>) -> Result<Subscription> {
-        let todo = "verify the certificate and ensure the server_name matches the certificate's subject alternative name";
         let (tx, rx) = tokio::sync::mpsc::channel(32);
         let mut guard = self.state.lock().unwrap();
         if guard.subscribers.contains_key(server_name) {
@@ -251,7 +250,7 @@ pub fn verify_certifacate(certified_key: &CertifiedKey, server_name: &str) -> Re
     let verifier = WebPkiServerVerifier::builder(root_cert_store.into()).build()?;
     let end_entity = certified_key
         .cert
-        .get(0)
+        .first()
         .ok_or_else(|| anyhow::anyhow!("no end entity cert"))?;
     let intermediates = &certified_key.cert[1..];
     let server_name =

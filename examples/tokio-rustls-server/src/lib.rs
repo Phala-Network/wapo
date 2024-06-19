@@ -74,7 +74,7 @@ async fn main() -> Result<()> {
         .with_cert_resolver(Arc::new(cert_resolver));
     let acceptor = TlsAcceptor::from(Arc::new(config));
 
-    let listener = TcpListener::bind(&address).await?;
+    let listener = TcpListener::bind(address).await?;
     log::info!("Listening on https://{}", address);
     loop {
         let (stream, peer_addr) = listener.accept().await?;
