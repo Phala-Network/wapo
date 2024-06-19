@@ -28,3 +28,5 @@ phala-allocator = "0.1.0"
 memory-stats = { version = "1.1.0", features = ["always_use_statm"] }
 parse-size = { version = "1.0.0", features = ["std"] }
 typed-builder = "0.18.2"
+ipnet = "2.9.0"
+iprange = "0.6.7"

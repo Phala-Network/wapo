@@ -6,13 +6,13 @@ use std::{
 
 use anyhow::{Context, Result};
 use rustls::{
-    client::WebPkiServerVerifier,
+    client::{danger::ServerCertVerifier, WebPkiServerVerifier},
     crypto::CryptoProvider,
     server::{ClientHello, ResolvesServerCert},
     sign::CertifiedKey,
 };
 use rustls_pemfile::Item;
-use rustls_pki_types::{PrivateKeyDer, UnixTime};
+use rustls_pki_types::{PrivateKeyDer, ServerName, UnixTime};
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::{
@@ -244,7 +244,6 @@ pub fn wrap_certified_key(mut cert: &[u8], mut key: &[u8]) -> Result<Arc<Certifi
 }
 
 pub fn verify_certifacate(certified_key: &CertifiedKey, server_name: &str) -> Result<()> {
-    use rustls::client::danger::ServerCertVerifier;
     let mut root_cert_store = rustls::RootCertStore::empty();
     root_cert_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     let verifier = WebPkiServerVerifier::builder(root_cert_store.into()).build()?;
@@ -253,8 +252,7 @@ pub fn verify_certifacate(certified_key: &CertifiedKey, server_name: &str) -> Re
         .first()
         .ok_or_else(|| anyhow::anyhow!("no end entity cert"))?;
     let intermediates = &certified_key.cert[1..];
-    let server_name =
-        rustls_pki_types::ServerName::try_from(server_name).context("invalid dnsname")?;
+    let server_name = ServerName::try_from(server_name).context("invalid dnsname")?;
     let now = UnixTime::now();
     verifier.verify_server_cert(
         end_entity,

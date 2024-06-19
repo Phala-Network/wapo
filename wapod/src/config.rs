@@ -6,6 +6,8 @@ use sp_core::blake2_256;
 use wapod_crypto::sr25519::Pair;
 use wapod_rpc::{prpc::Manifest, types::Address};
 
+pub const CONFIG_FILENAME: &str = "Wapod.toml";
+
 pub struct DefaultWorkerConfig;
 
 pub trait AddressGenerator {

@@ -9,6 +9,7 @@ pub mod prpc_service;
 mod allocator;
 mod sgx;
 mod state;
+mod tcp_acl;
 
 pub mod ext {
     pub use wapo_host::rocket_stream::{connect, RequestInfo, StreamResponse};

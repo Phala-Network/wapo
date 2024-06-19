@@ -14,7 +14,7 @@ use rocket::response::Redirect;
 use rocket::{get, post, routes, Data, Request, State};
 use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
 use tracing::{info, instrument, warn};
-use wapod::config::WorkerConfig;
+use wapod::config::{WorkerConfig, CONFIG_FILENAME};
 
 use std::path::PathBuf;
 use wapod_rpc::prpc::server::Service;
@@ -197,7 +197,7 @@ fn sign_http_response<K: KeyProvider>(data: &[u8]) -> Option<String> {
 pub async fn serve_user(state: Worker, args: Args) -> Result<()> {
     print_rpc_methods("/prpc", &UserService::methods());
     let mut figment = Figment::from(rocket::Config::default())
-        .merge(Toml::file("Wapod.toml").nested())
+        .merge(Toml::file(CONFIG_FILENAME).nested())
         .merge(Env::prefixed("WAPOD_USER_").global())
         .select("user");
     if let Some(user_port) = args.user_port {
@@ -235,7 +235,7 @@ pub async fn serve_user(state: Worker, args: Args) -> Result<()> {
 pub async fn serve_admin(state: Worker, args: Args) -> Result<()> {
     print_rpc_methods("/prpc", &AdminService::methods());
     let mut figment = Figment::from(rocket::Config::default())
-        .merge(Toml::file("Wapod.toml").nested())
+        .merge(Toml::file(CONFIG_FILENAME).nested())
         .merge(Env::prefixed("WAPOD_ADMIN_").global())
         .select("admin");
     if let Some(admin_port) = args.admin_port {

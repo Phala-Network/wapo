@@ -97,6 +97,9 @@ pub trait RuntimeCalls: Send + 'static {
     fn sign_app_data(&self, data: &[u8]) -> Vec<u8>;
     fn sgx_quote_app_data(&self, data: &[u8]) -> Option<Vec<u8>>;
     fn emit_output(&self, _output: &[u8]);
+    fn tcp_connect_allowed(&self, _host: &str) -> bool {
+        true
+    }
 }
 
 impl RuntimeCalls for () {
@@ -342,6 +345,9 @@ impl env::OcallFuncs for WapoCtx {
         if host.len() > 253 {
             return Err(OcallError::InvalidParameter);
         }
+        if !self.runtime_calls.tcp_connect_allowed(host) {
+            return Err(OcallError::Forbiden);
+        }
         let host = host.to_owned();
         let fut = async move { tcp_connect(&host, port).await };
         self.meter.record_tcp_connect_start();
@@ -351,6 +357,9 @@ impl env::OcallFuncs for WapoCtx {
     fn tcp_connect_tls(&mut self, host: String, port: u16, config: TlsClientConfig) -> Result<i32> {
         if host.len() > 253 {
             return Err(OcallError::InvalidParameter);
+        }
+        if !self.runtime_calls.tcp_connect_allowed(&host) {
+            return Err(OcallError::Forbiden);
         }
         let domain = host
             .clone()

@@ -23,7 +23,8 @@ use service::{Command, CommandSender, ServiceHandle};
 use wapo_host::service::{self, Report, VmHandle};
 use wapod_rpc::prpc::Manifest;
 
-use crate::config::{AddressGenerator, KeyProvider, Paths, WorkerConfig};
+use crate::config::{AddressGenerator, KeyProvider, Paths, WorkerConfig, CONFIG_FILENAME};
+use crate::tcp_acl::HostFilter;
 
 type Address = [u8; 32];
 #[derive(Clone, Debug, typed_builder::TypedBuilder)]
@@ -126,6 +127,7 @@ struct WorkerState<T> {
     blob_loader: BlobLoader,
     session: Option<[u8; 32]>,
     sni_tls_listener: Option<SniTlsListener>,
+    host_filter: Arc<HostFilter>,
 }
 
 pub struct Worker<T> {
@@ -194,6 +196,7 @@ impl<T: WorkerConfig> Worker<T> {
                     args,
                     session: None,
                     sni_tls_listener,
+                    host_filter: Arc::new(HostFilter::from_config_file(CONFIG_FILENAME)),
                 })
             }),
         }
@@ -541,7 +544,7 @@ impl<T: WorkerConfig> WorkerState<T> {
             .id(address)
             .weight(1)
             .blobs_dir(T::Paths::blobs_dir())
-            .runtime_calls(AppRuntimeCalls::<T>::new(address))
+            .runtime_calls(AppRuntimeCalls::<T>::new(address, self.host_filter.clone()))
             .args(
                 [app_name]
                     .into_iter()
@@ -720,6 +723,7 @@ impl<T: WorkerConfig> WorkerState<T> {
 
 struct AppRuntimeCalls<T> {
     address: Address,
+    host_filter: Arc<HostFilter>,
     _phantom: PhantomData<fn() -> T>,
 }
 
@@ -727,15 +731,17 @@ impl<T> Clone for AppRuntimeCalls<T> {
     fn clone(&self) -> Self {
         Self {
             address: self.address,
+            host_filter: self.host_filter.clone(),
             _phantom: self._phantom,
         }
     }
 }
 
 impl<T: WorkerConfig> AppRuntimeCalls<T> {
-    fn new(address: Address) -> Self {
+    fn new(address: Address, host_filter: Arc<HostFilter>) -> Self {
         Self {
             address,
+            host_filter,
             _phantom: PhantomData,
         }
     }
@@ -761,4 +767,8 @@ impl<T: WorkerConfig + 'static> wapo_host::RuntimeCalls for AppRuntimeCalls<T> {
     }
 
     fn emit_output(&self, _output: &[u8]) {}
+
+    fn tcp_connect_allowed(&self, host: &str) -> bool {
+        self.host_filter.is_host_allowed(host)
+    }
 }
