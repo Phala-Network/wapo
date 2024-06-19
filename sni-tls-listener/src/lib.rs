@@ -261,5 +261,6 @@ pub fn verify_certifacate(certified_key: &CertifiedKey, server_name: &str) -> Re
         certified_key.ocsp.as_deref().unwrap_or_default(),
         now,
     )?;
+    let todo = "verify the public key in the certificate matches the private key in the key: depends on rustls PR #1954";
     Ok(())
 }
