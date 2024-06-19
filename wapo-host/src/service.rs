@@ -384,7 +384,7 @@ impl ServiceHandle {
                                 match err.downcast() {
                                     Ok(I32Exit(code)) => {
                                         info!(target: "wapo", code, "the instance exited via proc_exit()");
-                                        if code == 0 || !auto_restart || !live_time_allow_restart {
+                                        if !auto_restart || !live_time_allow_restart {
                                             break ExitReason::Exited(code);
                                         }
                                         // fallthrough to restart
