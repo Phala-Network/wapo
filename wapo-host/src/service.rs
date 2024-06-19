@@ -264,6 +264,7 @@ pub struct InstanceStartConfig<OCalls> {
     envs: Vec<(String, String)>,
     tcp_listen_port_range: RangeInclusive<u16>,
     sni_tls_listener: Option<SniTlsListener>,
+    verify_tls_server_cert: bool,
 }
 
 impl ServiceHandle {
@@ -288,6 +289,7 @@ impl ServiceHandle {
             envs,
             tcp_listen_port_range,
             sni_tls_listener,
+            verify_tls_server_cert,
         } = config;
         let (cmd_tx, mut cmd_rx) = channel(128);
         let (ctl_cmd_tx, mut ctl_cmd_rx) = unbounded_channel();
@@ -344,6 +346,7 @@ impl ServiceHandle {
                 .envs(envs)
                 .tcp_listen_port_range(tcp_listen_port_range)
                 .sni_tls_listener(sni_tls_listener)
+                .verify_tls_server_cert(verify_tls_server_cert)
                 .build();
             let mut wasm_run = match module.run(config.clone()).context("failed to create instance") {
                 Ok(i) => i,

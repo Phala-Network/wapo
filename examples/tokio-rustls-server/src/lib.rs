@@ -60,12 +60,12 @@ async fn main() -> Result<()> {
 
     let mut cert_resolver = rustls::server::ResolvesServerCertUsingSni::new();
 
-    let signer = rustls::crypto::ring::sign::any_supported_type(&key)?;
+    let certified_key = rustls::crypto::ring::sign::any_supported_type(&key)?;
     // Select a certificate based on the SNI value.
     cert_resolver
         .add(
             "localhost",
-            rustls::sign::CertifiedKey::new(certs.clone(), signer),
+            rustls::sign::CertifiedKey::new(certs.clone(), certified_key),
         )
         .context("Failed to add certificate")?;
 

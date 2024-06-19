@@ -98,6 +98,7 @@ impl WasmModule {
             meter,
             tcp_listen_port_range,
             sni_tls_listener,
+            verify_tls_server_cert,
         } = config;
         let engine = self.engine.inner.clone();
         let mut linker = Linker::<VmCtx>::new(&engine);
@@ -105,6 +106,7 @@ impl WasmModule {
         let vm_config = WapoVmConfig::builder()
             .tcp_listen_port_range(tcp_listen_port_range)
             .sni_tls_listener(sni_tls_listener)
+            .verify_tls_server_cert(verify_tls_server_cert)
             .build();
         let mut wapo_ctx = WapoCtx::new(id, runtime_calls, blobs_dir, meter, vm_config);
         wapo_ctx.set_weight(weight);
@@ -194,6 +196,7 @@ pub struct InstanceConfig<OCalls> {
     meter: Option<Arc<Meter>>,
     tcp_listen_port_range: RangeInclusive<u16>,
     sni_tls_listener: Option<SniTlsListener>,
+    verify_tls_server_cert: bool,
 }
 
 pub struct WasmRun {

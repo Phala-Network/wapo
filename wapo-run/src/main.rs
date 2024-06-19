@@ -46,6 +46,9 @@ pub struct Args {
     /// The number of ticks of epoch deadline
     #[arg(long, default_value_t = 20)]
     epoch_deadline: u64,
+    /// Verify the tls server cert when the guest tries to listen tls connections.
+    #[arg(long)]
+    verify_tls_server_cert: bool,
     /// The compiler to use
     #[arg(long, short = 'c', default_value = "auto")]
     compiler: Compiler,
@@ -115,6 +118,7 @@ pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
         .runtime_calls(())
         .tcp_listen_port_range(0..=65535)
         .sni_tls_listener(sni_tls_listener)
+        .verify_tls_server_cert(args.verify_tls_server_cert)
         .build();
     let mut wasm_run = module.run(config).context("failed to start the instance")?;
     if let Some(kill_timeout) = args.kill_timeout {

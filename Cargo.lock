@@ -6277,6 +6277,7 @@ dependencies = [
  "tokio",
  "tokio-rustls 0.26.0",
  "tracing",
+ "webpki-roots 0.26.3",
 ]
 
 [[package]]
@@ -7294,7 +7295,7 @@ dependencies = [
  "rustls-pki-types",
  "tokio-rustls 0.26.0",
  "wapo",
- "webpki-roots 0.26.1",
+ "webpki-roots 0.26.3",
 ]
 
 [[package]]
@@ -7937,7 +7938,7 @@ dependencies = [
  "wapo-env",
  "wasi-common",
  "wasmtime",
- "webpki-roots 0.26.1",
+ "webpki-roots 0.26.3",
  "wiggle",
 ]
 
@@ -8444,9 +8445,9 @@ checksum = "5f20c57d8d7db6d3b86154206ae5d8fba62dd39573114de97c2cb0578251f8e1"
 
 [[package]]
 name = "webpki-roots"
-version = "0.26.1"
+version = "0.26.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3de34ae270483955a94f4b21bdaaeb83d508bb84a01435f393818edb0012009"
+checksum = "bd7c23921eeb1713a4e851530e9b9756e4fb0e89978582942612524cf09f01cd"
 dependencies = [
  "rustls-pki-types",
 ]

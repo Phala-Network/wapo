@@ -52,7 +52,12 @@ pub struct Args {
     pub tcp_listen_port_range: Option<(u16, u16)>,
 
     /// The TCP port to listen on TLS connections which would be dispatched based on SNI.
+    #[arg(long)]
     pub tls_port: Option<u16>,
+
+    /// Turn off the verification of the TLS server certificate when the guest tries to listen.
+    #[arg(long)]
+    pub do_not_verify_tls_server_cert: bool,
 }
 
 fn parse_port_range(input: &str) -> anyhow::Result<(u16, u16)> {
@@ -86,6 +91,7 @@ impl From<Args> for WorkerArgs {
             use_winch: false,
             tcp_listen_port_range: value.tcp_listen_port_range.map_or(1..=0, |(f, t)| f..=t),
             tls_port: value.tls_port,
+            verify_tls_server_cert: !value.do_not_verify_tls_server_cert,
         }
     }
 }

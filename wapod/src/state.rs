@@ -44,6 +44,8 @@ pub struct WorkerArgs {
     pub tcp_listen_port_range: RangeInclusive<u16>,
     /// The tcp port that SNI TLS listener to use.
     pub tls_port: Option<u16>,
+    /// Whether to verify the TLS server certificate when the app tries to listen on an SNI.
+    pub verify_tls_server_cert: bool,
 }
 
 struct Instance {
@@ -556,6 +558,7 @@ impl<T: WorkerConfig> WorkerState<T> {
             )
             .tcp_listen_port_range(self.args.tcp_listen_port_range.clone())
             .sni_tls_listener(self.sni_tls_listener.clone())
+            .verify_tls_server_cert(self.args.verify_tls_server_cert)
             .build();
         let (vm_handle, join_handle) = self
             .service
