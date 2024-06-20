@@ -16,6 +16,7 @@ pub struct AppMetrics {
     pub network_egress: u64,
     pub storage_read: u64,
     pub storage_write: u64,
+    pub tip: u64,
     pub starts: u64,
 }
 
@@ -24,6 +25,11 @@ pub struct AppsMetrics {
     pub session: Bytes32,
     pub nonce: Bytes32,
     pub apps: Vec<AppMetrics>,
+}
+
+#[derive(Debug, Encode, Decode)]
+pub enum VersionedAppsMetrics {
+    V0(AppsMetrics),
 }
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]

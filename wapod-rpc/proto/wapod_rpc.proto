@@ -263,7 +263,7 @@ message Addresses {
 }
 
 message AppMetricsResponse {
-  // @codec scale crate::types::AppsMetrics
+  // @codec scale crate::types::VersionedAppsMetrics
   // The metrics payload.
   bytes encoded_metrics = 1;
   // The signature of the metrics payload.

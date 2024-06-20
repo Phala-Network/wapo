@@ -496,6 +496,11 @@ impl env::OcallFuncs for WapoCtx {
         }
         Ok(self.runtime_calls.sgx_quote_app_data(data))
     }
+
+    fn tip(&mut self, value: u64) -> Result<()> {
+        self.meter.add_tip(value);
+        Ok(())
+    }
 }
 
 fn is_ip(host: &str) -> bool {

@@ -12,6 +12,7 @@ pub struct Metrics {
     pub storage_read: u64,
     pub storage_written: u64,
     pub starts: u64,
+    pub tip: u64,
     pub duration: Duration,
 }
 
@@ -25,6 +26,7 @@ impl Metrics {
             storage_read: self.storage_read.saturating_add(other.storage_read),
             storage_written: self.storage_written.saturating_add(other.storage_written),
             starts: self.starts.saturating_add(other.starts),
+            tip: self.tip.saturating_add(other.tip),
             duration: self.duration.saturating_add(other.duration),
         };
     }
@@ -73,6 +75,7 @@ pub struct Meter {
     net_ingress: AtomicU64,
     storage_read: AtomicU64,
     storage_written: AtomicU64,
+    tip: AtomicU64,
     /// Whether the metering is stopped. Used to signal the epoch checker to stop the VM.
     stopped: AtomicBool,
 }
@@ -86,6 +89,7 @@ impl Default for Meter {
             net_ingress: AtomicU64::new(0),
             storage_read: AtomicU64::new(0),
             storage_written: AtomicU64::new(0),
+            tip: AtomicU64::new(0),
             stopped: AtomicBool::new(false),
         }
     }
@@ -131,6 +135,12 @@ impl Meter {
     pub fn record_tcp_shutdown(&self) {
         self.record_net_egress(128);
     }
+    pub fn add_tip(&self, value: u64) {
+        let previous = self.tip.fetch_add(value, Ordering::Relaxed);
+        if previous.checked_add(value).is_none() {
+            self.tip.store(u64::MAX, Ordering::Relaxed);
+        }
+    }
     pub fn stop(&self) {
         self.stopped.store(true, Ordering::Relaxed)
     }
@@ -146,6 +156,7 @@ impl Meter {
             net_ingress: self.net_ingress.load(Ordering::Relaxed),
             storage_read: self.storage_read.load(Ordering::Relaxed),
             storage_written: self.storage_written.load(Ordering::Relaxed),
+            tip: self.tip.load(Ordering::Relaxed),
             starts: 1,
             duration: self.created_at.elapsed(),
         }

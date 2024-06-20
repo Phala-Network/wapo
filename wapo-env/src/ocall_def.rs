@@ -120,6 +120,10 @@ pub trait OcallFuncs {
     /// Generate SGX quote with given data of max 64 bytes. Returns None if SGX is not supported.
     #[ocall(id = 252, encode_output)]
     fn sgx_quote(data: &[u8]) -> Result<Option<Vec<u8>>>;
+
+    /// Emit a tip to the worker.
+    #[ocall(id = 253)]
+    fn tip(value: u64) -> Result<()>;
 }
 
 #[repr(u8)]

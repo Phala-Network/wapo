@@ -204,9 +204,11 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
                 network_egress: m.net_egress,
                 storage_read: m.storage_read,
                 storage_write: m.storage_written,
+                tip: m.tip,
                 starts: m.starts,
             });
         });
+        let metrics = rpc::types::VersionedAppsMetrics::V0(metrics);
         let encoded_metrics = metrics.encode();
         let signature =
             T::KeyProvider::get_key().sign(wapod_crypto::ContentType::Metrics, encoded_metrics);
