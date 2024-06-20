@@ -586,6 +586,7 @@ impl<T: WorkerConfig> WorkerState<T> {
             vm_handle,
         };
         let sn = instance.sequence_number;
+        let meter = instance.vm_handle.meter();
         app.instances.push(instance);
         // Clean up the instance when it stops.
         let weak_self = self.weak_self.clone();
@@ -602,6 +603,7 @@ impl<T: WorkerConfig> WorkerState<T> {
                         info!("app was removed before stopping");
                         return;
                     };
+                    app.hist_metrics += meter.to_metrics();
                     let mut found = None;
                     app.instances = app
                         .instances
@@ -619,7 +621,6 @@ impl<T: WorkerConfig> WorkerState<T> {
                         warn!("instance was removed before stopping");
                         return;
                     };
-                    app.hist_metrics += instance.vm_handle.meter().to_metrics();
                 }
             }
             .instrument(tracing::info_span!(parent: None, "wapo", id = %vmid)),
@@ -746,11 +747,7 @@ impl<T> Clone for AppRuntimeCalls<T> {
 }
 
 impl<T: WorkerConfig> AppRuntimeCalls<T> {
-    fn new(
-        address: Address,
-        host_filter: Arc<HostFilter>,
-        worker: WeakWorker<T>,
-    ) -> Self {
+    fn new(address: Address, host_filter: Arc<HostFilter>, worker: WeakWorker<T>) -> Self {
         Self {
             address,
             host_filter,

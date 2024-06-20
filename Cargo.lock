@@ -646,6 +646,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "benchmark"
+version = "0.1.0"
+dependencies = [
+ "hyper 0.14.28",
+ "log",
+ "once_cell",
+ "sha2 0.10.8",
+ "wapo",
+]
+
+[[package]]
 name = "binascii"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"

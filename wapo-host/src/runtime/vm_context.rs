@@ -511,11 +511,11 @@ impl env::OcallFuncs for WapoCtx {
     }
 
     fn sign(&mut self, data: &[u8]) -> Result<Vec<u8>> {
-        if data.len() > 64 {
+        if data.len() > 1024 * 1024 * 8 {
             self.meter.record_gas(100);
             return Err(OcallError::InvalidParameter);
         }
-        self.meter.record_gas(1000);
+        self.meter.record_gas(1000 + data.len() as u64);
         Ok(self.runtime_calls.sign_app_data(data))
     }
 
@@ -525,11 +525,11 @@ impl env::OcallFuncs for WapoCtx {
     }
 
     fn sgx_quote(&mut self, data: &[u8]) -> Result<Option<Vec<u8>>> {
-        if data.len() > 64 {
+        if data.len() > 1024 * 1024 * 8 {
             self.meter.record_gas(100);
             return Err(OcallError::InvalidParameter);
         }
-        self.meter.record_gas(1000);
+        self.meter.record_gas(1000 + data.len() as u64);
         Ok(self.runtime_calls.sgx_quote_app_data(data))
     }
 

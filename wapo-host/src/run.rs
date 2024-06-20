@@ -12,7 +12,7 @@ use wasi_common::sync::WasiCtxBuilder;
 use wasi_common::WasiCtx;
 
 use wasmtime::{
-    AsContext, Config, Engine, InstanceAllocationStrategy, Linker, Module, Store, StoreLimits,
+    AsContextMut, Config, Engine, InstanceAllocationStrategy, Linker, Module, Store, StoreLimits,
     TypedFunc, UpdateDeadline,
 };
 
@@ -138,13 +138,13 @@ impl WasmModule {
         store.set_fuel(u64::MAX).context("failed to set fuel")?;
 
         store.set_epoch_deadline(epoch_deadline);
-        store.epoch_deadline_callback(move |ctx| {
+        store.epoch_deadline_callback(move |mut ctx| {
             if ctx.data().meter().stopped() {
                 info!(target: "wapo", "instance stopped by meter");
                 anyhow::bail!("stopped by meter")
             }
             debug!(target: "wapo", "epoch update");
-            sync_gas(&ctx);
+            sync_gas(&mut ctx);
             Ok(UpdateDeadline::Continue(epoch_deadline))
         });
 
@@ -280,14 +280,18 @@ impl WasmRun {
         self.store.data().meter()
     }
 
-    pub fn sync_gas(&self) {
-        sync_gas(&self.store);
+    pub fn sync_gas(&mut self) {
+        sync_gas(&mut self.store);
     }
 }
 
-fn sync_gas(ctx: &impl AsContext<Data = VmCtx>) {
-    let store = ctx.as_context();
+fn sync_gas(ctx: &mut impl AsContextMut<Data = VmCtx>) {
+    let mut store = ctx.as_context_mut();
     let rest_fuel = store.get_fuel().unwrap_or_default();
-    let consumed = u64::MAX - rest_fuel;
-    store.data().meter().set_gas_comsumed(consumed);
+    let consumed_fuel = u64::MAX - rest_fuel;
+    if consumed_fuel > 1024 * 16 {
+        let gas = consumed_fuel / 1024;
+        store.data().meter().record_gas(gas);
+        store.set_fuel(u64::MAX).expect("failed to set fuel");
+    }
 }

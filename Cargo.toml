@@ -19,6 +19,7 @@ members = [
     "examples/tokio-rustls-server",
     "examples/tokio-rustls-client",
     "examples/sni-tls-server",
+    "examples/benchmark",
 ]
 exclude = ["wapod-pherry"]
 
