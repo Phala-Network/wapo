@@ -6,7 +6,7 @@ use std::{
 
 #[derive(Default, Debug, Clone)]
 pub struct Metrics {
-    pub gas_comsumed: u64,
+    pub gas_consumed: u64,
     pub net_egress: u64,
     pub net_ingress: u64,
     pub storage_read: u64,
@@ -20,7 +20,7 @@ impl Metrics {
     /// Merges the other metrics into this one.
     pub fn merge(&mut self, other: &Metrics) {
         *self = Metrics {
-            gas_comsumed: self.gas_comsumed.saturating_add(other.gas_comsumed),
+            gas_consumed: self.gas_consumed.saturating_add(other.gas_consumed),
             net_egress: self.net_egress.saturating_add(other.net_egress),
             net_ingress: self.net_ingress.saturating_add(other.net_ingress),
             storage_read: self.storage_read.saturating_add(other.storage_read),
@@ -70,7 +70,7 @@ impl AddAssign<&Metrics> for Metrics {
 #[derive(Debug)]
 pub struct Meter {
     created_at: Instant,
-    gas_comsumed: AtomicU64,
+    gas_consumed: AtomicU64,
     net_egress: AtomicU64,
     net_ingress: AtomicU64,
     storage_read: AtomicU64,
@@ -84,7 +84,7 @@ impl Default for Meter {
     fn default() -> Self {
         Self {
             created_at: Instant::now(),
-            gas_comsumed: AtomicU64::new(0),
+            gas_consumed: AtomicU64::new(0),
             net_egress: AtomicU64::new(0),
             net_ingress: AtomicU64::new(0),
             storage_read: AtomicU64::new(0),
@@ -97,11 +97,11 @@ impl Default for Meter {
 
 impl Meter {
     pub fn set_gas_comsumed(&self, gas: u64) {
-        self.gas_comsumed.store(gas, Ordering::Relaxed);
+        self.gas_consumed.store(gas, Ordering::Relaxed);
     }
 
     pub fn record_gas(&self, gas: u64) {
-        self.gas_comsumed.fetch_add(gas, Ordering::Relaxed);
+        self.gas_consumed.fetch_add(gas, Ordering::Relaxed);
     }
 
     pub fn record_net_egress(&self, bytes: u64) {
@@ -151,7 +151,7 @@ impl Meter {
     pub fn to_metrics(&self) -> Metrics {
         let todo = "check if Instant be modified";
         Metrics {
-            gas_comsumed: self.gas_comsumed.load(Ordering::Relaxed),
+            gas_consumed: self.gas_consumed.load(Ordering::Relaxed),
             net_egress: self.net_egress.load(Ordering::Relaxed),
             net_ingress: self.net_ingress.load(Ordering::Relaxed),
             storage_read: self.storage_read.load(Ordering::Relaxed),

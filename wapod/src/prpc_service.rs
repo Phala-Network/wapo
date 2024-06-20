@@ -1,4 +1,8 @@
-use std::{ops::Deref, path::PathBuf};
+use std::{
+    ops::Deref,
+    path::PathBuf,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use anyhow::{anyhow, bail, Context, Result};
 use rand::Rng;
@@ -199,7 +203,7 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
                 address,
                 session: app.session,
                 running_time_ms: m.duration.as_millis() as u64,
-                gas_consumed: m.gas_comsumed,
+                gas_consumed: m.gas_consumed,
                 network_ingress: m.net_ingress,
                 network_egress: m.net_egress,
                 storage_read: m.storage_read,
@@ -332,8 +336,8 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
         let endpoint_payload = WorkerEndpointPayload {
             pubkey: T::KeyProvider::get_key().public().to_array(),
             versioned_endpoints: VersionedWorkerEndpoints::V1(request.endpoints),
-            signing_time: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
+            signing_time: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
                 .context("failed to get time")?
                 .as_millis() as u64,
         };

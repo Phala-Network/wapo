@@ -124,6 +124,10 @@ pub trait OcallFuncs {
     /// Emit a tip to the worker.
     #[ocall(id = 253)]
     fn tip(value: u64) -> Result<()>;
+
+    /// Return the accumulated gas consumed by the App starting from the deployment.
+    #[ocall(id = 254, encode_output)]
+    fn app_gas_consumed() -> Result<u64>;
 }
 
 #[repr(u8)]

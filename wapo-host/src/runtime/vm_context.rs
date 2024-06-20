@@ -35,7 +35,7 @@ use super::{
     resource::{PollContext, Resource, ResourceTable, TcpListenerResource},
     tls::{load_tls_config, TlsStream},
 };
-use crate::{blobs::BlobLoader, IncomingHttpRequest, VmId};
+use crate::{blobs::BlobLoader, IncomingHttpRequest, Metrics, VmId};
 
 #[derive(Clone, Copy)]
 pub struct ShortId<T>(pub T);
@@ -100,6 +100,7 @@ pub trait RuntimeCalls: Send + 'static {
     fn tcp_connect_allowed(&self, _host: &str) -> bool {
         true
     }
+    fn app_metrics(&self) -> Metrics;
 }
 
 impl RuntimeCalls for () {
@@ -116,6 +117,10 @@ impl RuntimeCalls for () {
     }
 
     fn emit_output(&self, _output: &[u8]) {}
+
+    fn app_metrics(&self) -> Metrics {
+        Metrics::default()
+    }
 }
 
 #[derive(typed_builder::TypedBuilder, Debug)]
@@ -210,50 +215,60 @@ impl env::OcallEnv for WapoCtx {
 
 impl env::OcallFuncs for WapoCtx {
     fn close(&mut self, resource_id: i32) -> Result<()> {
+        self.meter.record_gas(200);
         self.close(resource_id)
     }
 
     fn poll(&mut self, waker_id: i32, resource_id: i32) -> Result<Vec<u8>> {
+        self.meter.record_gas(200);
         let ctx = self.make_poll_context(waker_id);
         self.resources.get_mut(resource_id)?.poll(ctx)
     }
 
     fn poll_read(&mut self, waker_id: i32, resource_id: i32, data: &mut [u8]) -> Result<u32> {
+        self.meter.record_gas(200);
         let ctx = self.make_poll_context(waker_id);
         self.resources.get_mut(resource_id)?.poll_read(ctx, data)
     }
 
     fn poll_write(&mut self, waker_id: i32, resource_id: i32, data: &[u8]) -> Result<u32> {
+        self.meter.record_gas(200);
         let ctx = self.make_poll_context(waker_id);
         self.resources.get_mut(resource_id)?.poll_write(ctx, data)
     }
 
     fn poll_shutdown(&mut self, waker_id: i32, resource_id: i32) -> Result<()> {
+        self.meter.record_gas(200);
         let ctx = self.make_poll_context(waker_id);
         self.resources.get_mut(resource_id)?.poll_shutdown(ctx)
     }
 
     fn poll_res(&mut self, waker_id: i32, resource_id: i32) -> Result<i32> {
+        self.meter.record_gas(200);
         let ctx = self.make_poll_context(waker_id);
         let res = self.resources.get_mut(resource_id)?.poll_res(ctx)?;
         self.resources.push(res)
     }
 
     fn mark_task_ready(&mut self, task_id: i32) -> Result<()> {
+        self.meter.record_gas(200);
         self.awake_tasks.push_task(task_id);
         Ok(())
     }
 
     fn next_ready_task(&mut self) -> Result<i32> {
+        self.meter.record_gas(200);
         self.awake_tasks.pop_task().ok_or(OcallError::NotFound)
     }
 
     fn create_timer(&mut self, timeout: i32) -> Result<i32> {
+        self.meter.record_gas(500);
         let sleep = tokio::time::sleep(Duration::from_millis(timeout as u64));
         self.resources.push(Resource::Sleep(Box::pin(sleep)))
     }
 
     fn reset_timer(&mut self, id: i32, timeout: i32) -> Result<()> {
+        self.meter.record_gas(300);
         let res = self.resources.get_mut(id)?;
         let Resource::Sleep(sleep) = res else {
             return Err(OcallError::InvalidParameter);
@@ -266,11 +281,13 @@ impl env::OcallFuncs for WapoCtx {
     }
 
     fn enable_ocall_trace(&mut self, enable: bool) -> Result<()> {
+        self.meter.record_gas(100);
         self.ocall_trace_enabled = enable;
         Ok(())
     }
 
     fn tcp_listen(&mut self, addr: Cow<str>, tls_config: Option<TlsServerConfig>) -> Result<i32> {
+        self.meter.record_gas(1000);
         let address: SocketAddr = addr.parse().or(Err(OcallError::InvalidParameter))?;
         if !self.config.tcp_listen_port_range.contains(&address.port()) {
             return Err(OcallError::Forbiden);
@@ -289,6 +306,7 @@ impl env::OcallFuncs for WapoCtx {
     }
 
     fn tcp_accept(&mut self, waker_id: i32, tcp_res_id: i32) -> Result<(i32, String)> {
+        self.meter.record_gas(1000);
         let ctx = self.make_poll_context(waker_id);
         let waker = ctx.waker;
         let (res, remote_addr) = {
@@ -342,6 +360,7 @@ impl env::OcallFuncs for WapoCtx {
     }
 
     fn tcp_connect(&mut self, host: &str, port: u16) -> Result<i32> {
+        self.meter.record_gas(1000);
         if host.len() > 253 {
             return Err(OcallError::InvalidParameter);
         }
@@ -355,6 +374,7 @@ impl env::OcallFuncs for WapoCtx {
     }
 
     fn tcp_connect_tls(&mut self, host: String, port: u16, config: TlsClientConfig) -> Result<i32> {
+        self.meter.record_gas(1000);
         if host.len() > 253 {
             return Err(OcallError::InvalidParameter);
         }
@@ -376,6 +396,7 @@ impl env::OcallFuncs for WapoCtx {
     }
 
     fn tls_listen_sni(&mut self, sni: Cow<str>, config: TlsServerConfig) -> Result<i32> {
+        self.meter.record_gas(1000);
         let (cert, key) = match config {
             TlsServerConfig::V0 { cert, key } => (cert, key),
         };
@@ -404,16 +425,19 @@ impl env::OcallFuncs for WapoCtx {
                     OcallError::InvalidParameter
                 })?
         };
+        self.meter.record_gas(10000);
         self.resources
             .push(Resource::SniSubscription(Box::new(subscription)))
     }
 
     fn log(&mut self, level: log::Level, message: &str) -> Result<()> {
+        self.meter.record_gas(message.as_bytes().len() as u64);
         self.runtime_calls.log(level, message);
         Ok(())
     }
 
     fn awake_wakers(&mut self) -> Result<Vec<i32>> {
+        self.meter.record_gas(500);
         Ok(self
             .awake_tasks
             .awake_wakers
@@ -424,12 +448,14 @@ impl env::OcallFuncs for WapoCtx {
     }
 
     fn getrandom(&mut self, buf: &mut [u8]) -> Result<()> {
+        self.meter.record_gas(buf.len() as u64 * 10);
         use rand::RngCore;
         rand::thread_rng().fill_bytes(buf);
         Ok(())
     }
 
     fn oneshot_send(&mut self, resource_id: i32, data: &[u8]) -> Result<()> {
+        self.meter.record_gas(1000 + data.len() as u64 / 128);
         let res = self.resources.get_mut(resource_id)?;
         match res {
             Resource::OneshotTx(sender) => match sender.take() {
@@ -442,6 +468,7 @@ impl env::OcallFuncs for WapoCtx {
     }
 
     fn create_input_channel(&mut self, ch: env::InputChannel) -> Result<i32> {
+        self.meter.record_gas(1000);
         use env::InputChannel::*;
         macro_rules! create_channel {
             ($field: expr) => {{
@@ -462,44 +489,59 @@ impl env::OcallFuncs for WapoCtx {
 
     /// Returns the vmid of the current instance.
     fn vmid(&mut self) -> Result<[u8; 32]> {
+        self.meter.record_gas(100);
         Ok(self.id)
     }
 
     fn emit_program_output(&mut self, output: &[u8]) -> Result<()> {
+        self.meter.record_gas(output.len() as u64 / 128);
         self.runtime_calls.emit_output(output);
         Ok(())
     }
 
     fn blob_get(&mut self, hash: &[u8], hash_algorithm: &str) -> Result<Vec<u8>> {
+        self.meter.record_gas(100);
         let obj = self
             .blob_loader
             .get(hash, hash_algorithm)
             .or(Err(OcallError::IoError))?
             .ok_or(OcallError::NotFound)?;
+        self.meter.record_gas(obj.len() as u64 / 128);
         Ok(obj)
     }
 
     fn sign(&mut self, data: &[u8]) -> Result<Vec<u8>> {
         if data.len() > 64 {
+            self.meter.record_gas(100);
             return Err(OcallError::InvalidParameter);
         }
+        self.meter.record_gas(1000);
         Ok(self.runtime_calls.sign_app_data(data))
     }
 
     fn worker_pubkey(&mut self) -> Result<Vec<u8>> {
+        self.meter.record_gas(100);
         Ok(self.runtime_calls.worker_pubkey())
     }
 
     fn sgx_quote(&mut self, data: &[u8]) -> Result<Option<Vec<u8>>> {
         if data.len() > 64 {
+            self.meter.record_gas(100);
             return Err(OcallError::InvalidParameter);
         }
+        self.meter.record_gas(1000);
         Ok(self.runtime_calls.sgx_quote_app_data(data))
     }
 
     fn tip(&mut self, value: u64) -> Result<()> {
+        self.meter.record_gas(100);
         self.meter.add_tip(value);
         Ok(())
+    }
+
+    fn app_gas_consumed(&mut self) -> Result<u64> {
+        self.meter.record_gas(1000);
+        Ok(self.runtime_calls.app_metrics().gas_consumed)
     }
 }
 

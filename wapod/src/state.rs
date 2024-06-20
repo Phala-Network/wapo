@@ -119,8 +119,10 @@ impl<T: WorkerConfig> Drop for QueryGuard<T> {
     }
 }
 
+type WeakWorker<T> = Weak<Mutex<WorkerState<T>>>;
+
 struct WorkerState<T> {
-    weak_self: Weak<Mutex<WorkerState<T>>>,
+    weak_self: WeakWorker<T>,
     apps: HashMap<Address, AppState>,
     args: WorkerArgs,
     service: ServiceHandle,
@@ -544,7 +546,11 @@ impl<T: WorkerConfig> WorkerState<T> {
             .id(address)
             .weight(1)
             .blobs_dir(T::Paths::blobs_dir())
-            .runtime_calls(AppRuntimeCalls::<T>::new(address, self.host_filter.clone()))
+            .runtime_calls(AppRuntimeCalls::<T>::new(
+                address,
+                self.host_filter.clone(),
+                self.weak_self.clone(),
+            ))
             .args(
                 [app_name]
                     .into_iter()
@@ -724,6 +730,7 @@ impl<T: WorkerConfig> WorkerState<T> {
 struct AppRuntimeCalls<T> {
     address: Address,
     host_filter: Arc<HostFilter>,
+    worker: WeakWorker<T>,
     _phantom: PhantomData<fn() -> T>,
 }
 
@@ -732,16 +739,22 @@ impl<T> Clone for AppRuntimeCalls<T> {
         Self {
             address: self.address,
             host_filter: self.host_filter.clone(),
+            worker: self.worker.clone(),
             _phantom: self._phantom,
         }
     }
 }
 
 impl<T: WorkerConfig> AppRuntimeCalls<T> {
-    fn new(address: Address, host_filter: Arc<HostFilter>) -> Self {
+    fn new(
+        address: Address,
+        host_filter: Arc<HostFilter>,
+        worker: WeakWorker<T>,
+    ) -> Self {
         Self {
             address,
             host_filter,
+            worker,
             _phantom: PhantomData,
         }
     }
@@ -770,5 +783,17 @@ impl<T: WorkerConfig + 'static> wapo_host::RuntimeCalls for AppRuntimeCalls<T> {
 
     fn tcp_connect_allowed(&self, host: &str) -> bool {
         self.host_filter.is_host_allowed(host)
+    }
+
+    fn app_metrics(&self) -> Metrics {
+        self.worker
+            .upgrade()
+            .map_or_else(Metrics::default, |inner| {
+                let inner = inner.lock().expect("worker lock poisoned");
+                inner
+                    .apps
+                    .get(&self.address)
+                    .map_or_else(Metrics::default, |app| app.metrics())
+            })
     }
 }
