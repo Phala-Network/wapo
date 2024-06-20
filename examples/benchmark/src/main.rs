@@ -20,16 +20,19 @@ async fn benchmark() {
     let mut init = sha256(b"init");
     let start = std::time::Instant::now();
     for epoch in 0.. {
+        let ep_start = std::time::Instant::now();
         for _ in 0..100000 {
             init = sha256(&init);
         }
         let gas = wapo::ocall::app_gas_consumed().unwrap();
         let dt = start.elapsed();
+        let ep_dt = ep_start.elapsed();
         let gas_per_sec = gas as f64 / dt.as_secs_f64();
         let time_to_overflow = (u64::MAX - gas) as f64 / gas_per_sec / 3600f64 / 24f64 / 365.25;
         let rm = log::info!("epoch: {epoch}, gas: {gas}");
         log::info!("gas per sec: {gas_per_sec}");
         log::info!("time to overflow: {time_to_overflow} years");
-        wapo::time::sleep(Duration::from_millis(1)).await;
+        log::info!("epoch time: {}s", ep_dt.as_secs_f64());
+        wapo::time::sleep(Duration::from_micros(10)).await;
     }
 }

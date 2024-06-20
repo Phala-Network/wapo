@@ -56,6 +56,7 @@ impl VmHandle {
 
     pub async fn stop(&mut self) -> Result<()> {
         info!(target: "wapo", "stopping instance...");
+        self.meter.stop();
         self.cmd_sender.inner.ctl_tx.send(ControlCommand::Stop)?;
         if let Some(stop_signal) = self.stop_signal.take() {
             stop_signal.await?;
@@ -374,24 +375,28 @@ impl ServiceHandle {
             let reason = loop {
                 tokio::select! {
                     rv = &mut wasm_run => {
+                        let live_time_allow_restart = start_time.elapsed() > MIN_LIVE_TIME;
+                        let need_restart = auto_restart && live_time_allow_restart && !meter_cloned.stopped();
                         match rv {
                             Ok(()) => {
                                 info!(target: "wapo", "the instance returned from main.");
-                                break ExitReason::Exited(0);
+                                if !need_restart {
+                                    break ExitReason::Exited(0);
+                                }
+                                // fallthrough to restart
                             }
                             Err(err) => {
-                                let live_time_allow_restart = start_time.elapsed() > MIN_LIVE_TIME;
                                 match err.downcast() {
                                     Ok(I32Exit(code)) => {
                                         info!(target: "wapo", code, "the instance exited via proc_exit()");
-                                        if !auto_restart || !live_time_allow_restart {
+                                        if !need_restart {
                                             break ExitReason::Exited(code);
                                         }
                                         // fallthrough to restart
                                     }
                                     Err(err) => {
                                         info!(target: "wapo", ?err, "the instance exited.");
-                                        if !auto_restart || !live_time_allow_restart {
+                                        if !need_restart {
                                             break ExitReason::Trap;
                                         }
                                         // fallthrough to restart
