@@ -164,7 +164,7 @@ pub enum Command {
         path: String,
         origin: Option<AccountId>,
         payload: Vec<u8>,
-        reply_tx: OneshotSender<Vec<u8>>,
+        reply_tx: OneshotSender<Result<Vec<u8>, String>>,
     },
     // An incoming HTTP request
     HttpRequest(IncomingHttpRequest),

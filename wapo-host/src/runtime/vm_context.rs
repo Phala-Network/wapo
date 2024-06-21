@@ -459,7 +459,25 @@ impl env::OcallFuncs for WapoCtx {
         let res = self.resources.get_mut(resource_id)?;
         match res {
             Resource::OneshotTx(sender) => match sender.take() {
-                Some(sender) => sender.send(data.to_vec()).or(Err(OcallError::IoError))?,
+                Some(sender) => sender
+                    .send(Ok(data.to_vec()))
+                    .or(Err(OcallError::IoError))?,
+                None => return Err(OcallError::IoError),
+            },
+            _ => return Err(OcallError::UnsupportedOperation),
+        }
+        Ok(())
+    }
+
+    fn oneshot_send_error(&mut self, resource_id: i32, error: &str) -> Result<()> {
+        self.meter
+            .record_gas(1000 + error.as_bytes().len() as u64 / 128);
+        let res = self.resources.get_mut(resource_id)?;
+        match res {
+            Resource::OneshotTx(sender) => match sender.take() {
+                Some(sender) => sender
+                    .send(Err(error.to_string()))
+                    .or(Err(OcallError::IoError))?,
                 None => return Err(OcallError::IoError),
             },
             _ => return Err(OcallError::UnsupportedOperation),
@@ -759,7 +777,7 @@ impl WapoCtx {
         origin: Option<AccountId>,
         path: String,
         payload: Vec<u8>,
-        reply_tx: OneshotSender<Vec<u8>>,
+        reply_tx: OneshotSender<Result<Vec<u8>, String>>,
     ) -> anyhow::Result<()> {
         let Some(tx) = self.query_tx.clone() else {
             debug!(target: "wapo", "query dropped: no query channel");
@@ -799,7 +817,8 @@ impl WapoCtx {
                 let reply = reply_rx.await;
                 let reply = reply
                     .context("failed to receive http response")
-                    .and_then(|bytes| {
+                    .and_then(|result| {
+                        let bytes = result.map_err(anyhow::Error::msg)?;
                         let response = HttpResponseHead::decode(&mut &bytes[..])?;
                         Ok(response)
                     });

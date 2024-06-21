@@ -62,6 +62,10 @@ pub trait OcallFuncs {
     #[ocall(id = 202)]
     fn oneshot_send(resource_id: i32, data: &[u8]) -> Result<()>;
 
+    /// Send error to a oneshot channel.
+    #[ocall(id = 204)]
+    fn oneshot_send_error(resource_id: i32, error: &str) -> Result<()>;
+
     /// Create a TCP socket, bind to given address and listen to incoming connections.
     ///
     /// If `tls_config` is not `None`, then the socket will be TLS encrypted.

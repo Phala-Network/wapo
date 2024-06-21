@@ -76,6 +76,11 @@ impl OneshotSender {
     pub fn send(self, data: &[u8]) -> Result<(), OcallError> {
         ocall::oneshot_send(self.res_id.0, data)
     }
+
+    /// Send an error message to the host-side.
+    pub fn send_error(self, error: &str) -> Result<(), OcallError> {
+        ocall::oneshot_send_error(self.res_id.0, error)
+    }
 }
 
 /// Receiver end of a channel connected to host-side.

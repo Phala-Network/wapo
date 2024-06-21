@@ -358,10 +358,10 @@ impl<T: WorkerConfig> Worker<T> {
         info!("waiting app to reply the query");
         let reply = rx.await.context("failed to receive query response");
         match &reply {
-            Ok(data) => info!(len = data.len(), "received reply Ok from app"),
-            Err(_) => info!("received reply Err from app"),
+            Ok(Ok(data)) => info!(len = data.len(), "received reply Ok from app"),
+            Ok(Err(_)) | Err(_) => info!("received reply Err from app"),
         }
-        reply
+        reply.and_then(|x| x.map_err(anyhow::Error::msg))
     }
 
     pub async fn start_app(&self, address: Address, demand: bool) -> Result<()> {

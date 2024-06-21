@@ -31,7 +31,7 @@ pub struct TcpListenerResource {
 pub enum Resource {
     Sleep(Pin<Box<Sleep>>),
     ChannelRx(Receiver<Vec<u8>>),
-    OneshotTx(Option<Sender<Vec<u8>>>),
+    OneshotTx(Option<Sender<Result<Vec<u8>, String>>>),
     TcpListener(Box<TcpListenerResource>),
     TcpStream(Box<TcpStream>),
     TlsStream(Box<TlsStream>),
