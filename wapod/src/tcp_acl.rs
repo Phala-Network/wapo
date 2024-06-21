@@ -2,13 +2,9 @@ use std::{collections::BTreeSet, net::IpAddr};
 
 use ipnet::{IpNet, Ipv4Net};
 use iprange::IpRange;
-use rocket::figment::{
-    providers::{Format as _, Toml},
-    Figment,
-};
 use tracing::info;
 
-use crate::config::{CONFIG_FILENAME, DEFAULT_CONFIG};
+use crate::config::load_config_file;
 
 #[derive(Debug, Clone)]
 pub struct HostFilter {
@@ -24,10 +20,9 @@ impl HostFilter {
     }
 
     pub fn from_config_file() -> HostFilter {
-        let figment =
-            Figment::from(Toml::string(DEFAULT_CONFIG)).merge(Toml::file(CONFIG_FILENAME));
+        let figment = load_config_file().select("runtime");
         let blacklist = figment
-            .extract_inner::<Vec<String>>("default.tcp_connect_blacklist")
+            .extract_inner::<Vec<String>>("tcp_connect_blacklist")
             .unwrap_or_default();
         let filter = HostFilter::from_iter(blacklist);
         info!("loaded TCP connect filter: {filter:#?}");

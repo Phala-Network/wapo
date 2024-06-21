@@ -5,12 +5,6 @@ ident = "Wapod"
 temp_dir = "/tmp"
 keep_alive = 10
 log_level = "normal"
-tcp_connect_blacklist = [
-    "192.168.0.0/16",
-    "localhost",
-    "127.0.0.1",
-    "::1",
-]
 
 [default.limits]
 bytes = "8KiB"
@@ -29,3 +23,11 @@ port = 8001
 [user]
 address = "0.0.0.0"
 port = 8002
+
+[runtime]
+tcp_connect_blacklist = [
+    "192.168.0.0/16",
+    "localhost",
+    "127.0.0.1",
+    "::1",
+]

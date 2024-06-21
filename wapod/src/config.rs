@@ -1,6 +1,10 @@
 use std::{marker::PhantomData, path::PathBuf, sync::OnceLock};
 
 use anyhow::{Context, Result};
+use rocket::figment::{
+    providers::{Format, Toml},
+    Figment,
+};
 use scale::{Decode as _, Encode};
 use sp_core::blake2_256;
 use wapod_crypto::sr25519::Pair;
@@ -8,6 +12,10 @@ use wapod_rpc::{prpc::Manifest, types::Address};
 
 pub const CONFIG_FILENAME: &str = "Wapod.toml";
 pub const DEFAULT_CONFIG: &str = include_str!("../Wapod.toml");
+
+pub fn load_config_file() -> Figment {
+    Figment::from(Toml::string(DEFAULT_CONFIG).nested()).merge(Toml::file(CONFIG_FILENAME).nested())
+}
 
 pub struct DefaultWorkerConfig;
 
