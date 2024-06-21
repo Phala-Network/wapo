@@ -23,7 +23,7 @@ use service::{Command, CommandSender, ServiceHandle};
 use wapo_host::service::{self, Report, VmHandle};
 use wapod_rpc::prpc::Manifest;
 
-use crate::config::{AddressGenerator, KeyProvider, Paths, WorkerConfig, CONFIG_FILENAME};
+use crate::config::{AddressGenerator, KeyProvider, Paths, WorkerConfig};
 use crate::tcp_acl::HostFilter;
 
 type Address = [u8; 32];
@@ -198,7 +198,7 @@ impl<T: WorkerConfig> Worker<T> {
                     args,
                     session: None,
                     sni_tls_listener,
-                    host_filter: Arc::new(HostFilter::from_config_file(CONFIG_FILENAME)),
+                    host_filter: Arc::new(HostFilter::from_config_file()),
                 })
             }),
         }

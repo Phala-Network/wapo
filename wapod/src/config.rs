@@ -7,6 +7,7 @@ use wapod_crypto::sr25519::Pair;
 use wapod_rpc::{prpc::Manifest, types::Address};
 
 pub const CONFIG_FILENAME: &str = "Wapod.toml";
+pub const DEFAULT_CONFIG: &str = include_str!("../Wapod.toml");
 
 pub struct DefaultWorkerConfig;
 

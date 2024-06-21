@@ -20,7 +20,7 @@ form = "32KiB"
 json = "1MiB"
 msgpack = "1MiB"
 string = "8KiB"
-"Operation.BlobPut" = "100MiB"
+"Operation.BlobPut" = "50MiB"
 
 [admin]
 address = "127.0.0.1"

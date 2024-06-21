@@ -8,6 +8,8 @@ use rocket::figment::{
 };
 use tracing::info;
 
+use crate::config::{CONFIG_FILENAME, DEFAULT_CONFIG};
+
 #[derive(Debug, Clone)]
 pub struct HostFilter {
     ipv4_blacklist: IpRange<Ipv4Net>,
@@ -21,8 +23,9 @@ impl HostFilter {
         Self::from_iter(s.lines().map(|s| s.to_string()))
     }
 
-    pub fn from_config_file(filename: &str) -> HostFilter {
-        let figment = Figment::from(Toml::file(filename));
+    pub fn from_config_file() -> HostFilter {
+        let figment =
+            Figment::from(Toml::string(DEFAULT_CONFIG)).merge(Toml::file(CONFIG_FILENAME));
         let blacklist = figment
             .extract_inner::<Vec<String>>("default.tcp_connect_blacklist")
             .unwrap_or_default();
