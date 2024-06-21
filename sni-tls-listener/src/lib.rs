@@ -68,9 +68,7 @@ pub struct SniTlsListener {
 impl SniTlsListener {
     #[cfg(feature = "ring")]
     pub fn install_ring_provider() {
-        rustls::crypto::ring::default_provider()
-            .install_default()
-            .expect("failed to install ring provider");
+        _ = rustls::crypto::ring::default_provider().install_default();
     }
 
     pub fn downgrade(&self) -> WeakSniTlsListener {

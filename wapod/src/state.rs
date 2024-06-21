@@ -151,6 +151,7 @@ impl<T: WorkerConfig> Worker<T> {
             .instance_memory_size
             .try_into()
             .context("invalid memory size")?;
+        SniTlsListener::install_ring_provider();
         let sni_tcp_listener = match args.tls_port {
             Some(port) => Some({
                 SniTlsListener::bind("0.0.0.0", port)
