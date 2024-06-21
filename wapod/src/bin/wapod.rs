@@ -15,6 +15,9 @@ mod web_api;
 #[tokio::main]
 async fn main() -> Result<()> {
     logger::init();
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("failed to install ring provider");
 
     info!("starting wapod server...");
     let args = Args::parse();

@@ -30,3 +30,4 @@ parse-size = { version = "1.0.0", features = ["std"] }
 typed-builder = "0.18.2"
 ipnet = "2.9.0"
 iprange = "0.6.7"
+rustls = { version = "0.23.10", default-features = false, features = ["ring"] }

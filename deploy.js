@@ -100,9 +100,9 @@ async function main() {
             code_hash: wasmFileInfo.hash,
             hash_algorithm: "sha256",
             args: [],
-            env_vars: [],
+            env_vars: [["RUST_LOG", "debug"]],
             on_demand: false,
-            resizable: false,
+            resizable: true,
             max_query_size: 10240,
             label: "Test App",
         };

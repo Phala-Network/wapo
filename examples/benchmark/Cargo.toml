@@ -6,8 +6,12 @@ edition = "2021"
 [dependencies]
 log = "0.4.16"
 once_cell = "1.10.0"
-hyper = { version = "0.14.18", features = ["http1", "client"] }
 sha2 = "0.10.8"
+tokio = { version = "1.38.0", features = ["macros"] }
+anyhow = "1.0.86"
+httptime = { version = "0.1.0", path = "../../httptime" }
+futures = "0.3.30"
+serde = { version = "1.0.203", features = ["derive"] }
 
 [dependencies.wapo]
 version = "0.1.0"

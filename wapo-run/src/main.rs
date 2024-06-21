@@ -100,9 +100,9 @@ pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
             }
         })
         .collect::<Result<Vec<_>, _>>()?;
+    SniTlsListener::install_ring_provider();
     let sni_tls_listener = match args.tls_port {
         Some(port) => Some({
-            SniTlsListener::install_ring_provider();
             SniTlsListener::bind("0.0.0.0", port)
                 .await
                 .context("failed to bind sni tls listener")?

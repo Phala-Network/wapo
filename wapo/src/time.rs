@@ -81,19 +81,19 @@ pub async fn timeout<T: Future<Output = O>, O>(
     }
 }
 
-/// The future returned by `maybe_rest`.
-pub struct Rest {
+/// The future returned by `fn breath`.
+pub struct Breath {
     resting: bool,
 }
 
-impl Rest {
-    /// Creates a new `Rest` instance.
+impl Breath {
+    /// Creates a new `Breath` instance.
     pub fn new(resting: bool) -> Self {
-        Rest { resting }
+        Breath { resting }
     }
 }
 
-impl Future for Rest {
+impl Future for Breath {
     type Output = ();
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if self.resting {
@@ -105,4 +105,9 @@ impl Future for Rest {
             Poll::Ready(())
         }
     }
+}
+
+/// Returns a future that becomes ready immediately.
+pub fn breath() -> Breath {
+    Breath::new(true)
 }
