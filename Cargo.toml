@@ -21,6 +21,7 @@ members = [
     "examples/sni-tls-server",
     "examples/benchmark",
     "httptime",
+    "wapod-eco-types",
 ]
 exclude = ["wapod-pherry"]
 

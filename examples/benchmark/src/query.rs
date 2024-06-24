@@ -6,18 +6,18 @@ use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant, SystemTime};
 use tokio::sync::mpsc::Sender;
 
+use wapod_eco_types::bench_app::{SignedMessage, SigningMessage};
+use wapod_eco_types::scale::Encode;
+
+#[derive(Default, Debug, Deserialize, Serialize)]
+struct BenchScore {
+    gas_per_second: u64,
+    gas_consumed: u64,
+    timestamp_secs: u64,
+}
+
 struct State {
-    score: u64,
-}
-
-enum SignedData {
-    Score(u64),
-}
-
-#[derive(Serialize, Deserialize)]
-struct SignedScore {
-    score: u64,
-    signature: String,
+    score: BenchScore,
 }
 
 pub async fn query_serve() {
@@ -26,7 +26,9 @@ pub async fn query_serve() {
     let (score_tx, mut score_rx) = tokio::sync::mpsc::channel(1);
     wapo::spawn(score_update(score_tx));
 
-    let mut state = State { score: 0 };
+    let mut state = State {
+        score: BenchScore::default(),
+    };
 
     loop {
         tokio::select! {
@@ -54,7 +56,7 @@ pub async fn query_serve() {
     }
 }
 
-async fn score_update(tx: Sender<u64>) {
+async fn score_update(tx: Sender<BenchScore>) {
     loop {
         let net_start_time = net_now().await;
         let local_start_time = Instant::now();
@@ -81,6 +83,14 @@ async fn score_update(tx: Sender<u64>) {
                 let gas_diff = gas_at_end.saturating_sub(gas_at_start);
                 let score = gas_diff.saturating_div(local_elapsed.as_secs());
                 debug!("score: {:?}", score);
+                let score = BenchScore {
+                    gas_per_second: score,
+                    gas_consumed: gas_at_end,
+                    timestamp_secs: end_time
+                        .duration_since(SystemTime::UNIX_EPOCH)
+                        .expect("failed to get timestamp")
+                        .as_secs(),
+                };
                 tx.send(score).await.expect("failed to send score");
             }
             _ => {
@@ -114,7 +124,20 @@ async fn net_now() -> Result<SystemTime> {
 
 async fn handle_query(state: &mut State, path: String, _payload: Vec<u8>) -> Result<Vec<u8>> {
     match path.as_str() {
-        "/score" => Ok(format!("{}", state.score).into_bytes()),
+        "/score" => serde_json::to_vec(&state.score)
+            .map_err(|e| anyhow::anyhow!("failed to serialize score: {}", e)),
+        "/signedScore" => {
+            let score = &state.score;
+            let message = SigningMessage::BenchScore {
+                gas_per_second: score.gas_per_second,
+                timestamp_secs: score.timestamp_secs,
+                gas_consumed: score.gas_consumed,
+            };
+            let encoded_message = message.encode();
+            let signature = wapo::ocall::sign(&encoded_message).expect("ocall::sign never fails");
+            let signed_message = SignedMessage { message, signature };
+            Ok(signed_message.encode())
+        }
         _ => {
             bail!("unknown path: {}", path);
         }

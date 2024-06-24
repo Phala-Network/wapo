@@ -655,9 +655,11 @@ dependencies = [
  "log",
  "once_cell",
  "serde",
+ "serde_json",
  "sha2 0.10.8",
  "tokio",
  "wapo",
+ "wapod-eco-types",
 ]
 
 [[package]]
@@ -8279,6 +8281,15 @@ version = "0.1.0"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
+]
+
+[[package]]
+name = "wapod-eco-types"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+ "scale-info",
+ "wapod-crypto-types",
 ]
 
 [[package]]
