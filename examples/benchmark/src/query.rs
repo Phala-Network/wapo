@@ -134,8 +134,17 @@ async fn handle_query(state: &mut State, path: String, _payload: Vec<u8>) -> Res
                 gas_consumed: score.gas_consumed,
             };
             let encoded_message = message.encode();
-            let signature = wapo::ocall::sign(&encoded_message).expect("ocall::sign never fails");
-            let signed_message = SignedMessage { message, signature };
+            let signature = wapo::ocall::sign(&encoded_message)
+                .expect("ocall::sign never fails")
+                .into();
+            let address = wapo::ocall::app_address().expect("failed to get app address");
+            let worker_pubkey = wapo::ocall::worker_pubkey().expect("failed to get worker pubkey");
+            let signed_message = SignedMessage {
+                message,
+                signature,
+                worker_pubkey,
+                app_address: address,
+            };
             Ok(signed_message.encode())
         }
         _ => {

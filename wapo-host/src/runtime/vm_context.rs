@@ -93,7 +93,7 @@ pub trait RuntimeCalls: Send + 'static {
     fn log(&self, level: log::Level, message: &str) {
         log::log!(target: "wapo::guest", level, "{message}");
     }
-    fn worker_pubkey(&self) -> Vec<u8>;
+    fn worker_pubkey(&self) -> [u8; 32];
     fn sign_app_data(&self, data: &[u8]) -> Vec<u8>;
     fn sgx_quote_app_data(&self, data: &[u8]) -> Option<Vec<u8>>;
     fn emit_output(&self, _output: &[u8]);
@@ -104,8 +104,8 @@ pub trait RuntimeCalls: Send + 'static {
 }
 
 impl RuntimeCalls for () {
-    fn worker_pubkey(&self) -> Vec<u8> {
-        vec![]
+    fn worker_pubkey(&self) -> [u8; 32] {
+        [0; 32]
     }
 
     fn sign_app_data(&self, _data: &[u8]) -> Vec<u8> {
@@ -506,7 +506,7 @@ impl env::OcallFuncs for WapoCtx {
     }
 
     /// Returns the vmid of the current instance.
-    fn vmid(&mut self) -> Result<[u8; 32]> {
+    fn app_address(&mut self) -> Result<[u8; 32]> {
         self.meter.record_gas(100);
         Ok(self.id)
     }
@@ -537,7 +537,7 @@ impl env::OcallFuncs for WapoCtx {
         Ok(self.runtime_calls.sign_app_data(data))
     }
 
-    fn worker_pubkey(&mut self) -> Result<Vec<u8>> {
+    fn worker_pubkey(&mut self) -> Result<[u8; 32]> {
         self.meter.record_gas(100);
         Ok(self.runtime_calls.worker_pubkey())
     }

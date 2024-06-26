@@ -767,8 +767,8 @@ impl<T: WorkerConfig> AppRuntimeCalls<T> {
 }
 
 impl<T: WorkerConfig + 'static> wapo_host::RuntimeCalls for AppRuntimeCalls<T> {
-    fn worker_pubkey(&self) -> Vec<u8> {
-        T::KeyProvider::get_key().public().as_bytes().to_vec()
+    fn worker_pubkey(&self) -> [u8; 32] {
+        *T::KeyProvider::get_key().public().as_ref()
     }
 
     fn sign_app_data(&self, data: &[u8]) -> Vec<u8> {

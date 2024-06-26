@@ -103,7 +103,7 @@ pub trait OcallFuncs {
 
     /// Returns the vmid of the current instance.
     #[ocall(id = 242, encode_output)]
-    fn vmid() -> Result<[u8; 32]>;
+    fn app_address() -> Result<[u8; 32]>;
 
     /// Emit program output.
     #[ocall(id = 243)]
@@ -119,7 +119,7 @@ pub trait OcallFuncs {
 
     /// Get the public key of the worker.
     #[ocall(id = 251, encode_output)]
-    fn worker_pubkey() -> Result<Vec<u8>>;
+    fn worker_pubkey() -> Result<[u8; 32]>;
 
     /// Generate SGX quote with given data of max 64 bytes. Returns None if SGX is not supported.
     #[ocall(id = 252, encode_output)]
