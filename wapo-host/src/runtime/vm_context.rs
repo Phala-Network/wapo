@@ -25,7 +25,7 @@ use env::{
     IntPtr, IntRet, OcallError, Result, RetEncode,
 };
 use scale::{Decode, Encode};
-use wapo_env as env;
+use wapo_env::{self as env, MetricsToken};
 
 use wasmtime::Caller;
 
@@ -100,7 +100,7 @@ pub trait RuntimeCalls: Send + 'static {
     fn tcp_connect_allowed(&self, _host: &str) -> bool {
         true
     }
-    fn app_metrics(&self) -> Metrics;
+    fn app_metrics(&self) -> (Metrics, MetricsToken);
 }
 
 impl RuntimeCalls for () {
@@ -118,8 +118,8 @@ impl RuntimeCalls for () {
 
     fn emit_output(&self, _output: &[u8]) {}
 
-    fn app_metrics(&self) -> Metrics {
-        Metrics::default()
+    fn app_metrics(&self) -> (Metrics, MetricsToken) {
+        Default::default()
     }
 }
 
@@ -557,9 +557,10 @@ impl env::OcallFuncs for WapoCtx {
         Ok(())
     }
 
-    fn app_gas_consumed(&mut self) -> Result<u64> {
+    fn app_gas_consumed(&mut self) -> Result<(u64, MetricsToken)> {
         self.meter.record_gas(1000);
-        Ok(self.runtime_calls.app_metrics().gas_consumed)
+        let (metrics, token) = self.runtime_calls.app_metrics();
+        Ok((metrics.gas_consumed, token))
     }
 }
 

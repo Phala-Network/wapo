@@ -131,7 +131,15 @@ pub trait OcallFuncs {
 
     /// Return the accumulated gas consumed by the App starting from the deployment.
     #[ocall(id = 254, encode_output)]
-    fn app_gas_consumed() -> Result<u64>;
+    fn app_gas_consumed() -> Result<(u64, MetricsToken)>;
+}
+
+#[derive(Decode, Encode, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub struct MetricsToken {
+    pub worker_session: [u8; 32],
+    pub nonce: [u8; 32],
+    pub metrics_sn: u64,
 }
 
 #[repr(u8)]

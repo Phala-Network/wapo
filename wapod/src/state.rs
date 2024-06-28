@@ -6,7 +6,7 @@ use sp_core::blake2_256;
 use tokio::sync::oneshot;
 use tracing::{field::display, info, warn, Instrument};
 use wapo_host::{blobs::BlobLoader, Metrics};
-use wapo_host::{ShortId, SniTlsListener, VmStatus, VmStatusReceiver};
+use wapo_host::{MetricsToken, ShortId, SniTlsListener, VmStatus, VmStatusReceiver};
 use wapod_crypto::ContentType;
 use wapod_rpc::prpc::{self as pb};
 
@@ -130,6 +130,7 @@ struct WorkerState<T> {
     session: Option<[u8; 32]>,
     sni_tls_listener: Option<SniTlsListener>,
     host_filter: Arc<HostFilter>,
+    matrics_sn: u64,
 }
 
 pub struct Worker<T> {
@@ -199,6 +200,7 @@ impl<T: WorkerConfig> Worker<T> {
                     session: None,
                     sni_tls_listener,
                     host_filter: Arc::new(HostFilter::from_config_file()),
+                    matrics_sn: 0,
                 })
             }),
         }
@@ -522,6 +524,10 @@ impl<T: WorkerConfig> Worker<T> {
     pub fn clear(&self) {
         self.lock().apps.clear();
     }
+
+    pub fn bump_metrics_sn(&self) -> u64 {
+        self.lock().bump_metrics_sn()
+    }
 }
 
 fn to_pages(size: u64) -> u64 {
@@ -729,6 +735,12 @@ impl<T: WorkerConfig> WorkerState<T> {
         self.session = Some(session);
         Ok(seed)
     }
+
+    fn bump_metrics_sn(&mut self) -> u64 {
+        let sn = self.matrics_sn;
+        self.matrics_sn += 1;
+        sn
+    }
 }
 
 struct AppRuntimeCalls<T> {
@@ -785,15 +797,21 @@ impl<T: WorkerConfig + 'static> wapo_host::RuntimeCalls for AppRuntimeCalls<T> {
         self.host_filter.is_host_allowed(host)
     }
 
-    fn app_metrics(&self) -> Metrics {
+    fn app_metrics(&self) -> (Metrics, MetricsToken) {
         self.worker
             .upgrade()
-            .map_or_else(Metrics::default, |inner| {
-                let inner = inner.lock().expect("worker lock poisoned");
-                inner
+            .map_or_else(Default::default, |inner| {
+                let mut inner = inner.lock().expect("worker lock poisoned");
+                let metrics = inner
                     .apps
                     .get(&self.address)
-                    .map_or_else(Metrics::default, |app| app.metrics())
+                    .map_or_else(Metrics::default, |app| app.metrics());
+                let token = MetricsToken {
+                    worker_session: inner.session.unwrap_or_default(),
+                    nonce: rand::thread_rng().gen(),
+                    metrics_sn: inner.bump_metrics_sn(),
+                };
+                (metrics, token)
             })
     }
 }

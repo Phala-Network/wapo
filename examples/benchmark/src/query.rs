@@ -2,18 +2,20 @@ use anyhow::{bail, Result};
 use futures::stream::FuturesUnordered;
 use futures::StreamExt as _;
 use log::{debug, info};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::time::{Duration, Instant, SystemTime};
 use tokio::sync::mpsc::Sender;
 
-use wapod_eco_types::bench_app::{SignedMessage, SigningMessage};
+use wapod_eco_types::bench_app::{MetricsToken, SignedMessage, SigningMessage};
 use wapod_eco_types::scale::Encode;
 
-#[derive(Default, Debug, Deserialize, Serialize)]
+#[derive(Default, Debug, Serialize)]
 struct BenchScore {
     gas_per_second: u64,
     gas_consumed: u64,
     timestamp_secs: u64,
+    #[serde(skip)]
+    metrics_token: MetricsToken,
 }
 
 struct State {
@@ -60,11 +62,13 @@ async fn score_update(tx: Sender<BenchScore>) {
     loop {
         let net_start_time = net_now().await;
         let local_start_time = Instant::now();
-        let gas_at_start = wapo::ocall::app_gas_consumed().expect("failed to get gas consumed");
+        let (gas_at_start, _) =
+            wapo::ocall::app_gas_consumed().expect("failed to get gas consumed");
         debug!("net_start_time: {:?}", net_start_time);
         debug!("gas_at_start: {:?}", gas_at_start);
         wapo::time::sleep(Duration::from_secs(30)).await;
-        let gas_at_end = wapo::ocall::app_gas_consumed().expect("failed to get gas consumed");
+        let (gas_at_end, token) =
+            wapo::ocall::app_gas_consumed().expect("failed to get gas consumed");
         let local_elapsed = local_start_time.elapsed();
         let net_end_time = net_now().await;
         debug!("net_end_time: {:?}", net_end_time);
@@ -90,6 +94,11 @@ async fn score_update(tx: Sender<BenchScore>) {
                         .duration_since(SystemTime::UNIX_EPOCH)
                         .expect("failed to get timestamp")
                         .as_secs(),
+                    metrics_token: MetricsToken {
+                        worker_session: token.worker_session,
+                        nonce: token.nonce,
+                        metrics_sn: token.metrics_sn,
+                    },
                 };
                 tx.send(score).await.expect("failed to send score");
             }
@@ -132,6 +141,7 @@ async fn handle_query(state: &mut State, path: String, _payload: Vec<u8>) -> Res
                 gas_per_second: score.gas_per_second,
                 timestamp_secs: score.timestamp_secs,
                 gas_consumed: score.gas_consumed,
+                matrics_token: score.metrics_token.clone(),
             };
             let encoded_message = message.encode();
             let signature = wapo::ocall::sign(&encoded_message)

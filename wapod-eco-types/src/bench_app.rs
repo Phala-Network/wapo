@@ -3,6 +3,14 @@ use wapod_crypto_types::{worker_signed_message::verify_app_data, CryptoProvider}
 
 use crate::primitives::{Address, BoundedVec, WorkerPubkey};
 
+#[derive(Decode, Encode, MaxEncodedLen, Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub struct MetricsToken {
+    pub worker_session: [u8; 32],
+    pub nonce: [u8; 32],
+    pub metrics_sn: u64,
+}
+
 /// The message that the benchmark app sends emits.
 #[derive(Decode, Encode, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -15,6 +23,8 @@ pub enum SigningMessage {
         gas_consumed: u64,
         /// The timestamp (seconds since UNIX epoch) when the score was recorded.
         timestamp_secs: u64,
+        /// The metrics token for the worker.
+        matrics_token: MetricsToken,
     },
 }
 

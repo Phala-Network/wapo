@@ -193,6 +193,7 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
             Some(&addresses[..])
         };
         let mut metrics = rpc::types::AppsMetrics {
+            sn: self.worker.bump_metrics_sn(),
             session: self.session().context("no worker session")?,
             nonce: rand::thread_rng().gen(),
             apps: vec![],

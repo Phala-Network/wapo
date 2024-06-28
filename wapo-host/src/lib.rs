@@ -21,4 +21,4 @@ pub use wasmtime;
 pub use module_loader::{ModuleLoader, ModuleLoaderInfo};
 pub use service::{IncomingHttpRequest, VmStatus, VmStatusReceiver};
 pub use sni_tls_listener::SniTlsListener;
-pub use wapo_env::OcallError;
+pub use wapo_env::{MetricsToken, OcallError};

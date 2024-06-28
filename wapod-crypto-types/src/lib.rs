@@ -17,6 +17,7 @@ pub enum ContentType {
     Metrics = 100,
     AppData = 101,
     WorkerAttestation = 102,
+    WorkerDescription = 103,
 }
 
 impl ContentType {

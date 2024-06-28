@@ -22,6 +22,7 @@ pub struct AppMetrics {
 
 #[derive(Debug, Encode, Decode)]
 pub struct AppsMetrics {
+    pub sn: u64,
     pub session: Bytes32,
     pub nonce: Bytes32,
     pub apps: Vec<AppMetrics>,

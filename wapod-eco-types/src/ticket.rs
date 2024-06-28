@@ -1,7 +1,9 @@
 use scale::{Decode, Encode, MaxEncodedLen};
+use wapod_crypto_types::{worker_signed_message::verify_message, ContentType, CryptoProvider};
 
-use crate::primitives::{BoundedString, BoundedVec};
+use crate::primitives::{BoundedString, BoundedVec, WorkerPubkey};
 
+pub type String512 = BoundedString<512>;
 pub type String256 = BoundedString<256>;
 pub type String32 = BoundedString<32>;
 pub type Hash = BoundedVec<u8, 64>;
@@ -41,8 +43,8 @@ pub struct TicketDescription {
     pub manifest: Manifest,
     /// The blobs that the app required to run.
     pub required_blobs: BoundedVec<BlobDescription, 32>,
-    /// Download url
-    pub download_url: Option<String256>,
+    /// URLs to download the required resources.
+    pub download_urls: BoundedVec<String512, 4>,
     /// The prices to be paid to workers for running the app.
     pub prices: Prices,
 }
@@ -66,4 +68,31 @@ pub struct Prices {
     pub storage_read_price: Option<u128>,
     pub storage_write_price: Option<u128>,
     pub tip_price: Option<u128>,
+}
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub struct WorkerDescription {
+    pub prices: Prices,
+    pub description: BoundedString<1024>,
+}
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub struct SignedWorkerDescription {
+    pub worker_description: WorkerDescription,
+    pub signature: BoundedVec<u8, 128>,
+    pub worker_pubkey: WorkerPubkey,
+}
+
+impl SignedWorkerDescription {
+    pub fn verify<Crypto: CryptoProvider>(&self) -> bool {
+        let encoded_message = self.worker_description.encode();
+        verify_message::<Crypto>(
+            ContentType::WorkerDescription,
+            &encoded_message,
+            &self.signature,
+            &self.worker_pubkey,
+        )
+    }
 }
