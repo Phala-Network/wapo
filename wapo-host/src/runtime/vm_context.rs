@@ -101,6 +101,7 @@ pub trait RuntimeCalls: Send + 'static {
         true
     }
     fn app_metrics(&self) -> (Metrics, MetricsToken);
+    fn derive_secret(&self, path: &[u8]) -> [u8; 64];
 }
 
 impl RuntimeCalls for () {
@@ -120,6 +121,10 @@ impl RuntimeCalls for () {
 
     fn app_metrics(&self) -> (Metrics, MetricsToken) {
         Default::default()
+    }
+
+    fn derive_secret(&self, _path: &[u8]) -> [u8; 64] {
+        [0u8; 64]
     }
 }
 
@@ -561,6 +566,14 @@ impl env::OcallFuncs for WapoCtx {
         self.meter.record_gas(1000);
         let (metrics, token) = self.runtime_calls.app_metrics();
         Ok((metrics.gas_consumed, token))
+    }
+
+    fn derive_secret(&mut self, path: &[u8]) -> Result<[u8; 64]> {
+        self.meter.record_gas(1000 + path.len() as u64);
+        if path.len() > 256 {
+            return Err(OcallError::InvalidParameter);
+        }
+        Ok(self.runtime_calls.derive_secret(path))
     }
 }
 

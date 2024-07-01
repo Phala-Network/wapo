@@ -814,4 +814,11 @@ impl<T: WorkerConfig + 'static> wapo_host::RuntimeCalls for AppRuntimeCalls<T> {
                 (metrics, token)
             })
     }
+
+    fn derive_secret(&self, path: &[u8]) -> [u8; 64] {
+        let path_hash = sp_core::hashing::blake2_256(path);
+        T::KeyProvider::get_key()
+            .derive([self.address, path_hash])
+            .dump()
+    }
 }

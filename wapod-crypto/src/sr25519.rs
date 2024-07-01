@@ -1,7 +1,8 @@
+use anyhow::Result;
 use scale::{Decode, Encode};
 use scale_info::TypeInfo;
 use schnorrkel::SECRET_KEY_LENGTH;
-use sp_core::{sr25519, ByteArray as _, Pair as PairT};
+use sp_core::{sr25519, ByteArray as _, DeriveJunction, Pair as PairT};
 
 use crate::{ContentType, CryptoRng, Error};
 
@@ -41,6 +42,14 @@ impl Pair {
     pub fn sign(&self, content_type: ContentType, message: impl AsRef<[u8]>) -> Vec<u8> {
         let final_message = content_type.wrap_message(message);
         self.pair.sign(&final_message).0.to_vec()
+    }
+
+    pub fn derive(&self, path: impl IntoIterator<Item = [u8; 32]>) -> Self {
+        let (pair, _seed) = self
+            .pair
+            .derive(path.into_iter().map(|j| DeriveJunction::Hard(j)), None)
+            .expect("derive key should never fail");
+        Self { pair }
     }
 }
 

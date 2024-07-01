@@ -132,6 +132,10 @@ pub trait OcallFuncs {
     /// Return the accumulated gas consumed by the App starting from the deployment.
     #[ocall(id = 254, encode_output)]
     fn app_gas_consumed() -> Result<(u64, MetricsToken)>;
+
+    /// Derive a secret data with hash of the worker's private key + app address + path
+    #[ocall(id = 255, encode_output)]
+    fn derive_secret(path: &[u8]) -> Result<[u8; 64]>;
 }
 
 #[derive(Decode, Encode, Default, Debug, Clone, PartialEq, Eq)]
