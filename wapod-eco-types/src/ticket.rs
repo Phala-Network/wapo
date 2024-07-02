@@ -1,4 +1,5 @@
 use scale::{Decode, Encode, MaxEncodedLen};
+use scale_info::TypeInfo;
 use wapod_crypto_types::{worker_signed_message::verify_message, ContentType, CryptoProvider};
 
 use crate::primitives::{BoundedString, BoundedVec, WorkerPubkey};
@@ -8,8 +9,7 @@ pub type String256 = BoundedString<256>;
 pub type String32 = BoundedString<32>;
 pub type Hash = BoundedVec<u8, 64>;
 
-#[derive(Decode, Encode, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[derive(Decode, Encode, TypeInfo, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
 pub struct Manifest {
     // The spec version of the manifest.
     pub version: u8,
@@ -36,8 +36,7 @@ impl Manifest {
 }
 
 /// A ticket.
-#[derive(Encode, Decode, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[derive(Encode, Decode, TypeInfo, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
 pub struct TicketDescription {
     /// The manifest.
     pub manifest: Manifest,
@@ -49,8 +48,7 @@ pub struct TicketDescription {
     pub prices: Prices,
 }
 
-#[derive(Encode, Decode, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[derive(Encode, Decode, TypeInfo, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
 pub struct BlobDescription {
     /// The hash of the blob.
     pub hash: Hash,
@@ -58,8 +56,7 @@ pub struct BlobDescription {
     pub hash_algorithm: String32,
 }
 
-#[derive(Encode, Decode, Default, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[derive(Encode, Decode, TypeInfo, Default, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
 pub struct Prices {
     pub general_fee_per_second: Option<u128>,
     pub gas_price: Option<u128>,
@@ -70,15 +67,13 @@ pub struct Prices {
     pub tip_price: Option<u128>,
 }
 
-#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
 pub struct WorkerDescription {
     pub prices: Prices,
     pub description: BoundedString<1024>,
 }
 
-#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
 pub struct SignedWorkerDescription {
     pub worker_description: WorkerDescription,
     pub signature: BoundedVec<u8, 128>,

@@ -1,10 +1,10 @@
 use scale::{Decode, Encode, MaxEncodedLen};
+use scale_info::TypeInfo;
 use wapod_crypto_types::{worker_signed_message::verify_app_data, CryptoProvider};
 
 use crate::primitives::{Address, BoundedVec, WorkerPubkey};
 
-#[derive(Decode, Encode, MaxEncodedLen, Debug, Clone, PartialEq, Eq, Default)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[derive(Decode, Encode, TypeInfo, MaxEncodedLen, Debug, Clone, PartialEq, Eq, Default)]
 pub struct MetricsToken {
     pub worker_session: [u8; 32],
     pub nonce: [u8; 32],
@@ -12,8 +12,7 @@ pub struct MetricsToken {
 }
 
 /// The message that the benchmark app sends emits.
-#[derive(Decode, Encode, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[derive(Decode, Encode, TypeInfo, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
 pub enum SigningMessage {
     /// A benchmark score. This can be submitted to the chain as the worker's initial score.
     BenchScore {
@@ -29,8 +28,7 @@ pub enum SigningMessage {
 }
 
 /// A signed message.
-#[derive(Decode, Encode, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[derive(Decode, Encode, TypeInfo, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
 pub struct SignedMessage {
     pub message: SigningMessage,
     pub signature: BoundedVec<u8, 128>,
