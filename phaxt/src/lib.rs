@@ -14,6 +14,10 @@ mod extrinsic_params;
 mod rpc_ext;
 pub mod signer;
 
+// Generate an interface that we can use from the node's metadata.
+#[subxt::subxt(runtime_metadata_path = "./phala_metadata.scale")]
+pub mod phala {}
+
 #[derive(Encode, Decode, Clone, PartialEq, Eq, TypeInfo, PartialOrd, Ord, Debug, EncodeAsType)]
 pub struct ParaId(pub u32);
 
