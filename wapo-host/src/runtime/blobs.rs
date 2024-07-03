@@ -57,8 +57,8 @@ impl FromStr for HashAlgo {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "sha256" => Ok(Self::Sha256),
-            "sha512" => Ok(Self::Sha512),
+            "sha256" | "sha2-256" | "SHA2-256" => Ok(Self::Sha256),
+            "sha512" | "sha2-512" | "SHA2-512" => Ok(Self::Sha512),
             _ => Err("Invalid hash algorithm"),
         }
     }
