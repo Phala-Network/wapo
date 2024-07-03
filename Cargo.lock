@@ -659,7 +659,7 @@ dependencies = [
  "sha2 0.10.8",
  "tokio",
  "wapo",
- "wapod-eco-types",
+ "wapod-types",
 ]
 
 [[package]]
@@ -8271,24 +8271,7 @@ dependencies = [
  "serde_json",
  "sp-core 32.0.0",
  "thiserror",
- "wapod-crypto-types",
-]
-
-[[package]]
-name = "wapod-crypto-types"
-version = "0.1.0"
-dependencies = [
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
-name = "wapod-eco-types"
-version = "0.1.0"
-dependencies = [
- "parity-scale-codec",
- "scale-info",
- "wapod-crypto-types",
+ "wapod-types",
 ]
 
 [[package]]
@@ -8302,7 +8285,15 @@ dependencies = [
  "prpc-build",
  "serde",
  "serde_json",
- "wapod-crypto-types",
+ "wapod-types",
+]
+
+[[package]]
+name = "wapod-types"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]

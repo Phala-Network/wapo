@@ -6,8 +6,8 @@ use serde::Serialize;
 use std::time::{Duration, Instant, SystemTime};
 use tokio::sync::mpsc::Sender;
 
-use wapod_eco_types::bench_app::{MetricsToken, SignedMessage, SigningMessage};
-use wapod_eco_types::scale::Encode;
+use wapod_types::bench_app::{MetricsToken, SignedMessage, SigningMessage};
+use wapod_types::scale::Encode;
 
 #[derive(Default, Debug, Serialize)]
 struct BenchScore {

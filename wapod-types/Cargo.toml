@@ -1,13 +1,15 @@
 [package]
-name = "wapod-eco-types"
+name = "wapod-types"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 scale = { version = "3.6.12", package = "parity-scale-codec", default-features = false }
 scale-info = { version = "2.11.3", default-features = false }
-wapod-crypto-types = { version = "0.1.0", path = "../wapod-crypto-types", default-features = false }
 
 [features]
 default = ["std"]
-std = ["wapod-crypto-types/std", "scale/std", "scale-info/std"]
+std = [
+    "scale/std",
+    "scale-info/std",
+]

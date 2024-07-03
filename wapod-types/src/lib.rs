@@ -1,12 +1,17 @@
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;
 
 use alloc::vec::Vec;
 use core::fmt::Debug;
 
-pub mod query;
-pub mod worker_signed_message;
+pub use scale;
+
+pub mod bench_app;
+pub mod crypto;
+pub mod primitives;
+pub mod session;
+pub mod ticket;
 
 #[derive(Clone, Copy, Debug)]
 #[repr(u8)]
@@ -18,6 +23,7 @@ pub enum ContentType {
     AppData = 101,
     WorkerAttestation = 102,
     WorkerDescription = 103,
+    SessionUpdate = 104,
 }
 
 impl ContentType {
@@ -30,10 +36,4 @@ impl ContentType {
             .chain(message.into_iter())
             .collect()
     }
-}
-
-pub trait CryptoProvider {
-    fn sr25519_verify(public_key: &[u8], message: &[u8], signature: &[u8]) -> bool;
-    fn keccak_256(data: &[u8]) -> [u8; 32];
-    fn blake2b_256(data: &[u8]) -> [u8; 32];
 }

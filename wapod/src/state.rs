@@ -2,12 +2,12 @@ use anyhow::{anyhow, bail, Context, Result};
 
 use rand::Rng as _;
 use scale::Encode;
-use sp_core::blake2_256;
 use tokio::sync::oneshot;
 use tracing::{field::display, info, warn, Instrument};
 use wapo_host::{blobs::BlobLoader, Metrics};
 use wapo_host::{MetricsToken, ShortId, SniTlsListener, VmStatus, VmStatusReceiver};
-use wapod_crypto::ContentType;
+use wapod_crypto::wapod_types::session::SessionUpdate;
+use wapod_crypto::{ContentType, SpCoreHash};
 use wapod_rpc::prpc::{self as pb};
 
 use std::collections::HashMap;

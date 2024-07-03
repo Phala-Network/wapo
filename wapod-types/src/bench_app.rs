@@ -1,8 +1,10 @@
 use scale::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
-use wapod_crypto_types::{worker_signed_message::verify_app_data, CryptoProvider};
 
-use crate::primitives::{Address, BoundedVec, WorkerPubkey};
+use crate::{
+    crypto::{verify::verify_app_data, CryptoProvider},
+    primitives::{Address, BoundedVec, WorkerPubkey},
+};
 
 #[derive(Decode, Encode, TypeInfo, MaxEncodedLen, Debug, Clone, PartialEq, Eq, Default)]
 pub struct MetricsToken {

@@ -1,12 +1,15 @@
 use alloc::collections::BTreeMap;
-use alloc::vec::Vec;
 use alloc::string::String;
+use alloc::vec::Vec;
 
 use scale::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
-use wapod_crypto_types::{worker_signed_message::verify_message, ContentType, CryptoProvider};
 
-use crate::primitives::{BoundedString, BoundedVec, WorkerPubkey};
+use crate::{
+    crypto::{verify::verify_message, CryptoProvider},
+    primitives::{BoundedString, BoundedVec, WorkerPubkey},
+    ContentType,
+};
 
 pub type Hash = Vec<u8>;
 

@@ -12,7 +12,7 @@ anyhow = "1.0.86"
 httptime = { version = "0.1.0", path = "../../httptime" }
 futures = "0.3.30"
 serde = { version = "1.0.203", features = ["derive"] }
-wapod-eco-types = { version = "0.1.0", path = "../../wapod-eco-types" }
+wapod-types = { version = "0.1.0", path = "../../wapod-types" }
 serde_json = "1.0.117"
 
 [dependencies.wapo]

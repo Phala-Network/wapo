@@ -10,7 +10,7 @@ members = [
     "wapod-rpc",
     "wapo-run",
     "wapod-crypto",
-    "wapod-crypto-types",
+    "wapod-types",
     "e2e/guest",
     "phaxt",
     "sni-tls-listener",
@@ -21,7 +21,6 @@ members = [
     "examples/sni-tls-server",
     "examples/benchmark",
     "httptime",
-    "wapod-eco-types",
 ]
 exclude = ["wapod-pherry"]
 

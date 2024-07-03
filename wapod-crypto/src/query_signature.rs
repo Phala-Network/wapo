@@ -2,7 +2,7 @@ use scale::{Encode, Error as CodecError};
 use sp_core::{H160, H256};
 use std::convert::TryFrom;
 
-pub use wapod_crypto_types::query::*;
+pub use wapod_types::crypto::query::*;
 
 mod eip712;
 

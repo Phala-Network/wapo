@@ -1,5 +1,7 @@
 use scale::{Decode, Encode};
-use wapod_crypto_types::query::{RootOrCertificate, Signature};
+use wapod_types::crypto::query::{RootOrCertificate, Signature};
+
+pub use wapod_types::session::SessionUpdate;
 
 pub type QuerySignature = Signature<RootOrCertificate>;
 

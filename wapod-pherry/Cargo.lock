@@ -5486,20 +5486,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "wapod-crypto-types"
-version = "0.1.0"
-dependencies = [
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
 name = "wapod-pherry"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
  "hex",
+ "hex_fmt",
  "parity-scale-codec",
  "phaxt",
  "reqwest 0.12.4",
@@ -5523,7 +5516,15 @@ dependencies = [
  "prpc-build",
  "serde",
  "serde_json",
- "wapod-crypto-types",
+ "wapod-types",
+]
+
+[[package]]
+name = "wapod-types"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
