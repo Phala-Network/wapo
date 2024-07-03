@@ -272,8 +272,7 @@ impl ServiceHandle {
     #[tracing::instrument(parent=None, name="wapo", fields(id = %ShortId(config.id)), skip_all)]
     pub fn start<OCalls>(
         &self,
-        wasm_hash: &[u8],
-        wasm_hash_alg: &str,
+        wasm_hash: &str,
         config: InstanceStartConfig<OCalls>,
     ) -> Result<(VmHandle, JoinHandle<ExitReason>)>
     where
@@ -306,8 +305,7 @@ impl ServiceHandle {
         let module_loader = self.module_loader.clone();
         let meter = Arc::new(Meter::default());
         let meter_cloned = meter.clone();
-        let wasm_hash = wasm_hash.to_vec();
-        let wasm_hash_alg = wasm_hash_alg.to_string();
+        let wasm_hash = wasm_hash.to_string();
         let handle = self.spawn(async move {
             macro_rules! push_msg {
                 ($expr: expr, $level: ident, $msg: expr) => {{
@@ -318,7 +316,7 @@ impl ServiceHandle {
                 }};
             }
             let result = module_loader
-                .load_module(&wasm_hash, &wasm_hash_alg)
+                .load_module(&wasm_hash)
                 .await
                 .context("failed to load module");
             let module = match result {

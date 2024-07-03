@@ -122,18 +122,10 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
     async fn blob_put(self, request: pb::Blob) -> Result<pb::Blob> {
         let loader = self.blob_loader();
         let hash = loader
-            .put(
-                &request.hash,
-                &mut &request.body[..],
-                &request.hash_algorithm,
-            )
+            .put(&request.hash, &mut &request.body[..])
             .await
             .context("failed to put object")?;
-        Ok(pb::Blob {
-            hash,
-            hash_algorithm: request.hash_algorithm,
-            body: vec![],
-        })
+        Ok(pb::Blob { hash, body: vec![] })
     }
 
     async fn blob_exists(self, request: pb::Blob) -> Result<pb::Boolean> {

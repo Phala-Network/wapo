@@ -677,7 +677,6 @@
                     const manifest = {
                         version: 1,
                         code_hash: this.deployForm.codeHash,
-                        hash_algorithm: "sha256",
                         args: JSON.parse(this.deployForm.args),
                         env_vars: JSON.parse(this.deployForm.envVars),
                         on_demand: this.deployForm.onDemand,
@@ -784,8 +783,7 @@
 
                     const data = await this.readFileAsArrayBuffer(file);
                     const blobData = {
-                        hash: '0x',
-                        hash_algorithm: 'sha256',
+                        hash: 'sha256:',
                         body: this.toHex(data)
                     };
                     const reply = await this.rpcCall('BlobPut', blobData);

@@ -38,10 +38,12 @@ service Operation {
     // including the previous metrics nonce reported to the chain. Returns the
     // new worker session and the seed used to derive the session.
   }
-  // Return a signed register info that can be used to register the worker on Phala.
-  rpc SignRegisterInfo(SignRegisterInfoArgs) returns (SignRegisterInfoResponse) {}
+  // Return a signed register info that can be used to register the worker on
+  // Phala.
+  rpc SignRegisterInfo(SignRegisterInfoArgs)
+      returns (SignRegisterInfoResponse) {}
   // Sign the given endpoint info
-  rpc SignEndpoints (SignEndpointsArgs) returns (SignEndpointsResponse) {}
+  rpc SignEndpoints(SignEndpointsArgs) returns (SignEndpointsResponse) {}
   // Terminate the worker.
   rpc WorkerExit(google.protobuf.Empty) returns (google.protobuf.Empty) {
     // Terminates the worker.
@@ -163,7 +165,8 @@ message ModuleLoaderInfo {
   uint32 cache_cap = 4;
   // The current number of items in the cache.
   uint32 cache_used = 5;
-  // The length of the handles that are currently being compiled or waiting to be compiled.
+  // The length of the handles that are currently being compiled or waiting to
+  // be compiled.
   uint32 compiling_handles_len = 6;
   // The number of threads that are currently in the process of compiling.
   uint32 compiling_tasks = 7;
@@ -201,11 +204,9 @@ message SignEndpointsResponse {
 // An object to be stored in the worker's object storage.
 message Blob {
   // The key of the object.
-  bytes hash = 1;
-  // The hash algorithm used to generate the key.
-  string hash_algorithm = 2;
+  string hash = 1;
   // The value of the object.
-  bytes body = 3;
+  bytes body = 2;
 }
 
 // Request to deploy an instance.
@@ -226,21 +227,19 @@ message Manifest {
   // The spec version of the manifest.
   uint32 version = 1;
   // The hash of the app's code.
-  bytes code_hash = 2;
-  // The hash algorithm used to generate the code hash.
-  string hash_algorithm = 3;
+  string code_hash = 2;
   // The arguments of the app.
-  repeated string args = 4;
+  repeated string args = 3;
   // The environment variables of the app.
-  repeated StringPair env_vars = 5;
+  repeated StringPair env_vars = 4;
   // The start mode of the app.
-  bool on_demand = 6;
+  bool on_demand = 5;
   // Whether the app can run multiple instances in a single worker.
-  bool resizable = 7;
+  bool resizable = 6;
   // The maximum size of the query payload.
-  uint32 max_query_size = 8;
+  uint32 max_query_size = 7;
   // The optional label of the app.
-  string label = 9;
+  string label = 8;
 }
 
 // Environment variable of an app.
@@ -326,7 +325,6 @@ message QueryArgs {
   // @codec scale crate::types::QuerySignature
   bytes encoded_signature = 4;
 }
-
 
 message EncryptedQueryArgs {
   // The public key of the user.

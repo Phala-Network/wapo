@@ -15,7 +15,7 @@ pub struct Manifest {
     // The spec version of the manifest.
     pub version: u8,
     // The hash of the app's code.
-    pub code: BlobDescription,
+    pub code_hash: String,
     // The arguments of the app.
     pub args: Vec<String>,
     // The environment variables of the app.
@@ -43,14 +43,6 @@ pub struct TicketDescription {
     pub manifest: Manifest,
     /// The blobs that the app required to run.
     pub required_blobs: BTreeMap<Hash, String>,
-}
-
-#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
-pub struct BlobDescription {
-    /// The hash of the blob.
-    pub hash: Hash,
-    /// The hash algorithm of the blob.
-    pub hash_algorithm: String,
 }
 
 #[derive(Encode, Decode, TypeInfo, Default, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]

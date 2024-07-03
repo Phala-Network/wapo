@@ -1,4 +1,5 @@
 use std::{
+    fmt::Display,
     path::{Path, PathBuf},
     str::FromStr,
     sync::Arc,
@@ -21,19 +22,20 @@ impl BlobLoader {
         }
     }
 
-    pub fn get(&self, hash: &[u8], hash_algo: &str) -> Result<Option<Vec<u8>>> {
-        get_object(self.store_dir.as_path(), hash, hash_algo)
+    pub fn get(&self, hash: &str) -> Result<Option<Vec<u8>>> {
+        get_object(self.store_dir.as_path(), hash)
     }
 
-    pub async fn put<'a, R>(&self, hash: &[u8], data: &'a mut R, hash_algo: &str) -> Result<Vec<u8>>
+    pub async fn put<'a, R>(&self, hash: &str, data: &'a mut R) -> Result<String>
     where
         R: AsyncRead + Unpin + ?Sized,
     {
-        put_object(self.store_dir.as_path(), hash, data, hash_algo).await
+        put_object(self.store_dir.as_path(), hash, data).await
     }
 
-    pub fn remove(&self, hash: &[u8]) -> Result<()> {
-        std::fs::remove_file(self.path(hash))?;
+    pub fn remove(&self, hash: &str) -> Result<()> {
+        let hash = HashValue::from_str(hash).map_err(Error::msg)?;
+        std::fs::remove_file(self.path(&hash.hash))?;
         Ok(())
     }
 
@@ -41,15 +43,23 @@ impl BlobLoader {
         self.store_dir.join(hex::encode(hash))
     }
 
-    pub fn exists(&self, hash: &[u8]) -> bool {
-        self.path(hash).exists()
+    pub fn exists(&self, hash: &str) -> bool {
+        let Ok(hash) = HashValue::from_str(hash) else {
+            return false;
+        };
+        self.path(&hash.hash).exists()
     }
 }
 
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Encode, Decode, Clone, Copy)]
 pub enum HashAlgo {
     Sha256,
     Sha512,
+}
+
+pub struct HashValue {
+    pub algo: HashAlgo,
+    pub hash: Vec<u8>,
 }
 
 impl FromStr for HashAlgo {
@@ -57,10 +67,37 @@ impl FromStr for HashAlgo {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "sha256" | "sha2-256" | "SHA2-256" => Ok(Self::Sha256),
-            "sha512" | "sha2-512" | "SHA2-512" => Ok(Self::Sha512),
+            "sha256" => Ok(Self::Sha256),
+            "sha512" => Ok(Self::Sha512),
             _ => Err("Invalid hash algorithm"),
         }
+    }
+}
+
+impl FromStr for HashValue {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut parts = s.splitn(2, ':');
+        let algo = parts.next().ok_or("missing hash algorithm")?;
+        let hash = parts.next().unwrap_or_default();
+        let algo = HashAlgo::from_str(algo)?;
+        let hash = hex::decode(hash).map_err(|_| "invalid hash value")?;
+        Ok(Self { algo, hash })
+    }
+}
+
+impl Display for HashValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}:{}",
+            match self.algo {
+                HashAlgo::Sha256 => "sha256",
+                HashAlgo::Sha512 => "sha512",
+            },
+            hex::encode(&self.hash)
+        )
     }
 }
 
@@ -119,14 +156,13 @@ async fn hash_file(path: impl AsRef<Path>, hash_algo: HashAlgo) -> Result<Vec<u8
 
 pub async fn put_object<'a, R>(
     path: impl AsRef<Path>,
-    hash: &[u8],
+    hash: &str,
     data: &'a mut R,
-    hash_algo: &str,
-) -> Result<Vec<u8>>
+) -> Result<String>
 where
     R: AsyncRead + Unpin + ?Sized,
 {
-    let hash_algo = HashAlgo::from_str(hash_algo).map_err(Error::msg)?;
+    let hash = HashValue::from_str(hash).map_err(Error::msg)?;
     let path = path.as_ref();
     let tmpdir = path.join(".tmp");
     std::fs::create_dir_all(&tmpdir).context("failed to create blobs directory")?;
@@ -148,34 +184,32 @@ where
     drop(tmpfile);
 
     // Make sure the hash of the file is correct
-    let actual_hash = hash_file(&tmp_filepath, hash_algo).await?;
-    if !hash.is_empty() && actual_hash != hash {
+    let actual_hash = hash_file(&tmp_filepath, hash.algo).await?;
+    if !hash.hash.is_empty() && actual_hash != hash.hash {
         bail!(
             "blob hash mismatch, actual: {}, expected: {}",
-            hex_fmt::HexFmt(actual_hash),
-            hex_fmt::HexFmt(hash)
+            hex_fmt::HexFmt(&actual_hash),
+            hex_fmt::HexFmt(&hash.hash)
         );
     }
     let key = hex::encode(&actual_hash);
     std::fs::rename(&tmp_filepath, path.join(key))
         .context("failed to move object file to blobs directory")?;
-    Ok(actual_hash)
+    let mut hash = hash;
+    hash.hash = actual_hash;
+    Ok(hash.to_string())
 }
 
-pub fn get_object(
-    blobs_dir: impl AsRef<Path>,
-    hash: &[u8],
-    hash_algo: &str,
-) -> Result<Option<Vec<u8>>> {
-    let hash_algo = HashAlgo::from_str(hash_algo).map_err(Error::msg)?;
-    let result = std::fs::read(blobs_dir.as_ref().join(hex::encode(hash)));
+pub fn get_object(blobs_dir: impl AsRef<Path>, hash: &str) -> Result<Option<Vec<u8>>> {
+    let hash = HashValue::from_str(hash).map_err(Error::msg)?;
+    let result = std::fs::read(blobs_dir.as_ref().join(hex::encode(&hash.hash)));
     let data = match result {
         Ok(data) => data,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(err) => return Err(err).context("failed to read object file"),
     };
-    let actual_hash = Hasher::hash(&data, hash_algo);
-    if actual_hash != hash {
+    let actual_hash = Hasher::hash(&data, hash.algo);
+    if actual_hash != hash.hash {
         bail!(
             "blob hash mismatch, actual hash is {}",
             hex_fmt::HexFmt(actual_hash)

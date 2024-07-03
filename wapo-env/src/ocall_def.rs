@@ -111,7 +111,7 @@ pub trait OcallFuncs {
 
     /// Reverse lookup hash object.
     #[ocall(id = 244, encode_output)]
-    fn blob_get(hash: &[u8], hash_algorithm: &str) -> Result<Vec<u8>>;
+    fn blob_get(hash: &str) -> Result<Vec<u8>>;
 
     /// Request the worker to sign data of max 64 bytes.
     #[ocall(id = 250, encode_output)]

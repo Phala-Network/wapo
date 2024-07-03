@@ -134,25 +134,21 @@ async fn prpc_admin_get(
     handle_prpc::<AdminService, _>(state, method, None, limits, content_type, true).await
 }
 
-#[post("/blob/<hash>?<type>", data = "<data>")]
+#[post("/blob/<hash>", data = "<data>")]
 async fn blob_post(
     _auth: Authorized,
     state: &State<Worker>,
     limits: &Limits,
-    r#type: &str,
-    hash: HexBytes,
+    hash: &str,
     data: Data<'_>,
-) -> Result<Vec<u8>, Custom<String>> {
+) -> Result<String, Custom<String>> {
     let loader = state.blob_loader();
     let limit = limits.get("Admin.PutObject").unwrap_or(10.mebibytes());
     let mut stream = data.open(limit);
-    loader
-        .put(&hash.0, &mut stream, r#type)
-        .await
-        .map_err(|err| {
-            warn!("failed to put object: {err:?}");
-            Custom(Status::InternalServerError, err.to_string())
-        })
+    loader.put(hash, &mut stream).await.map_err(|err| {
+        warn!("failed to put object: {err:?}");
+        Custom(Status::InternalServerError, err.to_string())
+    })
 }
 
 #[get("/blob/<id>")]

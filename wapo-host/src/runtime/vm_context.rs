@@ -522,11 +522,11 @@ impl env::OcallFuncs for WapoCtx {
         Ok(())
     }
 
-    fn blob_get(&mut self, hash: &[u8], hash_algorithm: &str) -> Result<Vec<u8>> {
+    fn blob_get(&mut self, hash: &str) -> Result<Vec<u8>> {
         self.meter.record_gas(100);
         let obj = self
             .blob_loader
-            .get(hash, hash_algorithm)
+            .get(hash)
             .or(Err(OcallError::IoError))?
             .ok_or(OcallError::NotFound)?;
         self.meter.record_gas(obj.len() as u64 / 128);

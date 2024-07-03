@@ -577,11 +577,7 @@ impl<T: WorkerConfig> WorkerState<T> {
             .build();
         let (vm_handle, join_handle) = self
             .service
-            .start(
-                &app.manifest.code_hash,
-                &app.manifest.hash_algorithm,
-                config,
-            )
+            .start(&app.manifest.code_hash, config)
             .context("failed to start instance")?;
         let status = vm_handle.subscribe_status();
         let instance = Instance {

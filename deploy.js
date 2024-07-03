@@ -27,7 +27,6 @@ class WorkerClient {
         console.log('Uploading file:', fileName);
         const data = fs.readFileSync(fileName);
         return await this.rpcCall("BlobPut", {
-            hash_algorithm: "sha256",
             body: data.toString('hex')
         });
     }
@@ -98,7 +97,6 @@ async function main() {
         const manifest = {
             version: 1,
             code_hash: wasmFileInfo.hash,
-            hash_algorithm: "sha256",
             args: [],
             env_vars: [["RUST_LOG", "debug"]],
             on_demand: false,
