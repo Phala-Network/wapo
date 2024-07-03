@@ -15,6 +15,11 @@ serde = "1.0.202"
 serde_json = "1.0.117"
 sp-core = "33.0.0"
 sp-runtime = "37.0.0"
-subxt = "0.36.0"
+subxt = "0.37.0"
 tokio = "1.37.0"
 tracing = "0.1.40"
+
+[build-dependencies]
+scale = { version = "3.6.12", package = "parity-scale-codec" }
+subxt-codegen = "0.37"
+syn = "2"

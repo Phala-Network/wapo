@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 use wapod_pherry::{
+    chain_state::monitor_chain_state,
     endpoints::{update_endpoint, UpdateEndpointArgs},
     register::{register, RegisterArgs},
 };
@@ -44,6 +45,9 @@ enum Command {
         #[arg(long)]
         endpoint: String,
     },
+    Test {
+        uri: String,
+    },
 }
 
 #[tokio::main]
@@ -55,7 +59,11 @@ async fn main() -> Result<()> {
 
     let args = Args::parse();
     match args.command {
-        Command::Register { operator, pccs, other } => {
+        Command::Register {
+            operator,
+            pccs,
+            other,
+        } => {
             let args = RegisterArgs {
                 worker_uri: other.worker_uri,
                 token: other.token,
@@ -75,6 +83,12 @@ async fn main() -> Result<()> {
                 endpoint,
             };
             update_endpoint(args).await?;
+        }
+        Command::Test { uri } => {
+            let mut rx = monitor_chain_state(uri);
+            while let Some(state) = rx.recv().await {
+                println!("state received: num tickets={}", state.tickets.len());
+            }
         }
     }
     Ok(())

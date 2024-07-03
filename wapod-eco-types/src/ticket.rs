@@ -1,24 +1,25 @@
+use alloc::collections::BTreeMap;
+use alloc::vec::Vec;
+use alloc::string::String;
+
 use scale::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 use wapod_crypto_types::{worker_signed_message::verify_message, ContentType, CryptoProvider};
 
 use crate::primitives::{BoundedString, BoundedVec, WorkerPubkey};
 
-pub type String512 = BoundedString<512>;
-pub type String256 = BoundedString<256>;
-pub type String32 = BoundedString<32>;
-pub type Hash = BoundedVec<u8, 64>;
+pub type Hash = Vec<u8>;
 
-#[derive(Decode, Encode, TypeInfo, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
+#[derive(Decode, Encode, TypeInfo, Debug, Clone, PartialEq, Eq)]
 pub struct Manifest {
     // The spec version of the manifest.
     pub version: u8,
     // The hash of the app's code.
     pub code: BlobDescription,
     // The arguments of the app.
-    pub args: BoundedVec<String256, 32>,
+    pub args: Vec<String>,
     // The environment variables of the app.
-    pub env_vars: BoundedVec<(String256, String256), 32>,
+    pub env_vars: Vec<(String, String)>,
     // The start mode of the app.
     pub on_demand: bool,
     // Whether the app can run multiple instances in a single worker.
@@ -26,7 +27,7 @@ pub struct Manifest {
     // The maximum size of the query payload.
     pub max_query_size: u32,
     // The optional label of the app.
-    pub label: String32,
+    pub label: String,
 }
 
 impl Manifest {
@@ -36,24 +37,20 @@ impl Manifest {
 }
 
 /// A ticket.
-#[derive(Encode, Decode, TypeInfo, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
 pub struct TicketDescription {
     /// The manifest.
     pub manifest: Manifest,
     /// The blobs that the app required to run.
-    pub required_blobs: BoundedVec<BlobDescription, 32>,
-    /// URLs to download the required resources.
-    pub download_urls: BoundedVec<String512, 4>,
-    /// The prices to be paid to workers for running the app.
-    pub prices: Prices,
+    pub required_blobs: BTreeMap<Hash, String>,
 }
 
-#[derive(Encode, Decode, TypeInfo, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
 pub struct BlobDescription {
     /// The hash of the blob.
     pub hash: Hash,
     /// The hash algorithm of the blob.
-    pub hash_algorithm: String32,
+    pub hash_algorithm: String,
 }
 
 #[derive(Encode, Decode, TypeInfo, Default, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
