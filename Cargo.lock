@@ -8247,6 +8247,7 @@ dependencies = [
  "wapo-host",
  "wapod-crypto",
  "wapod-rpc",
+ "wapod-types",
 ]
 
 [[package]]
@@ -8294,6 +8295,7 @@ version = "0.1.0"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
+ "serde",
 ]
 
 [[package]]

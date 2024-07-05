@@ -6,10 +6,12 @@ edition = "2021"
 [dependencies]
 scale = { version = "3.6.12", package = "parity-scale-codec", default-features = false }
 scale-info = { version = "2.11.3", default-features = false }
+serde = { version = "1.0.203", default-features = false, features = ["derive"] }
 
 [features]
 default = ["std"]
 std = [
     "scale/std",
     "scale-info/std",
+    "serde/std",
 ]

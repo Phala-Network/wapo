@@ -7,6 +7,7 @@ use tracing::{field::display, info, warn, Instrument};
 use wapo_host::{blobs::BlobLoader, Metrics};
 use wapo_host::{MetricsToken, ShortId, SniTlsListener, VmStatus, VmStatusReceiver};
 use wapod_crypto::wapod_types::session::SessionUpdate;
+use wapod_crypto::wapod_types::ticket::AppManifest;
 use wapod_crypto::{ContentType, SpCoreHash};
 use wapod_rpc::prpc::{self as pb};
 
@@ -67,7 +68,7 @@ pub struct AppInfo {
 pub struct AppState {
     sn: u64,
     pub session: [u8; 32],
-    manifest: Manifest,
+    manifest: AppManifest,
     hist_metrics: Metrics,
     instances: Vec<Instance>,
     on_going_queries: usize,
@@ -101,7 +102,7 @@ impl AppState {
             session: self.session,
             running_instances: self.instances.len(),
             last_query_elapsed_secs: self.last_query_done.elapsed().as_secs(),
-            manifest: self.manifest.clone(),
+            manifest: self.manifest.clone().into(),
         }
     }
 }
@@ -409,7 +410,7 @@ impl<T: WorkerConfig> Worker<T> {
         Ok(())
     }
 
-    pub async fn deploy_app(&self, manifest: Manifest, auto_restart: bool) -> Result<AppInfo> {
+    pub async fn deploy_app(&self, manifest: AppManifest, auto_restart: bool) -> Result<AppInfo> {
         if manifest.version != 1 {
             bail!("unsupported manifest version {}", manifest.version);
         }
@@ -499,7 +500,7 @@ impl<T: WorkerConfig> Worker<T> {
         self.lock().session
     }
 
-    pub fn init(&self, salt: &[u8]) -> Result<[u8; 32]> {
+    pub fn init(&self, salt: &[u8]) -> Result<SessionUpdate> {
         self.lock().init(salt)
     }
 
@@ -563,14 +564,7 @@ impl<T: WorkerConfig> WorkerState<T> {
                     .chain(app.manifest.args.iter().cloned())
                     .collect(),
             )
-            .envs(
-                app.manifest
-                    .env_vars
-                    .iter()
-                    .cloned()
-                    .map(|x| (x.key, x.value))
-                    .collect(),
-            )
+            .envs(app.manifest.env_vars.iter().cloned().collect())
             .tcp_listen_port_range(self.args.tcp_listen_port_range.clone())
             .sni_tls_listener(self.sni_tls_listener.clone())
             .verify_tls_server_cert(self.args.verify_tls_server_cert)
@@ -721,15 +715,14 @@ impl<T: WorkerConfig> WorkerState<T> {
         self.apps.values().map(|app| app.instances.len()).sum()
     }
 
-    fn init(&mut self, salt: &[u8]) -> Result<[u8; 32]> {
+    fn init(&mut self, nonce: &[u8]) -> Result<SessionUpdate> {
         if !self.apps.is_empty() {
             bail!("init session failed, apps already deployed")
         }
         let seed: [u8; 32] = rand::thread_rng().gen();
-        let message = [salt, &seed].concat();
-        let session = blake2_256(&message);
-        self.session = Some(session);
-        Ok(seed)
+        let update = SessionUpdate::from_seed::<SpCoreHash>(seed, nonce);
+        self.session = Some(update.session);
+        Ok(update)
     }
 
     fn bump_metrics_sn(&mut self) -> u64 {

@@ -6,9 +6,8 @@ use rocket::figment::{
     Figment,
 };
 use scale::{Decode as _, Encode};
-use sp_core::blake2_256;
-use wapod_crypto::sr25519::Pair;
-use wapod_rpc::{prpc::Manifest, types::Address};
+use wapod_crypto::{sr25519::Pair, wapod_types::ticket::AppManifest};
+use wapod_rpc::types::Address;
 
 pub const CONFIG_FILENAME: &str = "Wapod.toml";
 pub const DEFAULT_CONFIG: &str = include_str!("../Wapod.toml");
@@ -20,12 +19,12 @@ pub fn load_config_file() -> Figment {
 pub struct DefaultWorkerConfig;
 
 pub trait AddressGenerator {
-    fn generate_address(manifest: &Manifest) -> Address;
+    fn generate_address(manifest: &AppManifest) -> Address;
 }
 
 impl AddressGenerator for DefaultWorkerConfig {
-    fn generate_address(manifest: &Manifest) -> Address {
-        blake2_256(&manifest.encode())
+    fn generate_address(manifest: &AppManifest) -> Address {
+        manifest.address(sp_core::blake2_256)
     }
 }
 

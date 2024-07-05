@@ -6,12 +6,26 @@ use sp_runtime::{
 use subxt::Config;
 use subxt::{tx::Signer, utils::MultiSignature};
 
+pub type PhalaSigner = PairSigner<super::Config, sp_core::sr25519::Pair>;
+
 /// A [`Signer`] implementation that can be constructed from an [`sp_core::Pair`].
 #[derive(Clone, Debug)]
 pub struct PairSigner<T: Config, Pair> {
     account_id: T::AccountId,
     signer: Pair,
     nonce: u64,
+}
+
+impl<T, Pair> From<Pair> for PairSigner<T, Pair>
+where
+    T: Config,
+    Pair: PairT,
+    <SpMultiSignature as Verify>::Signer: From<Pair::Public>,
+    T::AccountId: From<[u8; 32]>,
+{
+    fn from(pair: Pair) -> Self {
+        Self::new(pair)
+    }
 }
 
 impl<T, Pair> PairSigner<T, Pair>

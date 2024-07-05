@@ -2,6 +2,7 @@ pub use state::{Worker, WorkerArgs};
 pub use wapod_crypto as crypto;
 pub use wapod_rpc as rpc;
 pub use wapod_rpc::types::Address;
+pub use wapod_types as types;
 
 pub mod config;
 pub mod prpc_service;

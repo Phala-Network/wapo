@@ -117,6 +117,7 @@ service Operation {
 // Basic information about a worker.
 message WorkerInfo {
   // The public key of the worker.
+  // @codec scale [u8; 32]
   bytes pubkey = 1;
   // The number of deployed apps.
   uint64 deployed_apps = 2;
@@ -292,14 +293,15 @@ message Boolean { bool value = 1; }
 
 message InitArgs {
   // The previous metrics nonce reported to the chain.
-  bytes salt = 1;
+  bytes nonce = 1;
 }
 
 message InitResponse {
   // The new worker session.
-  bytes session = 1;
-  // The seed used to derive the session.
-  bytes session_seed = 2;
+  // @codec scale crate::types::SessionUpdate
+  bytes session_update = 1;
+  bytes signature = 2;
+  bytes pubkey = 3;
 }
 
 // Represents a number.

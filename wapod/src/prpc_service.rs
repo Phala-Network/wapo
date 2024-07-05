@@ -104,15 +104,18 @@ impl<T: WorkerConfig> Call<T> {
 
 impl<T: WorkerConfig> OperationRpc for Call<T> {
     async fn worker_init(self, request: pb::InitArgs) -> Result<pb::InitResponse> {
-        if request.salt.len() > 64 {
+        if request.nonce.len() > 64 {
             bail!("the salt is too long");
         }
-        let session_seed = self.init(&request.salt)?;
-        let session = self.session().context("no worker session")?;
-        Ok(pb::InitResponse {
-            session: session.to_vec(),
-            session_seed: session_seed.to_vec(),
-        })
+        let update = self.init(&request.nonce)?;
+        let signature = T::KeyProvider::get_key()
+            .sign(wapod_types::ContentType::SessionUpdate, update.encode());
+        let pubkey = T::KeyProvider::get_key().public();
+        Ok(pb::InitResponse::new(
+            update,
+            signature,
+            pubkey.as_bytes().to_vec(),
+        ))
     }
 
     async fn worker_exit(self) -> Result<()> {
@@ -149,7 +152,7 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
         }
         let manifest = request.manifest.ok_or(anyhow::Error::msg("No manifest"))?;
         let info = self
-            .deploy_app(manifest, true)
+            .deploy_app(manifest.into(), true)
             .await
             .context("failed to deploy app")?;
         info!("app deployed, address={}", hex_fmt::HexFmt(&info.address));
@@ -208,7 +211,7 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
         let metrics = rpc::types::VersionedAppsMetrics::V0(metrics);
         let encoded_metrics = metrics.encode();
         let signature =
-            T::KeyProvider::get_key().sign(wapod_crypto::ContentType::Metrics, encoded_metrics);
+            T::KeyProvider::get_key().sign(wapod_types::ContentType::Metrics, encoded_metrics);
         Ok(pb::AppMetricsResponse::new(metrics, signature))
     }
 
@@ -312,7 +315,7 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
             max_consensus_version: 0,
         };
         let report = crate::sgx::quote(
-            wapod_crypto::ContentType::WorkerAttestation,
+            wapod_types::ContentType::WorkerAttestation,
             &runtime_info.encode(),
         )
         .map(|quote| rpc::types::AttestationReport::SgxDcap {
@@ -335,7 +338,7 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
                 .as_millis() as u64,
         };
         let signature = T::KeyProvider::get_key().sign(
-            wapod_crypto::ContentType::EndpointInfo,
+            wapod_types::ContentType::EndpointInfo,
             endpoint_payload.encode(),
         );
         Ok(pb::SignEndpointsResponse::new(endpoint_payload, signature))

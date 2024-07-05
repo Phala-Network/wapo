@@ -11,7 +11,7 @@ use wapod_pherry::{
 struct CommonArgs {
     #[arg(long)]
     chain_uri: String,
-    #[arg(long)]
+    #[arg(long, default_value = "http://localhost:8001")]
     worker_uri: String,
     #[arg(long, default_value_t = String::new())]
     token: String,
@@ -46,7 +46,8 @@ enum Command {
         endpoint: String,
     },
     Test {
-        uri: String,
+        #[command(flatten)]
+        other: CommonArgs,
     },
 }
 
@@ -84,11 +85,11 @@ async fn main() -> Result<()> {
             };
             update_endpoint(args).await?;
         }
-        Command::Test { uri } => {
-            let mut rx = monitor_chain_state(uri);
-            while let Some(state) = rx.recv().await {
-                println!("state received: num tickets={}", state.tickets.len());
-            }
+        Command::Test { other } => {
+            // let mut rx = monitor_chain_state(uri);
+            // while let Some(state) = rx.recv().await {
+            //     println!("state received: num tickets={}", state.tickets.len());
+            // }
         }
     }
     Ok(())

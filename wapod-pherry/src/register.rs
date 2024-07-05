@@ -84,13 +84,16 @@ pub async fn register(args: RegisterArgs) -> Result<()> {
         _ => attestation.encode(),
     };
 
-    let alice = sp_core::sr25519::Pair::from_string(&signer, None)
+    let signer = sp_core::sr25519::Pair::from_string(&signer, None)
         .expect("should create signer from mnemonic");
-    let mut signer = PairSigner::new(alice);
+    let mut signer = PairSigner::new(signer);
     chain_client
         .register_worker(response.encoded_runtime_info, report, &mut signer)
         .await?;
     let info = worker_client.operation().info().await?;
-    info!("worker 0x{} registered successfully", hex::encode(info.pubkey));
+    info!(
+        "worker 0x{} registered successfully",
+        hex::encode(info.pubkey)
+    );
     Ok(())
 }
