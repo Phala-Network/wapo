@@ -13,6 +13,7 @@ USE_MUSL ?= 0
 
 WORKSPACE = ../..
 BIN_NAME = wapod
+EDMM ?= false
 
 GRAMINE_DIR ?= $(shell ./gramine-dir libs)
 GRAMINE_LIBOS ?= $(shell ./gramine-dir libos)
@@ -66,6 +67,7 @@ ${BIN_NAME}.manifest: ${BIN_NAME}.manifest.template
 		-Dstorage_dir=${STORAGE_DIR} \
 		-Dlibdir=${RUNTIME_DIR}/lib/ \
 		-Dlibos=${LIBOS} \
+		-Dedmm_enable=${EDMM} \
 		$< $@
 
 ${BIN_NAME}.manifest.sgx: ${BIN_NAME}.manifest ${BIN_NAME} ${LIBOS}

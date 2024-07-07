@@ -1,4 +1,8 @@
-{% set enclave_size = "4G" %}
+{% if edmm_enable == "true" %}
+    {% set enclave_size = "1T" %}
+{% else %}
+    {% set enclave_size = "4G" %}
+{% endif %}
 
 [libos]
 entrypoint = "wapod"
@@ -51,7 +55,10 @@ uri = "file:/etc"
 [sgx]
 debug = false
 nonpie_binary = true
+{% if edmm_enable != "true" %}
 enclave_size = "{{ enclave_size }}"
+{% endif %}
+edmm_enable = {{ edmm_enable }}
 thread_num = 32
 max_threads = 128
 remote_attestation = "{{ ra_type }}"
