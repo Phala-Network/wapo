@@ -6,12 +6,23 @@ use std::{
 
 #[derive(Default, Debug, Clone)]
 pub struct Metrics {
+    // unit: gas unint
     pub gas_consumed: u64,
+    // unit: byte
     pub net_egress: u64,
+    // unit: byte
     pub net_ingress: u64,
+    // unit: byte
     pub storage_read: u64,
+    // unit: byte
     pub storage_written: u64,
+    // unit: MB * second
+    pub storage_used: u64,
+    // unit: MB * second
+    pub memory_used: u64,
+    // unit: count
     pub starts: u64,
+    // unit: tip
     pub tip: u64,
     pub duration: Duration,
 }
@@ -25,6 +36,8 @@ impl Metrics {
             net_ingress: self.net_ingress.saturating_add(other.net_ingress),
             storage_read: self.storage_read.saturating_add(other.storage_read),
             storage_written: self.storage_written.saturating_add(other.storage_written),
+            memory_used: self.memory_used.saturating_add(other.memory_used),
+            storage_used: 0,
             starts: self.starts.saturating_add(other.starts),
             tip: self.tip.saturating_add(other.tip),
             duration: self.duration.saturating_add(other.duration),
@@ -71,6 +84,7 @@ impl AddAssign<&Metrics> for Metrics {
 pub struct Meter {
     created_at: Instant,
     gas_consumed: AtomicU64,
+    memory_used: AtomicU64,
     net_egress: AtomicU64,
     net_ingress: AtomicU64,
     storage_read: AtomicU64,
@@ -85,6 +99,7 @@ impl Default for Meter {
         Self {
             created_at: Instant::now(),
             gas_consumed: AtomicU64::new(0),
+            memory_used: AtomicU64::new(0),
             net_egress: AtomicU64::new(0),
             net_ingress: AtomicU64::new(0),
             storage_read: AtomicU64::new(0),
@@ -152,10 +167,12 @@ impl Meter {
         let todo = "check if Instant be modified";
         Metrics {
             gas_consumed: self.gas_consumed.load(Ordering::Relaxed),
+            memory_used: self.memory_used.load(Ordering::Relaxed),
             net_egress: self.net_egress.load(Ordering::Relaxed),
             net_ingress: self.net_ingress.load(Ordering::Relaxed),
             storage_read: self.storage_read.load(Ordering::Relaxed),
             storage_written: self.storage_written.load(Ordering::Relaxed),
+            storage_used: 0,
             tip: self.tip.load(Ordering::Relaxed),
             starts: 1,
             duration: self.created_at.elapsed(),

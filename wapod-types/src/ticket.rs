@@ -56,6 +56,8 @@ pub struct Prices {
     pub net_egress_price: Option<u128>,
     pub storage_read_price: Option<u128>,
     pub storage_write_price: Option<u128>,
+    pub storage_price: Option<u128>,
+    pub memory_price: Option<u128>,
     pub tip_price: Option<u128>,
 }
 
