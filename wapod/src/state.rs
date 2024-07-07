@@ -722,13 +722,13 @@ impl<T: WorkerConfig> WorkerState<T> {
         let seed: [u8; 32] = rand::thread_rng().gen();
         let update = SessionUpdate::from_seed::<SpCoreHash>(seed, nonce);
         self.session = Some(update.session);
+        self.matrics_sn = 0;
         Ok(update)
     }
 
     fn bump_metrics_sn(&mut self) -> u64 {
-        let sn = self.matrics_sn;
         self.matrics_sn += 1;
-        sn
+        self.matrics_sn
     }
 }
 
