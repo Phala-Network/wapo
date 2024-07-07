@@ -796,9 +796,9 @@ impl<T: WorkerConfig + 'static> wapo_host::RuntimeCalls for AppRuntimeCalls<T> {
                     .get(&self.address)
                     .map_or_else(Metrics::default, |app| app.metrics());
                 let token = MetricsToken {
-                    worker_session: inner.session.unwrap_or_default(),
+                    session: inner.session.unwrap_or_default(),
                     nonce: rand::thread_rng().gen(),
-                    metrics_sn: inner.bump_metrics_sn(),
+                    sn: inner.bump_metrics_sn(),
                 };
                 (metrics, token)
             })

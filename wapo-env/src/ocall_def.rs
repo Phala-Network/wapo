@@ -1,7 +1,10 @@
 use super::*;
 use crate::args_stack::{I32Convertible, RetDecode, StackedArgs};
 use crate::tls::{TlsClientConfig, TlsServerConfig};
+
 use std::borrow::Cow;
+
+pub use wapod_types::metrics::MetricsToken;
 
 /// All ocall definitions for wapo.
 #[wapo_macro::ocall]
@@ -136,14 +139,6 @@ pub trait OcallFuncs {
     /// Derive a secret data with hash of the worker's private key + app address + path
     #[ocall(id = 255, encode_output)]
     fn derive_secret(path: &[u8]) -> Result<[u8; 64]>;
-}
-
-#[derive(Decode, Encode, Default, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-pub struct MetricsToken {
-    pub worker_session: [u8; 32],
-    pub nonce: [u8; 32],
-    pub metrics_sn: u64,
 }
 
 #[repr(u8)]

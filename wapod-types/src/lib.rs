@@ -12,6 +12,14 @@ pub mod crypto;
 pub mod primitives;
 pub mod session;
 pub mod ticket;
+pub mod metrics;
+pub mod worker;
+
+pub type Bytes32 = [u8; 32];
+pub type Address = Bytes32;
+pub type Pubkey = Bytes32;
+pub type Hash = Bytes32;
+
 
 #[derive(Clone, Copy, Debug)]
 #[repr(u8)]

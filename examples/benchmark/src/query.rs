@@ -6,7 +6,8 @@ use serde::Serialize;
 use std::time::{Duration, Instant, SystemTime};
 use tokio::sync::mpsc::Sender;
 
-use wapod_types::bench_app::{MetricsToken, SignedMessage, SigningMessage};
+use wapo::env::MetricsToken;
+use wapod_types::bench_app::{SignedMessage, SigningMessage};
 use wapod_types::scale::Encode;
 
 #[derive(Default, Debug, Serialize)]
@@ -94,11 +95,7 @@ async fn score_update(tx: Sender<BenchScore>) {
                         .duration_since(SystemTime::UNIX_EPOCH)
                         .expect("failed to get timestamp")
                         .as_secs(),
-                    metrics_token: MetricsToken {
-                        worker_session: token.worker_session,
-                        nonce: token.nonce,
-                        metrics_sn: token.metrics_sn,
-                    },
+                    metrics_token: token,
                 };
                 tx.send(score).await.expect("failed to send score");
             }

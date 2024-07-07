@@ -26,7 +26,7 @@ use scale::Encode;
 use tracing::{error, field::Empty, info, warn};
 use wapo_host::{
     rocket_stream::{RequestInfo, StreamResponse},
-    ShortId,
+    MetricsToken, ShortId,
 };
 use wapod_crypto::query_signature::{Query, Signer};
 use wapod_rpc::{
@@ -188,9 +188,11 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
             Some(&addresses[..])
         };
         let mut metrics = rpc::types::AppsMetrics {
-            sn: self.worker.bump_metrics_sn(),
-            session: self.session().context("no worker session")?,
-            nonce: rand::thread_rng().gen(),
+            token: MetricsToken {
+                sn: self.worker.bump_metrics_sn(),
+                session: self.session().context("no worker session")?,
+                nonce: rand::thread_rng().gen(),
+            },
             apps: vec![],
         };
         self.for_each_app(addresses, |address, app| {

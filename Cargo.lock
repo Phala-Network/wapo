@@ -8150,6 +8150,7 @@ dependencies = [
  "parity-scale-codec",
  "tinyvec",
  "wapo-macro",
+ "wapod-types",
  "wiggle",
 ]
 

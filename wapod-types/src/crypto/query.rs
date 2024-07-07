@@ -1,6 +1,8 @@
 use alloc::{string::String, vec::Vec};
 use scale::{Decode, Encode};
 
+pub type QuerySignature = Signature<RootOrCertificate>;
+
 #[derive(Clone, Encode, Decode)]
 pub struct Query {
     pub address: Vec<u8>,

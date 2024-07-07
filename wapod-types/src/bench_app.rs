@@ -3,15 +3,9 @@ use scale_info::TypeInfo;
 
 use crate::{
     crypto::{verify::verify_app_data, CryptoProvider},
+    metrics::MetricsToken,
     primitives::{Address, BoundedVec, WorkerPubkey},
 };
-
-#[derive(Decode, Encode, TypeInfo, MaxEncodedLen, Debug, Clone, PartialEq, Eq, Default)]
-pub struct MetricsToken {
-    pub worker_session: [u8; 32],
-    pub nonce: [u8; 32],
-    pub metrics_sn: u64,
-}
 
 /// The message that the benchmark app sends emits.
 #[derive(Decode, Encode, TypeInfo, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
