@@ -131,7 +131,7 @@ struct WorkerState<T> {
     session: Option<[u8; 32]>,
     sni_tls_listener: Option<SniTlsListener>,
     host_filter: Arc<HostFilter>,
-    matrics_sn: u64,
+    metrics_sn: u64,
 }
 
 pub struct Worker<T> {
@@ -201,7 +201,7 @@ impl<T: WorkerConfig> Worker<T> {
                     session: None,
                     sni_tls_listener,
                     host_filter: Arc::new(HostFilter::from_config_file()),
-                    matrics_sn: 0,
+                    metrics_sn: 0,
                 })
             }),
         }
@@ -722,13 +722,13 @@ impl<T: WorkerConfig> WorkerState<T> {
         let seed: [u8; 32] = rand::thread_rng().gen();
         let update = SessionUpdate::from_seed::<SpCoreHash>(seed, nonce);
         self.session = Some(update.session);
-        self.matrics_sn = 0;
+        self.metrics_sn = 0;
         Ok(update)
     }
 
     fn bump_metrics_sn(&mut self) -> u64 {
-        self.matrics_sn += 1;
-        self.matrics_sn
+        self.metrics_sn += 1;
+        self.metrics_sn
     }
 }
 
