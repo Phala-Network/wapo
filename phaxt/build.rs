@@ -15,6 +15,11 @@ fn main() {
         [syn::parse_quote! { Clone }],
         true,
     );
+    builder.add_derives_for_type(
+        syn::parse_quote!(wapod_types::ticket::Prices),
+        [syn::parse_quote! { Default }],
+        true,
+    );
 
     let code = builder.generate(metadata).unwrap().to_string();
     std::fs::write(output_filename, code).unwrap();

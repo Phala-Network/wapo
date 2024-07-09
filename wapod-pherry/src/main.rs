@@ -3,6 +3,7 @@ use clap::{Parser, Subcommand};
 use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 use wapod_pherry::{
     bridge::{run_bridge, BridgeConfig},
+    deploy::{build_manifest, deploy_manifest},
     endpoints::{update_endpoint, UpdateEndpointArgs},
     register::{register, RegisterArgs},
 };
@@ -58,6 +59,24 @@ enum Command {
         #[arg(long, default_value = "300")]
         max_apps: usize,
     },
+    Build {
+        /// The path to the config file.
+        #[arg(long, short, default_value = "WapodDeploy.json")]
+        config: String,
+    },
+    Deploy {
+        /// The path to the config file.
+        #[arg(long, short, default_value = "WapodDeploy.json")]
+        config: String,
+        #[arg(long, default_value = "//Alice")]
+        signer: String,
+        #[arg(long)]
+        node_url: String,
+        #[arg(long)]
+        worker_list: u64,
+        #[arg(long, default_value = "1000000000")]
+        deposit: u128,
+    },
 }
 
 #[tokio::main]
@@ -110,10 +129,18 @@ async fn main() -> Result<()> {
                 max_apps,
             };
             run_bridge(config).await?;
-            // let mut rx = monitor_chain_state(uri);
-            // while let Some(state) = rx.recv().await {
-            //     println!("state received: num tickets={}", state.tickets.len());
-            // }
+        }
+        Command::Build { config } => {
+            build_manifest(config)?;
+        }
+        Command::Deploy {
+            config,
+            signer,
+            node_url,
+            worker_list,
+            deposit,
+        } => {
+            deploy_manifest(config, &node_url, &signer, deposit, worker_list).await?;
         }
     }
     Ok(())

@@ -7,3 +7,4 @@ mod rpc_client;
 pub mod bridge;
 pub mod chain_state;
 pub mod ipfs_downloader;
+pub mod deploy;
