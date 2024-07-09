@@ -36,8 +36,8 @@ pub struct BridgeConfig {
     pub tx_signer: String,
     pub worker_url: String,
     pub worker_token: String,
-    pub ipfs_base_uri: String,
-    pub ipfs_data_dir: String,
+    pub ipfs_base_url: String,
+    pub ipfs_cache_dir: String,
     pub max_apps: usize,
 }
 
@@ -407,7 +407,7 @@ impl BridgeState {
             .collect();
 
         // Sort apps by balance in descending order.
-        let todo = "Better strategy to select apps.";
+        let todo = "better strategy to select apps.";
         sorted_apps.sort_by(|a, b| b.1.balance.cmp(&a.1.balance));
 
         let selected_apps = sorted_apps
@@ -451,19 +451,6 @@ impl BridgeState {
     }
 }
 
-async fn do_resolve_manifest(cid: String, downloader: IpfsDownloader) -> Result<TicketManifest> {
-    let cid = Cid::try_from(cid.as_str()).context("invalid cid")?;
-    let manifest_data = downloader.read_or_download(&cid).await?;
-    let manifest: TicketManifest =
-        serde_json::from_slice(&manifest_data).context("invalid manifest")?;
-    Ok(manifest)
-}
-
-async fn resolve_manifest(cid: String, downloader: IpfsDownloader, event_tx: mpsc::Sender<Event>) {
-    let result = do_resolve_manifest(cid.clone(), downloader).await;
-    _ = event_tx.send(Event::ManifestResolved { cid, result }).await;
-}
-
 pub async fn run_bridge(config: BridgeConfig) -> Result<()> {
     let pair = sr25519::Pair::from_string(&config.tx_signer, None).context("invalid tx signer")?;
     let chain_api = phaxt::connect(&config.node_url.clone())
@@ -472,7 +459,7 @@ pub async fn run_bridge(config: BridgeConfig) -> Result<()> {
     let chain_client = ChainClient::new(chain_api, pair.into());
     let worker_client = WorkerClient::new(config.worker_url.clone(), config.worker_token.clone());
     let ipfs_downloader =
-        IpfsDownloader::new(config.ipfs_base_uri.clone(), config.ipfs_data_dir.clone());
+        IpfsDownloader::new(config.ipfs_base_url.clone(), config.ipfs_cache_dir.clone());
     let state = BridgeState::create(config, worker_client, chain_client, ipfs_downloader)
         .await
         .context("failed to create bridge")?;

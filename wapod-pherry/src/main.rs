@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 use wapod_pherry::{
-    chain_state::monitor_chain_state,
+    bridge::{run_bridge, BridgeConfig},
     endpoints::{update_endpoint, UpdateEndpointArgs},
     register::{register, RegisterArgs},
 };
@@ -48,6 +48,15 @@ enum Command {
     Bridge {
         #[command(flatten)]
         other: CommonArgs,
+        /// The base URL of the IPFS gateway.
+        #[arg(long, default_value = "https://ipfs.io/ipfs/")]
+        ipfs_url: String,
+        /// The cache directory of IPFS.
+        #[arg(long, default_value = "./data/ipfs_cache")]
+        ipfs_cache_dir: String,
+        /// The maximum number of apps that can be deployed.
+        #[arg(long, default_value = "300")]
+        max_apps: usize,
     },
 }
 
@@ -85,7 +94,22 @@ async fn main() -> Result<()> {
             };
             update_endpoint(args).await?;
         }
-        Command::Bridge { other } => {
+        Command::Bridge {
+            other,
+            ipfs_url,
+            ipfs_cache_dir,
+            max_apps,
+        } => {
+            let config = BridgeConfig {
+                node_url: other.node_url,
+                tx_signer: other.signer,
+                worker_url: other.worker_url,
+                worker_token: other.token,
+                ipfs_base_url: ipfs_url,
+                ipfs_cache_dir,
+                max_apps,
+            };
+            run_bridge(config).await?;
             // let mut rx = monitor_chain_state(uri);
             // while let Some(state) = rx.recv().await {
             //     println!("state received: num tickets={}", state.tickets.len());

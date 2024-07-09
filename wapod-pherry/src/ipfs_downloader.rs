@@ -67,7 +67,7 @@ impl IpfsDownloader {
                 data_dir: data_dir.as_ref().to_path_buf(),
                 max_downloading: 10,
                 max_pending: 10000,
-                max_file_size: 1024 * 1024 * 50,
+                max_file_size: 1024 * 1024 * 20,
                 max_download_time: Duration::from_secs(600),
                 notify: broadcast::channel(1).0,
             }),
