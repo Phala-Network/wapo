@@ -138,6 +138,10 @@ message WorkerInfo {
   ModuleLoaderInfo module_loader_info = 8;
   // The port range for TCP listen.
   string tcp_listen_port_range = 10;
+  // The address of current benchmark app.
+  bytes bench_app_address = 11;
+  // The maximum number of benchmark app instances.
+  uint32 bench_app_instances = 12;
 }
 
 message MemoryUsage {

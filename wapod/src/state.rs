@@ -132,6 +132,8 @@ struct WorkerState<T> {
     sni_tls_listener: Option<SniTlsListener>,
     host_filter: Arc<HostFilter>,
     metrics_sn: u64,
+    bench_app: Option<Address>,
+    bench_instances: u32,
 }
 
 pub struct Worker<T> {
@@ -202,6 +204,8 @@ impl<T: WorkerConfig> Worker<T> {
                     sni_tls_listener,
                     host_filter: Arc::new(HostFilter::from_config_file()),
                     metrics_sn: 0,
+                    bench_app: None,
+                    bench_instances: 0,
                 })
             }),
         }
@@ -272,6 +276,8 @@ impl<T: WorkerConfig> Worker<T> {
                     format!("{start}-{end}")
                 }
             },
+            bench_app_address: worker.bench_app.map(|a| a.to_vec()).unwrap_or_default(),
+            bench_app_instances: worker.bench_instances,
         }
     }
 

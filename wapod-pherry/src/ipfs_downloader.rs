@@ -106,47 +106,48 @@ impl IpfsDownloader {
         }
     }
 
-    pub fn download(&self, cid: &Cid, force: bool) -> Result<()> {
+    pub fn download(&self, cid: &Cid, force: bool) -> Result<bool> {
         if !force && self.exists(cid) {
-            self.config
-                .notify
-                .send(Event::Downloaded {
-                    cid: cid.to_string(),
-                })
-                .ok();
-            return Ok(());
+            return Ok(true);
         }
         let cid_str = cid.to_string();
         let mut state = self.state.lock().unwrap();
 
         if state.downloading.contains(&cid_str) || state.pending.contains(&cid_str) {
             info!("already downloading {cid_str}");
-            return Ok(());
+            return Ok(false);
         }
         if state.downloading.len() < self.config.max_downloading {
             state.downloading.insert(cid_str.clone());
             info!("downloading {cid_str}");
+            let todo = "cancel task if the downloader is dropped";
             tokio::spawn(self.clone().download_task(cid_str));
-            return Ok(());
+            return Ok(false);
         } else if state.pending.len() < self.config.max_pending {
             state.pending.insert(cid_str.clone());
             info!("queued {cid_str}");
-            return Ok(());
+            return Ok(false);
         } else {
             bail!("download queue full, failed to download {cid_str}");
         }
     }
 
-    pub async fn read(&self, cid: &Cid) -> Result<Vec<u8>> {
+    pub async fn read(&self, cid: &Cid) -> Result<Option<Vec<u8>>> {
         let path = self.path_of(&cid.to_string());
-        let data = tokio::fs::read(path).await?;
-        Ok(data)
+        let data = match tokio::fs::read(path).await {
+            Ok(data) => data,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(err) => return Err(err.into()),
+        };
+        Ok(Some(data))
     }
 
     pub async fn read_or_download(&self, cid: &Cid) -> Result<Vec<u8>> {
         let mut rx = self.subscribe_events();
-        if self.exists(cid) {
-            return self.read(cid).await;
+        match self.read(cid).await {
+            Ok(Some(data)) => return Ok(data),
+            Ok(None) => {}
+            Err(err) => return Err(err),
         }
         self.download(cid, true)?;
         loop {
@@ -156,7 +157,10 @@ impl IpfsDownloader {
                     cid: downloaded_cid,
                 } => {
                     if downloaded_cid == cid.to_string() {
-                        return self.read(cid).await;
+                        return self
+                            .read(cid)
+                            .await?
+                            .ok_or_else(|| anyhow::anyhow!("downloaded file not found: {cid}"));
                     }
                 }
             }

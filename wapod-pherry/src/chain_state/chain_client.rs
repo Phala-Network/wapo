@@ -1,10 +1,13 @@
 use std::ops::Deref;
 
 use anyhow::{Context, Result};
-use phaxt::{signer::PhalaSigner, subxt::tx::Payload, ChainApi};
+use phaxt::{
+    signer::PhalaSigner,
+    subxt::{dynamic::Value, tx::Payload},
+    ChainApi,
+};
 use sp_core::{sr25519, Pair};
 use tokio::time::timeout;
-use tracing::info;
 
 use super::NET_TIMEOUT;
 
@@ -62,5 +65,25 @@ impl ChainClient {
                 .context("tx failed")?;
         }
         Ok(())
+    }
+
+    pub async fn ticket_balance(&self, ticket_id: u64) -> Result<u128> {
+        let runtime_api_call = phaxt::subxt::dynamic::runtime_api_call(
+            "WapodWorkersApi",
+            "balance_of_ticket",
+            vec![Value::u128(ticket_id as _)],
+        );
+
+        let balance = self
+            .client
+            .runtime_api()
+            .at_latest()
+            .await?
+            .call(runtime_api_call)
+            .await?
+            .to_value()?
+            .as_u128()
+            .context("invalid balance")?;
+        Ok(balance)
     }
 }

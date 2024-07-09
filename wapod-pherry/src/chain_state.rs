@@ -20,6 +20,7 @@ mod chain_client;
 pub type TicketId = u64;
 pub type WorkerListId = u64;
 
+#[derive(Default)]
 pub struct ChainState {
     pub tickets: BTreeMap<TicketId, TicketInfo>,
     pub worker_lists: BTreeMap<WorkerListId, WorkerListInfo>,
@@ -45,17 +46,13 @@ pub fn heartbeat_hit_worker(heartbeat: &HeartbeatChallenge, worker: &Address) ->
     x <= online_target
 }
 
-pub fn monitor_chain_state(uri: String) -> Receiver<ChainState> {
-    let (tx, rx) = tokio::sync::mpsc::channel(1);
-    tokio::spawn(async move {
-        loop {
-            if let Err(err) = monitor(&uri, tx.clone()).await {
-                error!("monitoring chain state error: {err}");
-                tokio::time::sleep(Duration::from_secs(5)).await;
-            }
+pub async fn monitor_chain_state(uri: String, state_tx: Sender<ChainState>) {
+    loop {
+        if let Err(err) = monitor(&uri, state_tx.clone()).await {
+            error!("monitoring chain state error: {err}");
+            tokio::time::sleep(Duration::from_secs(5)).await;
         }
-    });
-    rx
+    }
 }
 
 // This is a workaround for the issue that the subxt generated code always set the iter Keys to `()`
