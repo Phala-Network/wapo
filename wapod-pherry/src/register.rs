@@ -14,9 +14,9 @@ use wapod_rpc::types::AttestationReport;
 use crate::WorkerClient;
 
 pub struct RegisterArgs {
-    pub worker_uri: String,
+    pub worker_url: String,
     pub token: String,
-    pub chain_uri: String,
+    pub node_url: String,
     pub signer: String,
     pub operator: String,
     pub pccs_url: String,
@@ -24,16 +24,16 @@ pub struct RegisterArgs {
 
 pub async fn register(args: RegisterArgs) -> Result<()> {
     let RegisterArgs {
-        worker_uri,
+        worker_url,
         token,
-        chain_uri,
+        node_url,
         signer,
         operator,
         pccs_url,
     } = args;
-    let worker_client = WorkerClient::new(worker_uri, token);
+    let worker_client = WorkerClient::new(worker_url, token);
     info!("connecting to the chain");
-    let chain_client = phaxt::connect(&chain_uri)
+    let chain_client = phaxt::connect(&node_url)
         .await
         .context("failed to connect to the chain")?;
     info!("getting paraid");

@@ -4,27 +4,27 @@ use std::{
     rc::Rc,
 };
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use cid::Cid;
 use hex_fmt::HexFmt as Hex;
 use phaxt::phala::runtime_types::{
     phala_pallets::wapod_workers::pallet::{TicketInfo, WorkerSet},
     sp_core::sr25519::Public,
-    wapod_types::{session::SessionUpdate, ticket::Prices},
+    wapod_types::session::SessionUpdate,
 };
 use scale::Decode;
 use sp_core::{sr25519, Pair};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 use wapod_rpc::{
-    prpc::{self as pb, AppListArgs, DeployArgs, InitArgs, ResizeArgs},
+    prpc::{self as pb, AppListArgs, Blob, DeployArgs, InitArgs},
     types::Address,
 };
 use wapod_types::ticket::{AppManifest, TicketManifest};
 
 use crate::{
     chain_state::{monitor_chain_state, ChainClient},
-    ipfs_downloader::{self, IpfsDownloader},
+    ipfs_downloader::IpfsDownloader,
 };
 use crate::{
     chain_state::{ChainState, TicketId},
@@ -32,9 +32,9 @@ use crate::{
 };
 
 pub struct BridgeConfig {
-    pub node_uri: String,
+    pub node_url: String,
     pub tx_signer: String,
-    pub worker_uri: String,
+    pub worker_url: String,
     pub worker_token: String,
     pub ipfs_base_uri: String,
     pub ipfs_data_dir: String,
@@ -185,16 +185,13 @@ impl BridgeState {
         }
 
         let apps = self.get_running_apps().await?;
-        let total_running: u64 = apps.values().copied().sum();
-
         let mut to_deploy = vec![];
         let mut to_remove = vec![];
 
         for (address, plan) in self.planning_state.selected_apps.iter() {
-            let Some(running_instances) = apps.get(address).cloned() else {
+            if !apps.contains_key(address) {
                 to_deploy.push((*address, plan));
-                continue;
-            };
+            }
         }
         for (address, _running_instances) in apps.iter() {
             if !self.planning_state.selected_apps.contains_key(address) {
@@ -205,10 +202,53 @@ impl BridgeState {
         info!(
             "to_deploy: {}, to_remove: {}",
             to_deploy.len(),
-            to_remove.len(),
+            to_remove.len()
         );
 
-        for (address, info) in to_deploy {
+        'next_app: for (address, info) in to_deploy {
+            let deps = info
+                .associated_tickets
+                .iter()
+                .map(|id| {
+                    self.planning_state.tickets[id]
+                        .manifest
+                        .required_blobs
+                        .clone()
+                        .into_iter()
+                })
+                .flatten()
+                .collect::<BTreeSet<_>>();
+            for (hash, cid_str) in deps {
+                let uploaded = self
+                    .worker_client
+                    .operation()
+                    .blob_exists(Blob {
+                        hash: hash.clone(),
+                        body: vec![],
+                    })
+                    .await?
+                    .value;
+                if uploaded {
+                    continue;
+                }
+                let cid: Cid = cid_str.parse().context("invalid blob cid")?;
+                let blob = self
+                    .ipfs_downloader
+                    .read(&cid)
+                    .await?
+                    .context("blob not found")?;
+                info!(?hash, ?cid, address=%Hex(address), "uploading blob");
+                let result = self
+                    .worker_client
+                    .operation()
+                    .blob_put(Blob { hash, body: blob })
+                    .await;
+                if let Err(err) = result {
+                    error!("failed to upload blob: {:?}", err);
+                    continue 'next_app;
+                }
+            }
+            info!("deploying app 0x{}", Hex(address));
             let result = self
                 .worker_client
                 .operation()
@@ -235,6 +275,7 @@ impl BridgeState {
         }
 
         for address in to_remove {
+            info!("removing app 0x{}", Hex(address));
             let result = self
                 .worker_client
                 .operation()
@@ -297,7 +338,6 @@ impl BridgeState {
     }
 
     async fn try_resolve_deps(&mut self) -> Result<()> {
-        let todo = "todo";
         for (id, info) in self.chain_state.tickets.iter() {
             if self.planning_state.tickets.contains_key(id) {
                 continue;
@@ -323,7 +363,6 @@ impl BridgeState {
     }
 
     async fn update_plan(&mut self) -> Result<()> {
-        let todo = "review codegen";
         self.try_resolve_deps().await?;
         let worker_info = self.worker_client.operation().info().await?;
         let mut all_apps = BTreeMap::new();
@@ -381,6 +420,7 @@ impl BridgeState {
             .chain_state
             .bench_app_address
             .map(|address| (address, worker_info.max_instances));
+        self.apply_plan().await?;
         Ok(())
     }
 
@@ -393,9 +433,9 @@ impl BridgeState {
         //  hunt for new bench apps
         //  monitor worker state, schedule jobs
         //  submit bench score
-        let node_uri = self.config.node_uri.clone();
+        let node_url = self.config.node_url.clone();
         let (chain_state_tx, mut chain_state_rx) = mpsc::channel(1);
-        let mut chain_state_monitor = pin!(monitor_chain_state(node_uri, chain_state_tx));
+        let mut chain_state_monitor = pin!(monitor_chain_state(node_url, chain_state_tx));
         let mut downloader_events = self.ipfs_downloader.subscribe_events();
         loop {
             tokio::select! {
@@ -426,11 +466,11 @@ async fn resolve_manifest(cid: String, downloader: IpfsDownloader, event_tx: mps
 
 pub async fn run_bridge(config: BridgeConfig) -> Result<()> {
     let pair = sr25519::Pair::from_string(&config.tx_signer, None).context("invalid tx signer")?;
-    let chain_api = phaxt::connect(&config.node_uri.clone())
+    let chain_api = phaxt::connect(&config.node_url.clone())
         .await
         .context("connect to chain failed")?;
     let chain_client = ChainClient::new(chain_api, pair.into());
-    let worker_client = WorkerClient::new(config.worker_uri.clone(), config.worker_token.clone());
+    let worker_client = WorkerClient::new(config.worker_url.clone(), config.worker_token.clone());
     let ipfs_downloader =
         IpfsDownloader::new(config.ipfs_base_uri.clone(), config.ipfs_data_dir.clone());
     let state = BridgeState::create(config, worker_client, chain_client, ipfs_downloader)

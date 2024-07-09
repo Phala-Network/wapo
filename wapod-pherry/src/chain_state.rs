@@ -7,7 +7,7 @@ use phaxt::phala::runtime_types::phala_pallets::wapod_workers::pallet::{
 };
 use scale::Decode;
 use tokio::{
-    sync::mpsc::{Receiver, Sender},
+    sync::mpsc::Sender,
     time::{timeout, Duration},
 };
 use tracing::{error, info, trace};

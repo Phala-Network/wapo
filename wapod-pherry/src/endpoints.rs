@@ -6,23 +6,23 @@ use wapod_rpc::prpc::SignEndpointsArgs;
 use crate::WorkerClient;
 
 pub struct UpdateEndpointArgs {
-    pub worker_uri: String,
+    pub worker_url: String,
     pub token: String,
-    pub chain_uri: String,
+    pub node_url: String,
     pub endpoint: String,
     pub signer: String,
 }
 
 pub async fn update_endpoint(args: UpdateEndpointArgs) -> Result<()> {
     let UpdateEndpointArgs {
-        worker_uri,
+        worker_url,
         token,
-        chain_uri,
+        node_url,
         endpoint,
         signer: operator,
     } = args;
-    let worker_client = WorkerClient::new(worker_uri, token);
-    let chain_client = phaxt::connect(&chain_uri)
+    let worker_client = WorkerClient::new(worker_url, token);
+    let chain_client = phaxt::connect(&node_url)
         .await
         .context("failed to connect to the chain")?;
     let rpc_args = SignEndpointsArgs {

@@ -10,9 +10,9 @@ use wapod_pherry::{
 #[derive(Parser, Clone, Debug)]
 struct CommonArgs {
     #[arg(long)]
-    chain_uri: String,
+    node_url: String,
     #[arg(long, default_value = "http://localhost:8001")]
-    worker_uri: String,
+    worker_url: String,
     #[arg(long, default_value_t = String::new())]
     token: String,
     #[arg(long, default_value = "//Alice")]
@@ -45,7 +45,7 @@ enum Command {
         #[arg(long)]
         endpoint: String,
     },
-    Test {
+    Bridge {
         #[command(flatten)]
         other: CommonArgs,
     },
@@ -66,9 +66,9 @@ async fn main() -> Result<()> {
             other,
         } => {
             let args = RegisterArgs {
-                worker_uri: other.worker_uri,
+                worker_url: other.worker_url,
                 token: other.token,
-                chain_uri: other.chain_uri,
+                node_url: other.node_url,
                 signer: other.signer,
                 operator,
                 pccs_url: pccs,
@@ -77,15 +77,15 @@ async fn main() -> Result<()> {
         }
         Command::Update { endpoint, other } => {
             let args = UpdateEndpointArgs {
-                worker_uri: other.worker_uri,
+                worker_url: other.worker_url,
                 token: other.token,
-                chain_uri: other.chain_uri,
+                node_url: other.node_url,
                 signer: other.signer,
                 endpoint,
             };
             update_endpoint(args).await?;
         }
-        Command::Test { other } => {
+        Command::Bridge { other } => {
             // let mut rx = monitor_chain_state(uri);
             // while let Some(state) = rx.recv().await {
             //     println!("state received: num tickets={}", state.tickets.len());
