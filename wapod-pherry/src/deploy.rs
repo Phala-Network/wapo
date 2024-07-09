@@ -4,9 +4,15 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use phaxt::phala::phala_wapod_workers::calls::types::create_system_ticket::Address;
+use phaxt::phala::{
+    phala_wapod_workers::calls::types::create_system_ticket::Address,
+    runtime_types::sp_core::sr25519::Public,
+};
 use serde::Deserialize;
-use wapod_types::ticket::{AppManifest, TicketManifest};
+use wapod_types::{
+    ticket::{AppManifest, TicketManifest},
+    worker,
+};
 
 use crate::chain_state::ChainClient;
 
@@ -113,4 +119,27 @@ pub async fn deploy_manifest(
     let chain_client = ChainClient::connect(node_url, signer).await?;
     chain_client.submit_tx(&tx, true).await?;
     Ok(())
+}
+
+async fn create_worker_list(node_url: &str, signer: &str, workers: Vec<Address>) -> Result<()> {
+    let tx = phaxt::phala::tx().phala_wapod_workers().create_worker_list(
+        "pherry-created".to_string(),
+        Default::default(),
+        workers.into_iter().map(Public).collect(),
+    );
+    let chain_client = ChainClient::connect(node_url, signer).await?;
+    chain_client.submit_tx(&tx, true).await?;
+    Ok(())
+}
+
+pub async fn create_worker_list_for_worker(
+    node_url: String,
+    signer: String,
+    worker_url: String,
+    worker_token: String,
+) -> Result<()> {
+    let worker_client = crate::WorkerClient::new(worker_url, worker_token);
+    let info = worker_client.operation().info().await?;
+    let pubkey = info.decode_pubkey()?;
+    create_worker_list(&node_url, &signer, vec![pubkey]).await
 }

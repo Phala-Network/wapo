@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 use wapod_pherry::{
     bridge::{run_bridge, BridgeConfig},
-    deploy::{build_manifest, deploy_manifest},
+    deploy,
     endpoints::{update_endpoint, UpdateEndpointArgs},
     register::{register, RegisterArgs},
 };
@@ -58,6 +58,10 @@ enum Command {
         /// The maximum number of apps that can be deployed.
         #[arg(long, default_value = "300")]
         max_apps: usize,
+    },
+    CreateWorkerList {
+        #[command(flatten)]
+        other: CommonArgs,
     },
     Build {
         /// The path to the config file.
@@ -130,8 +134,17 @@ async fn main() -> Result<()> {
             };
             run_bridge(config).await?;
         }
+        Command::CreateWorkerList { other } => {
+            deploy::create_worker_list_for_worker(
+                other.node_url,
+                other.signer,
+                other.worker_url,
+                other.token,
+            )
+            .await?;
+        }
         Command::Build { config } => {
-            build_manifest(config)?;
+            deploy::build_manifest(config)?;
         }
         Command::Deploy {
             config,
@@ -140,7 +153,7 @@ async fn main() -> Result<()> {
             worker_list,
             deposit,
         } => {
-            deploy_manifest(config, &node_url, &signer, deposit, worker_list).await?;
+            deploy::deploy_manifest(config, &node_url, &signer, deposit, worker_list).await?;
         }
     }
     Ok(())
