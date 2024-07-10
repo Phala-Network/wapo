@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use cid::Cid;
 use hex_fmt::HexFmt as Hex;
 use phaxt::phala::runtime_types::{
@@ -15,7 +15,7 @@ use phaxt::phala::runtime_types::{
 use scale::Decode;
 use sp_core::{sr25519, Pair};
 use tokio::sync::mpsc;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use wapod_rpc::{
     prpc::{self as pb, AppListArgs, Blob, DeployArgs, InitArgs},
     types::Address,
@@ -73,6 +73,7 @@ struct PlanningState {
     bench_app: Option<(Address, u64)>,
     all_apps: BTreeMap<Address, Rc<AppInfo>>,
     selected_apps: BTreeMap<Address, Rc<AppInfo>>,
+    download_failures: BTreeMap<String, String>,
 }
 
 pub struct AppInfo {
@@ -199,13 +200,17 @@ impl BridgeState {
             }
         }
 
-        if !(to_deploy.is_empty() && to_remove.is_empty()) {
-            info!(
-                "to_deploy: {}, to_remove: {}",
-                to_deploy.len(),
-                to_remove.len()
-            );
-        }
+        info!(
+            tickets_onchain = self.chain_state.tickets.len(),
+            tickets_for_worker = self.planning_state.tickets.len(),
+            apps = self.planning_state.all_apps.len(),
+            selected_apps = self.planning_state.selected_apps.len(),
+            deployed = info.deployed_apps,
+            running = info.running_instances,
+            to_deploy = to_deploy.len(),
+            to_remove = to_remove.len(),
+            "applying plan"
+        );
 
         'next_app: for (address, info) in to_deploy {
             let deps = info
@@ -308,6 +313,13 @@ impl BridgeState {
             .parse()
             .context("invalid manifest cid")?;
         let Some(manifest_data) = self.ipfs_downloader.read(&cid).await? else {
+            if let Some(err) = self
+                .planning_state
+                .download_failures
+                .get(&ticket_info.manifest_cid)
+            {
+                bail!("failed to download manifest: {err}");
+            }
             self.ipfs_downloader.download(&cid, false)?;
             return Ok(None);
         };
@@ -315,6 +327,9 @@ impl BridgeState {
             serde_json::from_slice(&manifest_data).context("invalid manifest")?;
         for (_hash, cid_str) in manifest.required_blobs.iter() {
             let cid: Cid = cid_str.parse().context("invalid blob cid")?;
+            if let Some(err) = self.planning_state.download_failures.get(cid_str) {
+                bail!("failed to download blob: {err}");
+            }
             let downloaded = self.ipfs_downloader.download(&cid, false)?;
             if !downloaded {
                 return Ok(None);
@@ -445,7 +460,17 @@ impl BridgeState {
                 state = chain_state_rx.recv() => {
                     self.set_chain_state(state.context("chain state monitor ended")?);
                 }
-                _ = downloader_events.recv() => {
+                event = downloader_events.recv() => {
+                    let event = event.context("downloader event channel closed")?;
+                    use crate::ipfs_downloader::Event as DownloaderEvent;
+                    match event {
+                        DownloaderEvent::Downloaded { cid: _ } => {}
+                        DownloaderEvent::DownloadFailure { cid, error } => {
+                            warn!("download {cid} failed: {error}");
+                            self.planning_state.download_failures.insert(cid, error);
+                            continue;
+                        }
+                    }
                 }
             }
             self.update_plan().await?;

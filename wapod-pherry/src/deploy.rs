@@ -116,7 +116,8 @@ pub fn build_manifest(config_file: impl AsRef<Path>) -> Result<(Address, String)
         hash(manifest_json.as_bytes(), &blobs_dir).context("failed to hash manifest file")?;
     write_file(output_dir.join("manifest.json"), manifest_json.as_bytes())
         .context("failed to write manifest")?;
-    println!("manifest cid: {}", manifest_cid);
+    println!("manifest cid : {}", manifest_cid);
+    println!("app address  : 0x{}", HexFmt(address));
     Ok((address, manifest_cid))
 }
 

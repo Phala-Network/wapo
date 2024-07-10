@@ -19,6 +19,7 @@ struct IpfsDownloaderState {
 #[derive(Debug, Clone)]
 pub enum Event {
     Downloaded { cid: String },
+    DownloadFailure { cid: String, error: String },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -119,7 +120,6 @@ impl IpfsDownloader {
         }
         if state.downloading.len() < self.config.max_downloading {
             state.downloading.insert(cid_str.clone());
-            info!("downloading {cid_str}");
             let todo = "cancel task if the downloader is dropped";
             tokio::spawn(self.clone().download_task(cid_str));
             return Ok(false);
@@ -163,6 +163,14 @@ impl IpfsDownloader {
                             .ok_or_else(|| anyhow::anyhow!("downloaded file not found: {cid}"));
                     }
                 }
+                Event::DownloadFailure {
+                    cid: event_cid,
+                    error,
+                } => {
+                    if event_cid == cid.to_string() {
+                        bail!("download failed: {error}");
+                    }
+                }
             }
         }
     }
@@ -192,30 +200,36 @@ impl IpfsDownloader {
                 Ok(())
             })
             .await;
-            match result {
+            let event = match result {
                 Ok(Ok(_)) => {
-                    info!("downloaded {cid_str}");
+                    debug!("downloaded {cid_str}");
                     if let Err(err) = std::fs::rename(&tmp_file, self.path_of(&cid_str)) {
                         error!("failed to rename tmp file: {err:?}");
                     }
+                    Event::Downloaded {
+                        cid: cid_str.clone(),
+                    }
                 }
                 Ok(Err(err)) => {
-                    error!("download {cid_str} failed: {err}");
+                    debug!("download {cid_str} failed: {err}");
                     let _ = std::fs::remove_file(&tmp_file);
+                    Event::DownloadFailure {
+                        cid: cid_str.clone(),
+                        error: err.to_string(),
+                    }
                 }
                 Err(_) => {
-                    error!("download {cid_str} timeout");
+                    debug!("download {cid_str} timeout");
                     let _ = std::fs::remove_file(&tmp_file);
+                    Event::DownloadFailure {
+                        cid: cid_str.clone(),
+                        error: "timeout".to_string(),
+                    }
                 }
-            }
+            };
             let mut state = self.state.lock().unwrap();
             state.downloading.remove(&cid_str);
-            self.config
-                .notify
-                .send(Event::Downloaded {
-                    cid: cid_str.clone(),
-                })
-                .ok();
+            self.config.notify.send(event).ok();
             if let Some(next_cid) = state.pending.pop_first() {
                 state.downloading.insert(next_cid.clone());
                 cid_str = next_cid;
