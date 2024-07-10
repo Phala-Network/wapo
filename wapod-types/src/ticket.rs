@@ -42,9 +42,7 @@ impl AppManifest {
     }
 }
 
-#[derive(
-    Encode, Decode, TypeInfo, Default, MaxEncodedLen, Debug, Clone, PartialEq, Eq, EncodeAsType,
-)]
+#[derive(Encode, Decode, TypeInfo, Default, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
 pub struct Prices {
     pub general_fee_per_second: Option<u128>,
     pub gas_price: Option<u128>,

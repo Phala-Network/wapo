@@ -5852,8 +5852,6 @@ name = "wapod-types"
 version = "0.1.0"
 dependencies = [
  "parity-scale-codec",
- "scale-decode",
- "scale-encode",
  "scale-info",
  "serde",
 ]

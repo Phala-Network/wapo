@@ -3,7 +3,7 @@
     "wasm_code": "test.wasm",
     "args": [
         "--port",
-        "8080"
+        "sha256-of-file:res1.txt"
     ],
     "env_vars": {
         "RUST_LOG": "info"

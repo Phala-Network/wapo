@@ -371,7 +371,7 @@ impl BridgeState {
         for (id, ticket) in self.planning_state.tickets.iter() {
             let info = &ticket.info;
             let manifest = &ticket.manifest;
-            let address = manifest.manifest.address(sp_core::hashing::blake2_256);
+            let address = manifest.address(sp_core::hashing::blake2_256);
             if info.address != address {
                 error!(
                     id,
@@ -395,7 +395,7 @@ impl BridgeState {
             };
             let entry = all_apps.entry(address);
             let app_info = entry.or_insert(AppInfo {
-                manifest: manifest.manifest.clone(),
+                manifest: manifest.clone(),
                 associated_tickets: BTreeSet::new(),
                 balance: 0,
             });

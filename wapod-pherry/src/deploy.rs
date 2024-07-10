@@ -17,7 +17,10 @@ use tracing::info;
 use wapod_rpc::prpc::SignWorkerDescriptionArgs;
 use wapod_types::ticket::AppManifest;
 
-use crate::chain_state::ChainClient;
+use crate::{
+    chain_state::ChainClient,
+    util::{read_file, write_file},
+};
 
 #[derive(Deserialize, Debug, Clone)]
 struct DeployConfig {
@@ -47,7 +50,7 @@ fn cid_of(data: &[u8]) -> Result<String> {
 fn hash(data: &[u8], output_dir: impl AsRef<Path>) -> Result<(String, String)> {
     let hash = sha256_hash(data);
     let cid = cid_of(data)?;
-    std::fs::write(output_dir.as_ref().join(&cid), data)?;
+    write_file(output_dir.as_ref().join(&cid), data)?;
     Ok((hash, cid))
 }
 
@@ -67,12 +70,27 @@ pub fn build_manifest(config_file: impl AsRef<Path>) -> Result<(Address, String)
     let mut deps = BTreeMap::new();
 
     let wasm_code =
-        std::fs::read(base_dir.join(config.wasm_code)).context("failed to read wasm_code")?;
+        read_file(base_dir.join(config.wasm_code)).context("failed to read wasm_code")?;
     let (code_hash, cid) = hash(&wasm_code, &blobs_dir)?;
     deps.insert(code_hash.clone(), cid);
 
+    let mut args = vec![];
+
+    for arg in config.args.into_iter() {
+        let prefix = "sha256-of-file:";
+        if arg.starts_with(prefix) {
+            let file = arg.trim_start_matches(prefix);
+            let data = read_file(base_dir.join(file)).context("failed to read file")?;
+            let (hash, cid) = hash(&data, &blobs_dir)?;
+            args.push(hash.clone());
+            deps.insert(hash, cid);
+        } else {
+            args.push(arg);
+        }
+    }
+
     for dep in config.deps {
-        let dep_code = std::fs::read(base_dir.join(dep)).context("failed to read dep")?;
+        let dep_code = read_file(base_dir.join(dep)).context("failed to read dep")?;
         let (dep_hash, dep_cid) = hash(&dep_code, &blobs_dir)?;
         if deps.contains_key(&dep_hash) {
             continue;
@@ -83,7 +101,7 @@ pub fn build_manifest(config_file: impl AsRef<Path>) -> Result<(Address, String)
     let manifest = AppManifest {
         version: 1,
         code_hash,
-        args: config.args,
+        args,
         env_vars: config.env_vars.into_iter().collect(),
         on_demand: config.on_demand,
         resizable: config.resizable,
@@ -91,12 +109,12 @@ pub fn build_manifest(config_file: impl AsRef<Path>) -> Result<(Address, String)
         label: config.label,
         required_blobs: deps.into_iter().collect(),
     };
-    let address = manifest.manifest.address(sp_core::hashing::blake2_256);
+    let address = manifest.address(sp_core::hashing::blake2_256);
 
     let manifest_json = serde_json::to_string_pretty(&manifest)?;
     let (_manifest_hash, manifest_cid) =
         hash(manifest_json.as_bytes(), &blobs_dir).context("failed to hash manifest file")?;
-    std::fs::write(output_dir.join("manifest.json"), manifest_json.as_bytes())
+    write_file(output_dir.join("manifest.json"), manifest_json.as_bytes())
         .context("failed to write manifest")?;
     println!("manifest cid: {}", manifest_cid);
     Ok((address, manifest_cid))

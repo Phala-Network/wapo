@@ -7,7 +7,6 @@ use phaxt::{
     subxt::{dynamic::Value, tx::Payload},
     ChainApi,
 };
-use scale::Decode;
 use sp_core::{sr25519, Pair};
 use tokio::time::timeout;
 use tracing::info;
