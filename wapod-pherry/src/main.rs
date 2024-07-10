@@ -10,7 +10,7 @@ use wapod_pherry::{
 
 #[derive(Parser, Clone, Debug)]
 struct CommonArgs {
-    #[arg(long)]
+    #[arg(long, default_value = "ws://localhost:9944/ws")]
     node_url: String,
     #[arg(long, default_value = "http://localhost:8001")]
     worker_url: String,
@@ -40,7 +40,7 @@ enum Command {
         #[arg(long)]
         pccs: String,
     },
-    Update {
+    UpdateEndpoint {
         #[command(flatten)]
         other: CommonArgs,
         #[arg(long)]
@@ -69,16 +69,14 @@ enum Command {
         config: String,
     },
     Deploy {
+        #[command(flatten)]
+        other: CommonArgs,
         /// The path to the config file.
         #[arg(long, short, default_value = "WapodDeploy.json")]
         config: String,
-        #[arg(long, default_value = "//Alice")]
-        signer: String,
-        #[arg(long)]
-        node_url: String,
         #[arg(long)]
         worker_list: u64,
-        #[arg(long, default_value = "1000000000")]
+        #[arg(long, default_value = "10000000000")]
         deposit: u128,
     },
 }
@@ -107,7 +105,7 @@ async fn main() -> Result<()> {
             };
             register(args).await?;
         }
-        Command::Update { endpoint, other } => {
+        Command::UpdateEndpoint { endpoint, other } => {
             let args = UpdateEndpointArgs {
                 worker_url: other.worker_url,
                 token: other.token,
@@ -135,25 +133,19 @@ async fn main() -> Result<()> {
             run_bridge(config).await?;
         }
         Command::CreateWorkerList { other } => {
-            deploy::create_worker_list_for_worker(
-                other.node_url,
-                other.signer,
-                other.worker_url,
-                other.token,
-            )
-            .await?;
+            deploy::create_worker_list(other.node_url, other.signer, other.worker_url, other.token)
+                .await?;
         }
         Command::Build { config } => {
             deploy::build_manifest(config)?;
         }
         Command::Deploy {
+            other,
             config,
-            signer,
-            node_url,
             worker_list,
             deposit,
         } => {
-            deploy::deploy_manifest(config, &node_url, &signer, deposit, worker_list).await?;
+            deploy::deploy_manifest(config, &other.node_url, &other.signer, deposit, worker_list).await?;
         }
     }
     Ok(())

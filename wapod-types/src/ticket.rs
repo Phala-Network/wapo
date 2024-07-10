@@ -1,4 +1,3 @@
-use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
 
@@ -31,6 +30,10 @@ pub struct AppManifest {
     pub max_query_size: u32,
     /// The optional label of the app.
     pub label: String,
+    /// The blobs that the app required to run.
+    ///
+    /// Pair of (hash, cid).
+    pub required_blobs: Vec<(String, String)>,
 }
 
 impl AppManifest {
@@ -39,16 +42,9 @@ impl AppManifest {
     }
 }
 
-/// A ticket.
-#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TicketManifest {
-    /// The manifest.
-    pub manifest: AppManifest,
-    /// The blobs that the app required to run.
-    pub required_blobs: BTreeMap<String, String>,
-}
-
-#[derive(Encode, Decode, TypeInfo, Default, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
+#[derive(
+    Encode, Decode, TypeInfo, Default, MaxEncodedLen, Debug, Clone, PartialEq, Eq, EncodeAsType,
+)]
 pub struct Prices {
     pub general_fee_per_second: Option<u128>,
     pub gas_price: Option<u128>,

@@ -345,6 +345,32 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
         );
         Ok(pb::SignEndpointsResponse::new(endpoint_payload, signature))
     }
+
+    async fn sign_worker_description(
+        self,
+        request: pb::SignWorkerDescriptionArgs,
+    ) -> anyhow::Result<pb::SignWorkerDescriptionResponse> {
+        let pair = T::KeyProvider::get_key();
+        let worker_description = rpc::types::WorkerDescription {
+            prices: request.decode_prices()?,
+            description: request
+                .description
+                .try_into()
+                .context("description too long")?,
+        };
+        let signature = pair.sign(
+            wapod_types::ContentType::WorkerDescription,
+            worker_description.encode(),
+        );
+        let signed = rpc::types::SignedWorkerDescription {
+            worker_description,
+            signature: signature
+                .try_into()
+                .context("failed to convert signature")?,
+            worker_pubkey: pair.public().to_array(),
+        };
+        Ok(pb::SignWorkerDescriptionResponse::new(signed))
+    }
 }
 
 fn compat_app_version() -> u32 {

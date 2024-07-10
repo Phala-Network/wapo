@@ -1,5 +1,6 @@
 use scale::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
+use alloc::vec::Vec;
 
 use crate::{Address, Bytes32};
 

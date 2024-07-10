@@ -44,6 +44,8 @@ service Operation {
       returns (SignRegisterInfoResponse) {}
   // Sign the given endpoint info
   rpc SignEndpoints(SignEndpointsArgs) returns (SignEndpointsResponse) {}
+  // Sign the worker description.
+  rpc SignWorkerDescription(SignWorkerDescriptionArgs) returns (SignWorkerDescriptionResponse) {}
   // Terminate the worker.
   rpc WorkerExit(google.protobuf.Empty) returns (google.protobuf.Empty) {
     // Terminates the worker.
@@ -206,6 +208,20 @@ message SignEndpointsResponse {
   bytes signature = 2;
 }
 
+message SignWorkerDescriptionArgs {
+  // The endpoint list
+  string description = 1;
+  // The prices
+  // @codec scale crate::types::Prices
+  bytes prices = 2;
+}
+
+message SignWorkerDescriptionResponse {
+  // @codec scale crate::types::SignedWorkerDescription
+  bytes encoded_signed_description = 1;
+}
+
+
 // An object to be stored in the worker's object storage.
 message Blob {
   // The key of the object.
@@ -245,6 +261,8 @@ message Manifest {
   uint32 max_query_size = 7;
   // The optional label of the app.
   string label = 8;
+  // The required blobs required by the app.
+  repeated StringPair required_blobs = 9;
 }
 
 // Environment variable of an app.

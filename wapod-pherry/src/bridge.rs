@@ -20,7 +20,7 @@ use wapod_rpc::{
     prpc::{self as pb, AppListArgs, Blob, DeployArgs, InitArgs},
     types::Address,
 };
-use wapod_types::ticket::{AppManifest, TicketManifest};
+use wapod_types::ticket::AppManifest;
 
 use crate::{
     chain_state::{monitor_chain_state, ChainClient},
@@ -44,14 +44,14 @@ pub struct BridgeConfig {
 pub enum Event {
     ManifestResolved {
         cid: String,
-        result: Result<TicketManifest>,
+        result: Result<AppManifest>,
     },
 }
 
 #[derive(Clone, Debug)]
 struct Ticket {
     info: TicketInfo,
-    manifest: TicketManifest,
+    manifest: AppManifest,
     // prices: Prices,
 }
 
@@ -199,11 +199,13 @@ impl BridgeState {
             }
         }
 
-        info!(
-            "to_deploy: {}, to_remove: {}",
-            to_deploy.len(),
-            to_remove.len()
-        );
+        if !(to_deploy.is_empty() && to_remove.is_empty()) {
+            info!(
+                "to_deploy: {}, to_remove: {}",
+                to_deploy.len(),
+                to_remove.len()
+            );
+        }
 
         'next_app: for (address, info) in to_deploy {
             let deps = info
@@ -309,7 +311,7 @@ impl BridgeState {
             self.ipfs_downloader.download(&cid, false)?;
             return Ok(None);
         };
-        let manifest: TicketManifest =
+        let manifest: AppManifest =
             serde_json::from_slice(&manifest_data).context("invalid manifest")?;
         for (_hash, cid_str) in manifest.required_blobs.iter() {
             let cid: Cid = cid_str.parse().context("invalid blob cid")?;

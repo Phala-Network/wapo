@@ -4,15 +4,18 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use phaxt::phala::{
-    phala_wapod_workers::calls::types::create_system_ticket::Address,
-    runtime_types::sp_core::sr25519::Public,
+use hex_fmt::HexFmt;
+use phaxt::{
+    phala::{
+        phala_wapod_workers::calls::types::create_system_ticket::Address,
+        runtime_types::sp_core::sr25519::Public,
+    },
+    RecodeTo,
 };
 use serde::Deserialize;
-use wapod_types::{
-    ticket::{AppManifest, TicketManifest},
-    worker,
-};
+use tracing::info;
+use wapod_rpc::prpc::SignWorkerDescriptionArgs;
+use wapod_types::ticket::AppManifest;
 
 use crate::chain_state::ChainClient;
 
@@ -77,18 +80,16 @@ pub fn build_manifest(config_file: impl AsRef<Path>) -> Result<(Address, String)
         deps.insert(dep_hash, dep_cid);
     }
 
-    let manifest = TicketManifest {
-        manifest: AppManifest {
-            version: 1,
-            code_hash,
-            args: config.args,
-            env_vars: config.env_vars.into_iter().collect(),
-            on_demand: config.on_demand,
-            resizable: config.resizable,
-            max_query_size: config.max_query_size,
-            label: config.label,
-        },
-        required_blobs: deps,
+    let manifest = AppManifest {
+        version: 1,
+        code_hash,
+        args: config.args,
+        env_vars: config.env_vars.into_iter().collect(),
+        on_demand: config.on_demand,
+        resizable: config.resizable,
+        max_query_size: config.max_query_size,
+        label: config.label,
+        required_blobs: deps.into_iter().collect(),
     };
     let address = manifest.manifest.address(sp_core::hashing::blake2_256);
 
@@ -121,25 +122,41 @@ pub async fn deploy_manifest(
     Ok(())
 }
 
-async fn create_worker_list(node_url: &str, signer: &str, workers: Vec<Address>) -> Result<()> {
-    let tx = phaxt::phala::tx().phala_wapod_workers().create_worker_list(
-        "pherry-created".to_string(),
-        Default::default(),
-        workers.into_iter().map(Public).collect(),
-    );
-    let chain_client = ChainClient::connect(node_url, signer).await?;
-    chain_client.submit_tx(&tx, true).await?;
-    Ok(())
-}
-
-pub async fn create_worker_list_for_worker(
+pub async fn create_worker_list(
     node_url: String,
     signer: String,
     worker_url: String,
     worker_token: String,
 ) -> Result<()> {
     let worker_client = crate::WorkerClient::new(worker_url, worker_token);
+    let chain_client = ChainClient::connect(&node_url, &signer).await?;
     let info = worker_client.operation().info().await?;
     let pubkey = info.decode_pubkey()?;
-    create_worker_list(&node_url, &signer, vec![pubkey]).await
+
+    info!("worker pubkey: {:?}", HexFmt(pubkey));
+    let signed = worker_client
+        .operation()
+        .sign_worker_description(SignWorkerDescriptionArgs::new(
+            "test-worker".into(),
+            Default::default(),
+        ))
+        .await?
+        .decode_signed_description()?;
+    info!("signed worker description");
+    let tx = phaxt::phala::tx()
+        .phala_wapod_workers()
+        .set_worker_description(signed.recode_to()?);
+    info!("setting worker description...");
+    chain_client.submit_tx(&tx, true).await?;
+    info!("worker description set");
+
+    let tx = phaxt::phala::tx().phala_wapod_workers().create_worker_list(
+        "pherry-created".into(),
+        Default::default(),
+        vec![Public(pubkey)],
+    );
+    info!("creating worker list...");
+    chain_client.submit_tx(&tx, true).await?;
+    info!("worker list created");
+    Ok(())
 }

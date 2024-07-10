@@ -10,7 +10,7 @@ use tokio::{
     sync::mpsc::Sender,
     time::{timeout, Duration},
 };
-use tracing::{error, info, trace};
+use tracing::{debug, error, info, trace};
 use wapod_rpc::types::Address;
 
 pub use chain_client::ChainClient;
@@ -74,7 +74,7 @@ async fn monitor(uri: &str, tx: Sender<ChainState>) -> Result<()> {
         .context("block subscription timeout")?
         .context("block subscription failed")?;
     loop {
-        info!("waiting for new block");
+        debug!("waiting for new block");
         let block = timeout(BLOCK_TIMEOUT, sub.next())
             .await
             .context("block subscription timeout")?

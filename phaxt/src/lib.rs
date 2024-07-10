@@ -16,6 +16,8 @@ pub mod signer;
 
 pub use phala_metadata::phala;
 mod phala_metadata;
+pub use encode_decode::RecodeTo;
+mod encode_decode;
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, TypeInfo, PartialOrd, Ord, Debug, EncodeAsType)]
 pub struct ParaId(pub u32);

@@ -2,12 +2,15 @@ use std::ops::Deref;
 
 use anyhow::{Context, Result};
 use phaxt::{
+    phala::Event,
     signer::PhalaSigner,
     subxt::{dynamic::Value, tx::Payload},
     ChainApi,
 };
+use scale::Decode;
 use sp_core::{sr25519, Pair};
 use tokio::time::timeout;
+use tracing::info;
 
 use super::NET_TIMEOUT;
 
@@ -59,10 +62,21 @@ impl ChainClient {
             .await
             .context("submit tx failed")?;
         if wait_finalized {
-            let _events = progress
+            let events = progress
                 .wait_for_finalized_success()
                 .await
                 .context("tx failed")?;
+            for (i, event) in events.all_events_in_block().iter().enumerate() {
+                let Ok(event) = event else {
+                    info!("event {i}: decode failed");
+                    continue;
+                };
+                let Ok(event) = event.as_root_event::<Event>() else {
+                    info!("event {i}: decode failed");
+                    continue;
+                };
+                info!("event {i}: {:?}", event);
+            }
         }
         Ok(())
     }

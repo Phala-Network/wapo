@@ -9,7 +9,7 @@ use anyhow::{bail, Result};
 use cid::Cid;
 use reqwest::Client as HttpClient;
 use tokio::{io::AsyncWriteExt as _, sync::broadcast, time::timeout};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 struct IpfsDownloaderState {
     pending: BTreeSet<String>,
@@ -114,7 +114,7 @@ impl IpfsDownloader {
         let mut state = self.state.lock().unwrap();
 
         if state.downloading.contains(&cid_str) || state.pending.contains(&cid_str) {
-            info!("already downloading {cid_str}");
+            debug!("already downloading {cid_str}");
             return Ok(false);
         }
         if state.downloading.len() < self.config.max_downloading {
