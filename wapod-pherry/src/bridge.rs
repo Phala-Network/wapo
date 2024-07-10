@@ -20,7 +20,9 @@ use sp_core::{sr25519, Pair};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 use wapod_rpc::{
-    prpc::{self as pb, AppListArgs, Blob, DeployArgs, InitArgs, QueryArgs},
+    prpc::{
+        self as pb, AppListArgs, Blob, DeployArgs, InitArgs, QueryArgs, SetBenchAppArgs, WorkerInfo,
+    },
     types::Address,
 };
 use wapod_types::ticket::AppManifest;
@@ -28,6 +30,7 @@ use wapod_types::ticket::AppManifest;
 use crate::{
     chain_state::{monitor_chain_state, ChainClient},
     ipfs_downloader::IpfsDownloader,
+    util::IgnoreError,
 };
 use crate::{
     chain_state::{ChainState, TicketId},
@@ -382,6 +385,25 @@ impl BridgeState {
         Ok(())
     }
 
+    async fn maybe_sync_bench_app(&self) -> Result<()> {
+        let (address, instances) = match self.planning_state.bench_app {
+            Some((address, instances)) => (Some(address), instances),
+            None => (None, 0),
+        };
+        info!(
+            "setting bench app to {:?} with {} instances",
+            address.as_ref().map(Hex),
+            instances
+        );
+        let request = SetBenchAppArgs::new(address, instances);
+        self.worker_client
+            .operation()
+            .set_bench_app(request)
+            .await
+            .context("failed to set bench app")?;
+        Ok(())
+    }
+
     async fn update_plan(&mut self) -> Result<()> {
         self.try_resolve_deps().await?;
         let worker_info = self.worker_client.operation().info().await?;
@@ -503,12 +525,9 @@ impl BridgeState {
                 _ = &mut chain_state_monitor => {}
                 state = chain_state_rx.recv() => {
                     self.set_chain_state(state.context("chain state monitor ended")?);
-                    if let Err(err) = self.maybe_report_bench_score().await {
-                        error!("failed to report bench score: {err}");
-                    }
-                    if let Err(err) = self.maybe_report_app_metrics().await {
-                        error!("failed to report app metrics: {err}");
-                    }
+                    self.maybe_report_bench_score().await.ignore_error("failed to report bench score");
+                    self.maybe_report_app_metrics().await.ignore_error("failed to report app metrics");
+                    self.maybe_sync_bench_app().await.ignore_error("failed to sync bench app");
                 }
                 event = downloader_events.recv() => {
                     let event = event.context("downloader event channel closed")?;

@@ -133,7 +133,7 @@ struct WorkerState<T> {
     host_filter: Arc<HostFilter>,
     metrics_sn: u64,
     bench_app: Option<Address>,
-    bench_instances: u32,
+    bench_instances: u64,
 }
 
 pub struct Worker<T> {
@@ -230,6 +230,12 @@ impl<T: WorkerConfig> Worker<T> {
 
     pub fn blob_loader(&self) -> BlobLoader {
         self.lock().blob_loader.clone()
+    }
+
+    pub fn set_bench_app(&self, address: Option<Address>, instances: u64) {
+        let mut state = self.lock();
+        state.bench_app = address;
+        state.bench_instances = instances;
     }
 }
 

@@ -352,7 +352,7 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
     async fn sign_worker_description(
         self,
         request: pb::SignWorkerDescriptionArgs,
-    ) -> anyhow::Result<pb::SignWorkerDescriptionResponse> {
+    ) -> Result<pb::SignWorkerDescriptionResponse> {
         let pair = T::KeyProvider::get_key();
         let worker_description = rpc::types::WorkerDescription {
             prices: request.decode_prices()?,
@@ -373,6 +373,17 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
             worker_pubkey: pair.public().to_array(),
         };
         Ok(pb::SignWorkerDescriptionResponse::new(signed))
+    }
+
+    async fn set_bench_app(self, request: pb::SetBenchAppArgs) -> Result<()> {
+        let address = request.decode_app_address().ok().flatten();
+        self.worker.set_bench_app(address, request.instances);
+        if let Some(address) = address {
+            self.worker
+                .resize_app_instances(address, request.instances as _, false)
+                .await?;
+        }
+        Ok(())
     }
 }
 
