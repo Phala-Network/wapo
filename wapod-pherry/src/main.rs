@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use tracing_subscriber::{filter::LevelFilter, EnvFilter};
@@ -56,8 +58,11 @@ enum Command {
         #[arg(long, default_value = "./data/ipfs_cache")]
         ipfs_cache_dir: String,
         /// The maximum number of apps that can be deployed.
-        #[arg(long, default_value = "300")]
+        #[arg(long, default_value = "128")]
         max_apps: usize,
+        /// The interval in seconds of reporting app metrics.
+        #[arg(long, default_value = "600")]
+        metrics_interval: u64,
     },
     CreateWorkerList {
         #[command(flatten)]
@@ -120,6 +125,7 @@ async fn main() -> Result<()> {
             ipfs_url,
             ipfs_cache_dir,
             max_apps,
+            metrics_interval,
         } => {
             let config = BridgeConfig {
                 node_url: other.node_url,
@@ -129,6 +135,7 @@ async fn main() -> Result<()> {
                 ipfs_base_url: ipfs_url,
                 ipfs_cache_dir,
                 max_apps,
+                metrics_interval: Duration::from_secs(metrics_interval),
             };
             run_bridge(config).await?;
         }
@@ -145,7 +152,8 @@ async fn main() -> Result<()> {
             worker_list,
             deposit,
         } => {
-            deploy::deploy_manifest(config, &other.node_url, &other.signer, deposit, worker_list).await?;
+            deploy::deploy_manifest(config, &other.node_url, &other.signer, deposit, worker_list)
+                .await?;
         }
     }
     Ok(())

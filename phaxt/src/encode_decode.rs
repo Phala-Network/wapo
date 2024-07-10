@@ -24,3 +24,4 @@ macro_rules! impl_recode_for {
 impl_recode_for!(wapod_types::ticket::Prices);
 impl_recode_for!(wapod_types::ticket::WorkerDescription);
 impl_recode_for!(wapod_types::ticket::SignedWorkerDescription);
+impl_recode_for!(wapod_types::metrics::SignedAppsMetrics);

@@ -2,18 +2,22 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     pin::pin,
     rc::Rc,
+    time::{Duration, Instant},
 };
 
 use anyhow::{bail, Context, Result};
 use cid::Cid;
 use hex_fmt::HexFmt as Hex;
-use phaxt::phala::{
-    phala_computation::events::HeartbeatChallenge,
-    runtime_types::{
-        phala_pallets::wapod_workers::pallet::{TicketInfo, WorkerSet},
-        sp_core::sr25519::Public,
-        wapod_types::session::SessionUpdate,
+use phaxt::{
+    phala::{
+        phala_computation::events::HeartbeatChallenge,
+        runtime_types::{
+            phala_pallets::wapod_workers::pallet::{TicketInfo, WorkerSet},
+            sp_core::sr25519::Public,
+            wapod_types::{metrics, session::SessionUpdate},
+        },
     },
+    RecodeTo,
 };
 use scale::Decode;
 use sp_core::{sr25519, Pair};
@@ -25,7 +29,7 @@ use wapod_rpc::{
     },
     types::Address,
 };
-use wapod_types::ticket::AppManifest;
+use wapod_types::{metrics::SignedAppsMetrics, ticket::AppManifest};
 
 use crate::{
     chain_state::{monitor_chain_state, ChainClient},
@@ -45,6 +49,7 @@ pub struct BridgeConfig {
     pub ipfs_base_url: String,
     pub ipfs_cache_dir: String,
     pub max_apps: usize,
+    pub metrics_interval: Duration,
 }
 
 pub enum Event {
@@ -69,6 +74,7 @@ pub struct BridgeState {
     planning_state: PlanningState,
     chain_state: ChainState,
     config: BridgeConfig,
+    last_metrics_report: Instant,
 }
 
 #[derive(Default)]
@@ -110,6 +116,7 @@ impl BridgeState {
             planning_state: Default::default(),
             chain_state: Default::default(),
             config,
+            last_metrics_report: Instant::now(),
         })
     }
 
@@ -466,8 +473,26 @@ impl BridgeState {
         Ok(())
     }
 
-    async fn maybe_report_app_metrics(&self) -> Result<()> {
+    async fn maybe_report_app_metrics(&mut self) -> Result<()> {
         let todo = "report app metrics";
+        if self.last_metrics_report.elapsed() < self.config.metrics_interval {
+            return Ok(());
+        }
+        let response = self
+            .worker_client
+            .operation()
+            .app_metrics(Default::default())
+            .await?;
+        let metrics = response.decode_metrics()?;
+        let signature = response.signature;
+        let signed = SignedAppsMetrics::new(metrics, signature.into(), self.worker_pubkey);
+        let tx = phaxt::phala::tx()
+            .phala_wapod_workers()
+            .submit_app_metrics(signed.recode_to()?);
+        self.chain_client
+            .submit_tx(&tx, false)
+            .await
+            .context("failed to submit app metrics")?;
         Ok(())
     }
 
