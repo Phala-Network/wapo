@@ -76,6 +76,13 @@ impl ChainClient {
                 };
                 info!("event {i}: {:?}", event);
             }
+        } else {
+            info!("tx submitted: {:?}", progress);
+            tokio::spawn(async move {
+                if let Err(err) = progress.wait_for_finalized_success().await {
+                    info!("tx failed: {err}");
+                }
+            });
         }
         Ok(())
     }

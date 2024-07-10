@@ -11,6 +11,12 @@ pub type Address = [u8; 32];
 #[derive(Debug, Clone, PartialEq, Eq, Encode)]
 pub struct BoundedVec<T, const B: usize>(pub Vec<T>);
 
+impl<T, const B: usize> Default for BoundedVec<T, B> {
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}
+
 impl<T: Decode, const B: usize> Decode for BoundedVec<T, B> {
     fn decode<I: scale::Input>(input: &mut I) -> Result<Self, scale::Error> {
         let vec = Vec::<T>::decode(input)?;
@@ -63,7 +69,7 @@ impl<T: TypeInfo + 'static, const B: usize> TypeInfo for BoundedVec<T, B> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Encode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Default)]
 pub struct BoundedString<const B: usize>(pub String);
 
 impl<const B: usize> Deref for BoundedString<B> {

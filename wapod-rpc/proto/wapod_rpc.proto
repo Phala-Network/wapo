@@ -346,7 +346,7 @@ message QueryArgs {
   // The payload of the query.
   bytes payload = 3;
   // Signer of the request.
-  // @codec scale crate::types::QuerySignature
+  // @codec scale Option<crate::types::QuerySignature>
   bytes encoded_signature = 4;
 }
 

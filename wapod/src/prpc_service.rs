@@ -193,11 +193,11 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
                 session: self.session().context("no worker session")?,
                 nonce: rand::thread_rng().gen(),
             },
-            apps: vec![],
+            apps: Default::default(),
         };
         self.for_each_app(addresses, |address, app| {
             let m = app.metrics();
-            metrics.apps.push(rpc::types::AppMetrics {
+            metrics.apps.0.push(rpc::types::AppMetrics {
                 address,
                 session: app.session,
                 running_time_ms: m.duration.as_millis() as u64,
@@ -264,17 +264,20 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
         let caller = if request.encoded_signature.is_empty() {
             None
         } else {
-            let signature = request.decode_signature()?;
-            let query = Query {
-                address: request.address.clone(),
-                path: request.path.clone(),
-                payload: request.payload.clone(),
-            };
-            let caller = signature
-                .signer
-                .verify_query(query, &signature.signature, signature.signature_type)
-                .map_err(|err| anyhow!("failed to verify the signature: {err:?}"))?;
-            Some(caller)
+            if let Some(signature) = request.decode_signature()? {
+                let query = Query {
+                    address: request.address.clone(),
+                    path: request.path.clone(),
+                    payload: request.payload.clone(),
+                };
+                let caller = signature
+                    .signer
+                    .verify_query(query, &signature.signature, signature.signature_type)
+                    .map_err(|err| anyhow!("failed to verify the signature: {err:?}"))?;
+                Some(caller)
+            } else {
+                None
+            }
         };
         let output = self
             .worker

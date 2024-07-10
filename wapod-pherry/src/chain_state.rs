@@ -37,15 +37,6 @@ const DATA_TIMEOUT: Duration = Duration::from_secs(120);
 /// Timeout for block subscription.
 const BLOCK_TIMEOUT: Duration = Duration::from_secs(60);
 
-pub fn heartbeat_hit_worker(heartbeat: &HeartbeatChallenge, worker: &Address) -> bool {
-    let pkh = sp_core::blake2_256(worker);
-    let hashed_id: sp_core::U256 = pkh.into();
-    let seed = sp_core::U256(heartbeat.seed.0);
-    let online_target = sp_core::U256(heartbeat.online_target.0);
-    let x = hashed_id ^ seed;
-    x <= online_target
-}
-
 pub async fn monitor_chain_state(uri: String, state_tx: Sender<ChainState>) {
     loop {
         if let Err(err) = monitor(&uri, state_tx.clone()).await {

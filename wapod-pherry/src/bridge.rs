@@ -7,17 +7,20 @@ use std::{
 use anyhow::{bail, Context, Result};
 use cid::Cid;
 use hex_fmt::HexFmt as Hex;
-use phaxt::phala::runtime_types::{
-    phala_pallets::wapod_workers::pallet::{TicketInfo, WorkerSet},
-    sp_core::sr25519::Public,
-    wapod_types::session::SessionUpdate,
+use phaxt::phala::{
+    phala_computation::events::HeartbeatChallenge,
+    runtime_types::{
+        phala_pallets::wapod_workers::pallet::{TicketInfo, WorkerSet},
+        sp_core::sr25519::Public,
+        wapod_types::session::SessionUpdate,
+    },
 };
 use scale::Decode;
 use sp_core::{sr25519, Pair};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 use wapod_rpc::{
-    prpc::{self as pb, AppListArgs, Blob, DeployArgs, InitArgs},
+    prpc::{self as pb, AppListArgs, Blob, DeployArgs, InitArgs, QueryArgs},
     types::Address,
 };
 use wapod_types::ticket::AppManifest;
@@ -441,15 +444,56 @@ impl BridgeState {
         Ok(())
     }
 
+    async fn maybe_report_app_metrics(&self) -> Result<()> {
+        let todo = "report app metrics";
+        Ok(())
+    }
+
+    async fn maybe_report_bench_score(&self) -> Result<()> {
+        let Some(challenge) = &self.chain_state.heartbeat_challenge else {
+            return Ok(());
+        };
+        if !is_challenging_the_worker(challenge, &self.worker_pubkey) {
+            return Ok(());
+        }
+        let todo = "avoid report if the worker is not attached to any pool.";
+        let Some((address, _instances)) = &self.planning_state.bench_app else {
+            debug!("no bench app");
+            return Ok(());
+        };
+        let signed_score = self
+            .worker_client
+            .operation()
+            .app_query(QueryArgs::new(
+                *address,
+                "/signedScore".into(),
+                vec![],
+                None,
+            ))
+            .await
+            .context("bench app is not running")?
+            .output;
+        let tx = phaxt::phala::tx()
+            .phala_wapod_workers()
+            .submit_bench_message(Decode::decode(&mut &signed_score[..])?);
+        info!("submitting bench score");
+        self.chain_client
+            .submit_tx(&tx, false)
+            .await
+            .context("failed to submit bench score")?;
+        Ok(())
+    }
+
     async fn bridge(mut self) -> Result<()> {
         // things the bridge does:
         //  init worker if needed
         //  sync chain state
         //  hunt for new tickets
         //  hunt for heartbeat and response it
-        //  hunt for new bench apps
+        //  hunt for new bench app
         //  monitor worker state, schedule jobs
         //  submit bench score
+        //  submit app metrics
         let node_url = self.config.node_url.clone();
         let (chain_state_tx, mut chain_state_rx) = mpsc::channel(1);
         let mut chain_state_monitor = pin!(monitor_chain_state(node_url, chain_state_tx));
@@ -459,6 +503,12 @@ impl BridgeState {
                 _ = &mut chain_state_monitor => {}
                 state = chain_state_rx.recv() => {
                     self.set_chain_state(state.context("chain state monitor ended")?);
+                    if let Err(err) = self.maybe_report_bench_score().await {
+                        error!("failed to report bench score: {err}");
+                    }
+                    if let Err(err) = self.maybe_report_app_metrics().await {
+                        error!("failed to report app metrics: {err}");
+                    }
                 }
                 event = downloader_events.recv() => {
                     let event = event.context("downloader event channel closed")?;
@@ -476,6 +526,15 @@ impl BridgeState {
             self.update_plan().await?;
         }
     }
+}
+
+pub fn is_challenging_the_worker(heartbeat: &HeartbeatChallenge, worker: &Address) -> bool {
+    let pkh = sp_core::blake2_256(worker);
+    let hashed_id: sp_core::U256 = pkh.into();
+    let seed = sp_core::U256(heartbeat.seed.0);
+    let online_target = sp_core::U256(heartbeat.online_target.0);
+    let x = hashed_id ^ seed;
+    x <= online_target
 }
 
 pub async fn run_bridge(config: BridgeConfig) -> Result<()> {
