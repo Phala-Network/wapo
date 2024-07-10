@@ -164,7 +164,11 @@ pub async fn create_worker_list(
     info!("signed worker description");
     let tx = phaxt::phala::tx()
         .phala_wapod_workers()
-        .set_worker_description(signed.recode_to()?);
+        .set_worker_description(
+            signed
+                .recode_to()
+                .context("failed to encode worker description")?,
+        );
     info!("setting worker description...");
     chain_client.submit_tx(&tx, true).await?;
     info!("worker description set");

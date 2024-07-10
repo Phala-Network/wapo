@@ -488,7 +488,7 @@ impl BridgeState {
         let signed = SignedAppsMetrics::new(metrics, signature.into(), self.worker_pubkey);
         let tx = phaxt::phala::tx()
             .phala_wapod_workers()
-            .submit_app_metrics(signed.recode_to()?);
+            .submit_app_metrics(signed.recode_to().context("failed to encode app metrics")?);
         self.chain_client
             .submit_tx(&tx, false)
             .await
