@@ -4,8 +4,9 @@ use anyhow::{Context, Result};
 
 /// Get the current time from an HTTP server where the time is in the `Date` header in the response.
 pub async fn get_time(url: &str, timeout: Duration) -> Result<SystemTime> {
-    let headers = runtime::head(url, timeout)
+    let headers = runtime::time::timeout(timeout, runtime::head(url))
         .await
+        .context("request timeout")?
         .context("failed to fetch headers")?;
     let value = headers
         .get("date")
@@ -17,15 +18,14 @@ pub async fn get_time(url: &str, timeout: Duration) -> Result<SystemTime> {
 
 #[cfg(not(target_os = "wasi"))]
 mod runtime {
-    use std::time::Duration;
-
     use anyhow::Result;
     use hyper::HeaderMap;
 
-    pub async fn head(url: &str, timeout: Duration) -> Result<HeaderMap> {
+    pub use tokio::time;
+
+    pub async fn head(url: &str) -> Result<HeaderMap> {
         let headers = reqwest::Client::new()
             .head(url)
-            .timeout(timeout)
             .send()
             .await?
             .error_for_status()?
@@ -40,10 +40,11 @@ mod runtime {
     use anyhow::{bail, Context, Result};
     use http_body_util::Empty;
     use hyper::{body::Bytes, client::conn::http1::handshake, HeaderMap, Request};
-    use std::time::Duration;
     use wapo::{hyper_rt::HyperTokioIo, net::TcpStream};
 
-    pub async fn head(url: &str, timeout: Duration) -> Result<HeaderMap> {
+    pub use wapo::time;
+
+    pub async fn head(url: &str) -> Result<HeaderMap> {
         let url = url.parse::<hyper::Uri>()?;
         let host = url.host().expect("uri has no host");
         let is_tls = url.scheme_str().map_or(false, |s| s == "https");
@@ -64,10 +65,7 @@ mod runtime {
             .method(hyper::Method::HEAD)
             .header(hyper::header::HOST, authority.as_str())
             .body(Empty::<Bytes>::new())?;
-        let res = wapo::time::timeout(timeout, sender.send_request(req))
-            .await
-            .context("request timeout")?
-            .context("request failed")?;
+        let res = sender.send_request(req).await.context("request failed")?;
         if !res.status().is_success() {
             bail!("Request failed: {}", res.status());
         }
