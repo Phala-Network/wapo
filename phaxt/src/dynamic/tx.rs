@@ -1,7 +1,5 @@
 use scale::Encode;
-use subxt::{
-    dynamic, ext::subxt_core::Error as SubxtCoreError, tx::Payload as TxPayload, utils::Encoded,
-};
+use subxt::{ext::subxt_core::Error as SubxtCoreError, tx::Payload as TxPayload, utils::Encoded};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EncodedPayload {

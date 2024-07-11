@@ -6,12 +6,13 @@ use phaxt::{
     signer::PhalaSigner,
     subxt::{
         dynamic::Value,
-        ext::scale_encode::EncodeAsFields,
-        tx::{DefaultPayload, Payload},
+        metadata::DecodeWithMetadata,
+        storage::{DefaultAddress, StorageKey},
+        tx::Payload,
+        utils::Yes,
     },
     ChainApi,
 };
-use scale::Decode;
 use sp_core::{sr25519, Pair};
 use tokio::time::timeout;
 use tracing::info;
@@ -50,17 +51,39 @@ impl ChainClient {
         Ok(Self::new(client, signer))
     }
 
-    pub async fn submit_tx<CallData>(
+    // pub async fn storage_get<CallData>(
+    //     &self,
+    //     tx: DefaultPayload<CallData>,
+    //     wait_finalized: bool,
+    // ) -> Result<()>
+    // where
+    //     CallData: EncodeAsFields,
+    //     {
+
+    //     }
+
+    pub async fn fetch<Keys, ReturnTy, Defaultable, Iterable>(
         &self,
-        tx: DefaultPayload<CallData>,
-        wait_finalized: bool,
-    ) -> Result<()>
+        address: DefaultAddress<Keys, ReturnTy, Yes, Defaultable, Iterable>,
+    ) -> Result<Option<ReturnTy>>
     where
-        CallData: EncodeAsFields,
+        Keys: StorageKey,
+        ReturnTy: DecodeWithMetadata,
+    {
+        self.storage()
+            .at_latest()
+            .await?
+            .fetch(&address)
+            .await
+            .context("failed to get worker session")
+    }
+
+    pub async fn submit_tx<Call>(&self, tx: Call, wait_finalized: bool) -> Result<()>
+    where
+        Call: Payload,
     {
         let todo = "support tx lifetime and tip";
         let todo = "manage account nonce";
-        let tx = tx.unvalidated();
         let params = self
             .mk_params(8, 0)
             .await
@@ -123,15 +146,8 @@ impl ChainClient {
         Ok(balance)
     }
 
-    pub async fn register_worker(
-        &self,
-        encoded_runtime_info: Vec<u8>,
-        attestation: Vec<u8>,
-    ) -> Result<()> {
-        let tx = phaxt::phala::tx().phala_registry().register_worker_v2(
-            Decode::decode(&mut &encoded_runtime_info[..]).context("decode runtime info failed")?,
-            Decode::decode(&mut &attestation[..]).context("decode attestation failed")?,
-        );
+    pub async fn register_worker(&self, runtime_info: Vec<u8>, attestation: Vec<u8>) -> Result<()> {
+        let tx = phaxt::dynamic::tx::register_worker(runtime_info, attestation, true);
         self.submit_tx(tx, true).await
     }
 }

@@ -17,7 +17,6 @@ use phaxt::{
             wapod_types::session::SessionUpdate,
         },
     },
-    subxt::storage::Address as _,
     RecodeTo,
 };
 use scale::Decode;
@@ -133,10 +132,7 @@ impl BridgeState {
         let worker_info_address = phaxt::phala::storage().phala_registry().workers(&pubkey);
         let worker_info = self
             .chain_client
-            .storage()
-            .at_latest()
-            .await?
-            .fetch(&worker_info_address)
+            .fetch(worker_info_address)
             .await
             .context("failed to get worker info")?;
         if worker_info.is_some() {
@@ -159,10 +155,7 @@ impl BridgeState {
             .worker_sessions(&pubkey);
         let session = self
             .chain_client
-            .storage()
-            .at_latest()
-            .await?
-            .fetch(&worker_session_address)
+            .fetch(worker_session_address)
             .await
             .context("failed to get worker session")?;
 
@@ -192,17 +185,15 @@ impl BridgeState {
             .await?;
         let update = response.decode_session_update()?;
         info!(?update, "updating worker session");
-        let tx = phaxt::phala::tx()
-            .phala_wapod_workers()
-            .update_session(
-                pubkey.0,
-                SessionUpdate {
-                    session: update.session,
-                    seed: update.seed,
-                },
-                response.signature,
-            )
-            .unvalidated();
+        let tx = phaxt::phala::tx().phala_wapod_workers().update_session(
+            pubkey.0,
+            SessionUpdate {
+                session: update.session,
+                seed: update.seed,
+                reward_receiver: update.reward_receiver,
+            },
+            response.signature,
+        );
         self.chain_client
             .submit_tx(tx, true)
             .await
