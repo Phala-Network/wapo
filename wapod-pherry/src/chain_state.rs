@@ -158,6 +158,9 @@ async fn monitor(uri: &str, tx: Sender<ChainState>) -> Result<()> {
                     .find_first::<HeartbeatChallenge>()
                     .context("failed to find heartbeat challenge")?
             };
+            if heartbeat_challenge.is_none() {
+                info!("no heartbeat challenge found");
+            }
             let state = ChainState {
                 tickets,
                 worker_lists,

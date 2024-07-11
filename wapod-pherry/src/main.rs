@@ -18,7 +18,7 @@ struct CommonArgs {
     worker_url: String,
     #[arg(long, default_value_t = String::new())]
     token: String,
-    #[arg(long, default_value = "//Alice")]
+    #[arg(long, default_value = "//Ferdie")]
     signer: String,
 }
 
@@ -69,6 +69,9 @@ enum Command {
         /// The account to receive rewards.
         #[arg(long)]
         reward_receiver: String,
+        /// Waiting for the benchmark app to consume amount of gas until report the init score.
+        #[arg(long, default_value = "1000000000")]
+        gas_until_report: u64,
     },
     CreateWorkerList {
         #[command(flatten)]
@@ -135,6 +138,7 @@ async fn main() -> Result<()> {
             reward_receiver,
             operator,
             pccs_url,
+            gas_until_report,
         } => {
             let config = BridgeConfig {
                 node_url: other.node_url,
@@ -148,6 +152,7 @@ async fn main() -> Result<()> {
                 reward_receiver,
                 operator: operator.unwrap_or_default(),
                 pccs_url,
+                gas_until_report,
             };
             run_bridge(config).await?;
         }

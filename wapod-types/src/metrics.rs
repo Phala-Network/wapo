@@ -1,5 +1,6 @@
 use scale::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     crypto::{verify::verify_message, CryptoProvider},
@@ -8,7 +9,19 @@ use crate::{
     Address, Bytes32, ContentType,
 };
 
-#[derive(Decode, Encode, TypeInfo, MaxEncodedLen, Debug, Clone, PartialEq, Eq, Default)]
+#[derive(
+    Decode,
+    Encode,
+    TypeInfo,
+    MaxEncodedLen,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Default,
+    Serialize,
+    Deserialize,
+)]
 pub struct MetricsToken {
     pub sn: u64,
     pub session: [u8; 32],

@@ -28,6 +28,7 @@ use wapod_rpc::{
     types::{Address, VersionedAppsMetrics},
 };
 use wapod_types::{
+    bench_app::BenchScore,
     metrics::{SignedAppsMetrics, MAX_CLAIM_TICKETS},
     primitives::BoundedVec,
     ticket::AppManifest,
@@ -56,6 +57,7 @@ pub struct BridgeConfig {
     pub reward_receiver: String,
     pub operator: String,
     pub pccs_url: String,
+    pub gas_until_report: u64,
 }
 
 pub enum Event {
@@ -81,6 +83,7 @@ pub struct BridgeState {
     chain_state: ChainState,
     config: BridgeConfig,
     last_metrics_report: Instant,
+    init_score_reported: bool,
 }
 
 #[derive(Default)]
@@ -123,6 +126,7 @@ impl BridgeState {
             chain_state: Default::default(),
             config,
             last_metrics_report: Instant::now(),
+            init_score_reported: false,
         })
     }
 
@@ -558,14 +562,37 @@ impl BridgeState {
         Ok(())
     }
 
-    async fn maybe_report_bench_score(&self, nonce_jar: &mut NonceJar) -> Result<()> {
+    async fn maybe_report_init_score(&mut self, nonce_jar: &mut NonceJar) -> Result<()> {
+        if self.init_score_reported {
+            return Ok(());
+        }
+        let Some((address, _n)) = &self.planning_state.bench_app else {
+            info!("no bench app, skipping init score report");
+            return Ok(());
+        };
+        let encoded_score = self
+            .worker_client
+            .operation()
+            .app_query(QueryArgs::new(*address, "/score".into(), vec![], None))
+            .await
+            .context("bench app is not running")?
+            .output;
+        let score: BenchScore = serde_json::from_slice(&encoded_score).context("invalid score")?;
+        if score.gas_consumed < self.config.gas_until_report {
+            info!("skipping to report init score, wait a while to get more accurate score");
+            return Ok(());
+        }
+        self.do_report_bench_score(nonce_jar).await?;
+        Ok(())
+    }
+
+    async fn maybe_report_bench_score(&mut self, nonce_jar: &mut NonceJar) -> Result<()> {
         let Some(challenge) = &self.chain_state.heartbeat_challenge else {
             return Ok(());
         };
         if !is_challenging_the_worker(challenge, &self.worker_pubkey) {
             return Ok(());
         }
-        let todo = "report score on start";
         {
             let working_address = phaxt::phala::storage()
                 .phala_wapod_workers()
@@ -580,6 +607,10 @@ impl BridgeState {
                 return Ok(());
             }
         };
+        self.do_report_bench_score(nonce_jar).await
+    }
+
+    async fn do_report_bench_score(&mut self, nonce_jar: &mut NonceJar) -> Result<()> {
         let Some((address, _instances)) = &self.planning_state.bench_app else {
             debug!("no bench app");
             return Ok(());
@@ -604,6 +635,7 @@ impl BridgeState {
             .submit_tx("report bench score", tx, false, nonce_jar)
             .await
             .context("failed to submit bench score")?;
+        self.init_score_reported = true;
         Ok(())
     }
 
@@ -630,9 +662,9 @@ impl BridgeState {
                 _ = &mut chain_state_monitor => {}
                 state = chain_state_rx.recv() => {
                     self.maybe_report_bench_score(&mut nonce_jar).await.ignore_error("failed to report bench score");
+                    self.maybe_report_init_score(&mut nonce_jar).await.ignore_error("failed to report init score");
                     self.maybe_report_app_metrics(&mut nonce_jar).await.ignore_error("failed to report app metrics");
                     self.set_chain_state(state.context("chain state monitor ended")?);
-                    self.maybe_sync_bench_app().await.ignore_error("failed to sync bench app");
                 }
                 event = downloader_events.recv() => {
                     let event = event.context("downloader event channel closed")?;
@@ -647,7 +679,12 @@ impl BridgeState {
                     }
                 }
             }
-            self.update_plan().await?;
+            self.update_plan()
+                .await
+                .ignore_error("failed to update plan");
+            self.maybe_sync_bench_app()
+                .await
+                .ignore_error("failed to sync bench app");
         }
     }
 }
