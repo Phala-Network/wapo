@@ -34,7 +34,7 @@ use wapod_types::{
 };
 
 use crate::{
-    chain_state::{monitor_chain_state, ChainClient},
+    chain_state::{monitor_chain_state, ChainClient, NonceJar},
     ipfs_downloader::IpfsDownloader,
     register::register_with_client,
     util::IgnoreError,
@@ -126,7 +126,7 @@ impl BridgeState {
         })
     }
 
-    pub async fn maybe_register_worker(&self) -> Result<()> {
+    pub async fn maybe_register_worker(&self, nonce_jar: &mut NonceJar) -> Result<()> {
         let info = self.worker_client.operation().info().await?;
         let pubkey = Public(info.decode_pubkey()?);
         let worker_info_address = phaxt::phala::storage().phala_registry().workers(&pubkey);
@@ -143,11 +143,12 @@ impl BridgeState {
             &self.worker_client,
             &self.config.operator,
             &self.config.pccs_url,
+            nonce_jar,
         )
         .await
     }
 
-    pub async fn maybe_update_session(&self) -> Result<()> {
+    pub async fn maybe_update_session(&self, nonce_jar: &mut NonceJar) -> Result<()> {
         let info = self.worker_client.operation().info().await?;
         let pubkey = Public(info.decode_pubkey()?);
         let worker_session_address = phaxt::phala::storage()
@@ -195,7 +196,7 @@ impl BridgeState {
             response.signature,
         );
         self.chain_client
-            .submit_tx(tx, true)
+            .submit_tx("update session", tx, true, nonce_jar)
             .await
             .context("failed to update session")?;
         info!("worker session updated");
@@ -506,7 +507,7 @@ impl BridgeState {
         Ok(())
     }
 
-    async fn maybe_report_app_metrics(&mut self) -> Result<()> {
+    async fn maybe_report_app_metrics(&mut self, nonce_jar: &mut NonceJar) -> Result<()> {
         let todo = "report app metrics";
         if self.last_metrics_report.elapsed() < self.config.metrics_interval {
             return Ok(());
@@ -551,20 +552,34 @@ impl BridgeState {
             .phala_wapod_workers()
             .submit_app_metrics(signed.recode_to().context("failed to encode app metrics")?);
         self.chain_client
-            .submit_tx(tx, false)
+            .submit_tx("report metrics", tx, false, nonce_jar)
             .await
             .context("failed to submit app metrics")?;
         Ok(())
     }
 
-    async fn maybe_report_bench_score(&self) -> Result<()> {
+    async fn maybe_report_bench_score(&self, nonce_jar: &mut NonceJar) -> Result<()> {
         let Some(challenge) = &self.chain_state.heartbeat_challenge else {
             return Ok(());
         };
         if !is_challenging_the_worker(challenge, &self.worker_pubkey) {
             return Ok(());
         }
-        let todo = "avoid report if the worker is not attached to any pool.";
+        let todo = "report score on start";
+        {
+            let working_address = phaxt::phala::storage()
+                .phala_wapod_workers()
+                .working_workers(Public(self.worker_pubkey));
+            let working = self
+                .chain_client
+                .fetch(working_address)
+                .await
+                .context("failed to get working workers")?
+                .is_some();
+            if !working {
+                return Ok(());
+            }
+        };
         let Some((address, _instances)) = &self.planning_state.bench_app else {
             debug!("no bench app");
             return Ok(());
@@ -586,7 +601,7 @@ impl BridgeState {
             .submit_bench_message(Decode::decode(&mut &signed_score[..])?);
         info!("submitting bench score");
         self.chain_client
-            .submit_tx(tx, false)
+            .submit_tx("report bench score", tx, false, nonce_jar)
             .await
             .context("failed to submit bench score")?;
         Ok(())
@@ -606,14 +621,16 @@ impl BridgeState {
         let (chain_state_tx, mut chain_state_rx) = mpsc::channel(1);
         let mut chain_state_monitor = pin!(monitor_chain_state(node_url, chain_state_tx));
         let mut downloader_events = self.ipfs_downloader.subscribe_events();
-        self.maybe_register_worker().await?;
-        self.maybe_update_session().await?;
+        let mut nonce_jar = NonceJar::default();
+        self.maybe_register_worker(&mut nonce_jar).await?;
+        self.maybe_update_session(&mut nonce_jar).await?;
         loop {
+            nonce_jar.reset();
             tokio::select! {
                 _ = &mut chain_state_monitor => {}
                 state = chain_state_rx.recv() => {
-                    self.maybe_report_bench_score().await.ignore_error("failed to report bench score");
-                    self.maybe_report_app_metrics().await.ignore_error("failed to report app metrics");
+                    self.maybe_report_bench_score(&mut nonce_jar).await.ignore_error("failed to report bench score");
+                    self.maybe_report_app_metrics(&mut nonce_jar).await.ignore_error("failed to report app metrics");
                     self.set_chain_state(state.context("chain state monitor ended")?);
                     self.maybe_sync_bench_app().await.ignore_error("failed to sync bench app");
                 }

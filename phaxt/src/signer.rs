@@ -9,11 +9,10 @@ use subxt::{tx::Signer, utils::MultiSignature};
 pub type PhalaSigner = PairSigner<super::Config, sp_core::sr25519::Pair>;
 
 /// A [`Signer`] implementation that can be constructed from an [`sp_core::Pair`].
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub struct PairSigner<T: Config, Pair> {
     account_id: T::AccountId,
     signer: Pair,
-    nonce: u64,
 }
 
 impl<T, Pair> From<Pair> for PairSigner<T, Pair>
@@ -42,7 +41,6 @@ where
         Self {
             account_id: account_array.into(),
             signer,
-            nonce: 0,
         }
     }
 
@@ -54,18 +52,6 @@ where
     /// Return the account ID.
     pub fn account_id(&self) -> &T::AccountId {
         &self.account_id
-    }
-
-    pub fn increment_nonce(&mut self) {
-        self.nonce += 1;
-    }
-
-    pub fn nonce(&self) -> u64 {
-        self.nonce
-    }
-
-    pub fn set_nonce(&mut self, nonce: u64) {
-        self.nonce = nonce;
     }
 }
 

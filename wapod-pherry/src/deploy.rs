@@ -140,7 +140,9 @@ pub async fn deploy_manifest(
         },
     );
     let chain_client = ChainClient::connect(node_url, signer).await?;
-    chain_client.submit_tx(tx, true).await?;
+    chain_client
+        .submit_tx("create ticket", tx, true, &mut Default::default())
+        .await?;
     Ok(())
 }
 
@@ -173,7 +175,9 @@ pub async fn create_worker_list(
                 .context("failed to encode worker description")?,
         );
     info!("setting worker description...");
-    chain_client.submit_tx(tx, true).await?;
+    chain_client
+        .submit_tx("set worker description", tx, true, &mut Default::default())
+        .await?;
     info!("worker description set");
 
     let tx = phaxt::phala::tx().phala_wapod_workers().create_worker_list(
@@ -185,7 +189,9 @@ pub async fn create_worker_list(
         vec![Public(pubkey)],
     );
     info!("creating worker list...");
-    chain_client.submit_tx(tx, true).await?;
+    chain_client
+        .submit_tx("create worker list", tx, true, &mut Default::default())
+        .await?;
     info!("worker list created");
     Ok(())
 }

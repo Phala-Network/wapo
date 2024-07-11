@@ -181,6 +181,9 @@ impl IpfsDownloader {
             let url = format!("{}/{}", self.config.base_url, cid_str);
             info!("downloading {cid_str} from {url}");
             let result: Result<Result<_>, _> = timeout(self.config.max_download_time, async {
+                tmp_file
+                    .parent()
+                    .map_or(Ok(()), |p| std::fs::create_dir_all(p))?;
                 let mut output_io = tokio::fs::File::create(&tmp_file).await?;
                 let mut response = self
                     .config

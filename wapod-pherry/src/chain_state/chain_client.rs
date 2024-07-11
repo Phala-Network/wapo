@@ -5,19 +5,39 @@ use phaxt::{
     phala::Event,
     signer::PhalaSigner,
     subxt::{
+        config::{Header as _, RefineParams, RefineParamsData},
         dynamic::Value,
         metadata::DecodeWithMetadata,
         storage::{DefaultAddress, StorageKey},
-        tx::Payload,
+        tx::{Payload, SubmittableExtrinsic},
         utils::Yes,
     },
-    ChainApi,
+    BuiltExtrinsicParams, ChainApi,
 };
 use sp_core::{sr25519, Pair};
 use tokio::time::timeout;
-use tracing::info;
+use tracing::{debug, error, info};
 
 use super::NET_TIMEOUT;
+
+#[derive(Debug, Default)]
+pub struct NonceJar {
+    next_nonce: Option<u64>,
+}
+
+impl NonceJar {
+    pub async fn next(&mut self, client: &ChainClient) -> Result<u64> {
+        let nonce = match self.next_nonce {
+            Some(nonce) => nonce,
+            None => client.account_nonce(client.signer().account_id()).await?,
+        };
+        self.next_nonce = Some(nonce + 1);
+        Ok(nonce)
+    }
+    pub fn reset(&mut self) {
+        self.next_nonce = None;
+    }
+}
 
 pub struct ChainClient {
     client: ChainApi,
@@ -51,17 +71,6 @@ impl ChainClient {
         Ok(Self::new(client, signer))
     }
 
-    // pub async fn storage_get<CallData>(
-    //     &self,
-    //     tx: DefaultPayload<CallData>,
-    //     wait_finalized: bool,
-    // ) -> Result<()>
-    // where
-    //     CallData: EncodeAsFields,
-    //     {
-
-    //     }
-
     pub async fn fetch<Keys, ReturnTy, Defaultable, Iterable>(
         &self,
         address: DefaultAddress<Keys, ReturnTy, Yes, Defaultable, Iterable>,
@@ -78,7 +87,28 @@ impl ChainClient {
             .context("failed to get worker session")
     }
 
-    pub async fn submit_tx<Call>(&self, tx: Call, wait_finalized: bool) -> Result<()>
+    pub async fn submit_tx<Call>(
+        &self,
+        label: &str,
+        tx: Call,
+        wait_finalized: bool,
+        nonce_jar: &mut NonceJar,
+    ) -> Result<()>
+    where
+        Call: Payload,
+    {
+        self.submit_tx_innner(tx, wait_finalized, label, nonce_jar)
+            .await
+            .with_context(|| format!("submit tx({label}) failed"))
+    }
+
+    async fn submit_tx_innner<Call>(
+        &self,
+        tx: Call,
+        wait_finalized: bool,
+        label: &str,
+        nonce_jar: &mut NonceJar,
+    ) -> Result<()>
     where
         Call: Payload,
     {
@@ -89,10 +119,9 @@ impl ChainClient {
             .await
             .context("mk params failed")?
             .build();
+        let nonce = nonce_jar.next(self).await?;
         let signed_tx = self
-            .client
-            .tx()
-            .create_signed(&tx, self.signer(), params)
+            .create_signed(&tx, params, nonce)
             .await
             .context("sign tx failed")?;
         let progress = signed_tx
@@ -104,22 +133,25 @@ impl ChainClient {
                 .wait_for_finalized_success()
                 .await
                 .context("tx failed")?;
+            info!("tx({label}) finalized");
             for (i, event) in events.all_events_in_block().iter().enumerate() {
                 let Ok(event) = event else {
-                    info!("event {i}: decode failed");
+                    debug!("event {i}: decode failed");
                     continue;
                 };
                 let Ok(event) = event.as_root_event::<Event>() else {
-                    info!("event {i}: decode failed");
+                    debug!("event {i}: decode failed");
                     continue;
                 };
-                info!("event {i}: {:?}", event);
+                debug!("event {i}: {:?}", event);
             }
         } else {
-            info!("tx submitted: {:?}", progress);
+            info!("tx({label}) submitted: {:?}", progress);
+            let label = label.to_string();
             tokio::spawn(async move {
-                if let Err(err) = progress.wait_for_finalized_success().await {
-                    info!("tx failed: {err}");
+                match progress.wait_for_finalized_success().await {
+                    Err(err) => error!("tx({label}) failed: {err}"),
+                    Ok(_) => info!("tx({label}) finalized"),
                 }
             });
         }
@@ -146,8 +178,52 @@ impl ChainClient {
         Ok(balance)
     }
 
-    pub async fn register_worker(&self, runtime_info: Vec<u8>, attestation: Vec<u8>) -> Result<()> {
+    pub async fn register_worker(
+        &self,
+        runtime_info: Vec<u8>,
+        attestation: Vec<u8>,
+        nonce_jar: &mut NonceJar,
+    ) -> Result<()> {
         let tx = phaxt::dynamic::tx::register_worker(runtime_info, attestation, true);
-        self.submit_tx(tx, true).await
+        self.submit_tx("register worker", tx, true, nonce_jar).await
+    }
+}
+
+impl ChainClient {
+    async fn create_signed<Call>(
+        &self,
+        call: &Call,
+        mut params: BuiltExtrinsicParams,
+        account_nonce: u64,
+    ) -> Result<SubmittableExtrinsic<phaxt::Config, phaxt::OnlineClient>>
+    where
+        Call: Payload,
+    {
+        let tx_client = self.client.tx();
+        tx_client.validate(call)?;
+        self.refine_params(account_nonce, &mut params).await?;
+        let partial_signed = tx_client.create_partial_signed_offline(call, params.into())?;
+        Ok(partial_signed.sign(self.signer()))
+    }
+
+    async fn refine_params(
+        &self,
+        account_nonce: u64,
+        params: &mut BuiltExtrinsicParams,
+    ) -> Result<()> {
+        let block_ref = self.client.backend().latest_finalized_block_ref().await?;
+        let block_header = self
+            .client
+            .backend()
+            .block_header(block_ref.hash())
+            .await?
+            .context("block header not found")?;
+
+        params.refine(&RefineParamsData::new(
+            account_nonce,
+            block_header.number.into(),
+            block_header.hash(),
+        ));
+        Ok(())
     }
 }

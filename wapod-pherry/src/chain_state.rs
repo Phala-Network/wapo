@@ -13,7 +13,7 @@ use tokio::{
 use tracing::{debug, error, info, trace};
 use wapod_rpc::types::Address;
 
-pub use chain_client::ChainClient;
+pub use chain_client::{ChainClient, NonceJar};
 
 mod chain_client;
 

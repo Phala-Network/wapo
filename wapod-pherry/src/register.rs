@@ -9,7 +9,7 @@ use tracing::info;
 use wapod_rpc::prpc::SignRegisterInfoArgs;
 use wapod_rpc::types::AttestationReport;
 
-use crate::chain_state::ChainClient;
+use crate::chain_state::{ChainClient, NonceJar};
 use crate::WorkerClient;
 
 pub struct RegisterArgs {
@@ -35,7 +35,14 @@ pub async fn register(args: RegisterArgs) -> Result<()> {
     let chain_client = ChainClient::connect(&node_url, &signer)
         .await
         .context("failed to connect to the chain")?;
-    register_with_client(&chain_client, &worker_client, &operator, &pccs_url).await
+    register_with_client(
+        &chain_client,
+        &worker_client,
+        &operator,
+        &pccs_url,
+        &mut Default::default(),
+    )
+    .await
 }
 
 pub async fn register_with_client(
@@ -43,6 +50,7 @@ pub async fn register_with_client(
     worker_client: &WorkerClient,
     operator: &str,
     pccs_url: &str,
+    nonce_jar: &mut NonceJar,
 ) -> Result<()> {
     info!("getting paraid");
     let para_id = chain_client.get_paraid().await?;
@@ -93,7 +101,7 @@ pub async fn register_with_client(
     };
 
     chain_client
-        .register_worker(response.encoded_runtime_info, report)
+        .register_worker(response.encoded_runtime_info, report, nonce_jar)
         .await?;
     let info = worker_client.operation().info().await?;
     info!(

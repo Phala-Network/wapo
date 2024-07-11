@@ -3,11 +3,12 @@ use jsonrpsee::{async_client::ClientBuilder, client_transport::ws::WsTransportCl
 use scale::{Decode, Encode};
 use std::ops::Deref;
 use subxt::ext::scale_value::At;
+use subxt::rpc_params;
 use subxt::{dynamic::Value, storage::StaticStorageKey};
 use tracing::info;
 
 use crate::signer::{PairSigner, ToMultiSignature};
-use crate::ExtrinsicParamsBuilder;
+use crate::{AccountId, ExtrinsicParamsBuilder};
 
 use super::{OnlineClient, RpcClient};
 
@@ -144,6 +145,14 @@ impl ChainApi {
     pub async fn get_genesis_hash(&self) -> Result<[u8; 32]> {
         let hash = self.backend().genesis_hash().await?;
         Ok(hash.into())
+    }
+
+    pub async fn account_nonce(&self, account: &AccountId) -> Result<u64> {
+        let params = rpc_params![serde_json::to_value(account)?];
+        Ok(self
+            .rpc()
+            .request("system_accountNextIndex", params)
+            .await?)
     }
 }
 

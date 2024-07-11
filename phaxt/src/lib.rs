@@ -26,6 +26,7 @@ pub type StorageProof = Vec<Vec<u8>>;
 pub type StorageState = Vec<(Vec<u8>, Vec<u8>)>;
 pub type ExtrinsicParams = extrinsic_params::PhalaExtrinsicParams<Config>;
 pub type ExtrinsicParamsBuilder = extrinsic_params::PhalaExtrinsicParamsBuilder<Config>;
+pub type BuiltExtrinsicParams = <ExtrinsicParams as subxt::config::ExtrinsicParams<Config>>::Params;
 pub type OnlineClient = subxt::OnlineClient<Config>;
 pub type Index = u32;
 
