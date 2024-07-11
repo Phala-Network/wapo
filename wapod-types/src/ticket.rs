@@ -7,9 +7,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     crypto::{verify::verify_message, CryptoProvider},
+    metrics::AppMetrics,
     primitives::{BoundedString, BoundedVec, WorkerPubkey},
     ContentType,
 };
+
+pub type TicketId = u64;
 
 #[derive(Decode, Encode, TypeInfo, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppManifest {
@@ -53,6 +56,45 @@ pub struct Prices {
     pub storage_price: Option<u128>,
     pub memory_price: Option<u128>,
     pub tip_price: Option<u128>,
+}
+
+impl Prices {
+    pub fn cost_of(&self, rhs: &AppMetrics) -> u128 {
+        let mut total = 0_u128;
+        macro_rules! add_mul {
+            ($price: expr, $usage: expr) => {
+                if let Some(price) = $price {
+                    let cost = price.saturating_mul($usage as u128);
+                    total = total.saturating_add(cost);
+                }
+            };
+        }
+        let running_time = rhs.running_time_ms / 1000;
+        add_mul!(self.general_fee_per_second, running_time);
+        add_mul!(self.gas_price, rhs.gas_consumed);
+        add_mul!(self.net_ingress_price, rhs.network_ingress);
+        add_mul!(self.net_egress_price, rhs.network_egress);
+        add_mul!(self.storage_read_price, rhs.storage_read);
+        add_mul!(self.storage_write_price, rhs.storage_write);
+        add_mul!(self.storage_price, rhs.storage_used);
+        add_mul!(self.memory_price, rhs.memory_used);
+        add_mul!(self.tip_price, rhs.tip);
+        total
+    }
+
+    pub fn merge(self, other: &Self) -> Self {
+        Self {
+            general_fee_per_second: self.general_fee_per_second.or(other.general_fee_per_second),
+            gas_price: self.gas_price.or(other.gas_price),
+            net_ingress_price: self.net_ingress_price.or(other.net_ingress_price),
+            net_egress_price: self.net_egress_price.or(other.net_egress_price),
+            storage_read_price: self.storage_read_price.or(other.storage_read_price),
+            storage_write_price: self.storage_write_price.or(other.storage_write_price),
+            storage_price: self.storage_price.or(other.storage_price),
+            memory_price: self.memory_price.or(other.memory_price),
+            tip_price: self.tip_price.or(other.tip_price),
+        }
+    }
 }
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]

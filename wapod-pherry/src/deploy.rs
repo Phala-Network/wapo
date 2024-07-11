@@ -8,7 +8,7 @@ use hex_fmt::HexFmt;
 use phaxt::{
     phala::{
         phala_wapod_workers::calls::types::create_system_ticket::Address,
-        runtime_types::sp_core::sr25519::Public,
+        runtime_types::{sp_core::sr25519::Public, wapod_types::ticket::Prices},
     },
     RecodeTo,
 };
@@ -134,10 +134,13 @@ pub async fn deploy_manifest(
         address,
         manifest_cid,
         worker_list,
-        Default::default(),
+        Prices {
+            general_fee_per_second: Some(1_000_000_000),
+            ..Default::default()
+        },
     );
     let chain_client = ChainClient::connect(node_url, signer).await?;
-    chain_client.submit_tx(&tx, true).await?;
+    chain_client.submit_tx(tx, true).await?;
     Ok(())
 }
 
@@ -170,16 +173,19 @@ pub async fn create_worker_list(
                 .context("failed to encode worker description")?,
         );
     info!("setting worker description...");
-    chain_client.submit_tx(&tx, true).await?;
+    chain_client.submit_tx(tx, true).await?;
     info!("worker description set");
 
     let tx = phaxt::phala::tx().phala_wapod_workers().create_worker_list(
         "pherry-created".into(),
-        Default::default(),
+        Prices {
+            general_fee_per_second: Some(1_000_000_000),
+            ..Default::default()
+        },
         vec![Public(pubkey)],
     );
     info!("creating worker list...");
-    chain_client.submit_tx(&tx, true).await?;
+    chain_client.submit_tx(tx, true).await?;
     info!("worker list created");
     Ok(())
 }

@@ -14,9 +14,10 @@ use phaxt::{
         runtime_types::{
             phala_pallets::wapod_workers::pallet::{TicketInfo, WorkerSet},
             sp_core::sr25519::Public,
-            wapod_types::{metrics, session::SessionUpdate},
+            wapod_types::session::SessionUpdate,
         },
     },
+    subxt::storage::Address as _,
     RecodeTo,
 };
 use scale::Decode;
@@ -24,16 +25,19 @@ use sp_core::{sr25519, Pair};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 use wapod_rpc::{
-    prpc::{
-        self as pb, AppListArgs, Blob, DeployArgs, InitArgs, QueryArgs, SetBenchAppArgs, WorkerInfo,
-    },
-    types::Address,
+    prpc::{self as pb, AppListArgs, Blob, DeployArgs, InitArgs, QueryArgs, SetBenchAppArgs},
+    types::{Address, VersionedAppsMetrics},
 };
-use wapod_types::{metrics::SignedAppsMetrics, ticket::AppManifest};
+use wapod_types::{
+    metrics::{SignedAppsMetrics, MAX_CLAIM_TICKETS},
+    primitives::BoundedVec,
+    ticket::AppManifest,
+};
 
 use crate::{
     chain_state::{monitor_chain_state, ChainClient},
     ipfs_downloader::IpfsDownloader,
+    register::register_with_client,
     util::IgnoreError,
 };
 use crate::{
@@ -50,6 +54,9 @@ pub struct BridgeConfig {
     pub ipfs_cache_dir: String,
     pub max_apps: usize,
     pub metrics_interval: Duration,
+    pub reward_receiver: String,
+    pub operator: String,
+    pub pccs_url: String,
 }
 
 pub enum Event {
@@ -120,7 +127,31 @@ impl BridgeState {
         })
     }
 
-    pub async fn init_worker(&self) -> Result<()> {
+    pub async fn maybe_register_worker(&self) -> Result<()> {
+        let info = self.worker_client.operation().info().await?;
+        let pubkey = Public(info.decode_pubkey()?);
+        let worker_info_address = phaxt::phala::storage().phala_registry().workers(&pubkey);
+        let worker_info = self
+            .chain_client
+            .storage()
+            .at_latest()
+            .await?
+            .fetch(&worker_info_address)
+            .await
+            .context("failed to get worker info")?;
+        if worker_info.is_some() {
+            return Ok(());
+        }
+        register_with_client(
+            &self.chain_client,
+            &self.worker_client,
+            &self.config.operator,
+            &self.config.pccs_url,
+        )
+        .await
+    }
+
+    pub async fn maybe_update_session(&self) -> Result<()> {
         let info = self.worker_client.operation().info().await?;
         let pubkey = Public(info.decode_pubkey()?);
         let worker_session_address = phaxt::phala::storage()
@@ -133,35 +164,50 @@ impl BridgeState {
             .await?
             .fetch(&worker_session_address)
             .await
-            .context("Failed to get worker session")?;
+            .context("failed to get worker session")?;
+
+        if Some(info.session.as_slice()) == session.as_ref().map(|s| s.session_id.as_slice()) {
+            return Ok(());
+        }
         // if there is a session recorded on-chain, use the last_nonce to initialize the worker
         // else initialize the worker with an empty nonce
         let nonce = match &session {
             Some(session) => &session.last_nonce[..],
             None => &[],
         };
+        info!("session mismatch, resetting the worker");
+        self.worker_client
+            .operation()
+            .app_remove_all()
+            .await
+            .context("failed to remove all apps")?;
         info!("initializing worker with nonce: 0x{}", Hex(nonce));
         let response = self
             .worker_client
             .operation()
             .worker_init(InitArgs {
                 nonce: nonce.to_vec(),
+                reward_receiver: self.config.reward_receiver.clone(),
             })
             .await?;
         let update = response.decode_session_update()?;
         info!(?update, "updating worker session");
-        let tx = phaxt::phala::tx().phala_wapod_workers().update_session(
-            pubkey.0,
-            SessionUpdate {
-                session: update.session,
-                seed: update.seed,
-            },
-            response.signature,
-        );
+        let tx = phaxt::phala::tx()
+            .phala_wapod_workers()
+            .update_session(
+                pubkey.0,
+                SessionUpdate {
+                    session: update.session,
+                    seed: update.seed,
+                },
+                response.signature,
+            )
+            .unvalidated();
         self.chain_client
-            .submit_tx(&tx, true)
+            .submit_tx(tx, true)
             .await
             .context("failed to update session")?;
+        info!("worker session updated");
         Ok(())
     }
 
@@ -193,10 +239,6 @@ impl BridgeState {
 
     pub async fn apply_plan(&self) -> Result<()> {
         let info = self.worker_client.operation().info().await?;
-
-        if info.session.is_empty() {
-            self.init_worker().await?;
-        }
 
         let apps = self.get_running_apps().await?;
         let mut to_deploy = vec![];
@@ -478,6 +520,7 @@ impl BridgeState {
         if self.last_metrics_report.elapsed() < self.config.metrics_interval {
             return Ok(());
         }
+        self.last_metrics_report = Instant::now();
         let response = self
             .worker_client
             .operation()
@@ -485,12 +528,39 @@ impl BridgeState {
             .await?;
         let metrics = response.decode_metrics()?;
         let signature = response.signature;
-        let signed = SignedAppsMetrics::new(metrics, signature.into(), self.worker_pubkey);
+        let VersionedAppsMetrics::V0(all_metrics) = &metrics;
+
+        let mut claim_map = BoundedVec::default();
+
+        for m in all_metrics.apps.0.iter() {
+            let Some(info) = self.planning_state.all_apps.get(&m.address) else {
+                debug!(
+                    "app 0x{} not found, skipping to claim settlement",
+                    Hex(m.address)
+                );
+                continue;
+            };
+            let ids = info
+                .associated_tickets
+                .iter()
+                .cloned()
+                .take(MAX_CLAIM_TICKETS)
+                .collect::<Vec<_>>();
+            if claim_map.push((m.address, ids.into())).is_err() {
+                break;
+            }
+        }
+        if claim_map.is_empty() {
+            return Ok(());
+        }
+
+        let signed =
+            SignedAppsMetrics::new(metrics, signature.into(), self.worker_pubkey, claim_map);
         let tx = phaxt::phala::tx()
             .phala_wapod_workers()
             .submit_app_metrics(signed.recode_to().context("failed to encode app metrics")?);
         self.chain_client
-            .submit_tx(&tx, false)
+            .submit_tx(tx, false)
             .await
             .context("failed to submit app metrics")?;
         Ok(())
@@ -525,7 +595,7 @@ impl BridgeState {
             .submit_bench_message(Decode::decode(&mut &signed_score[..])?);
         info!("submitting bench score");
         self.chain_client
-            .submit_tx(&tx, false)
+            .submit_tx(tx, false)
             .await
             .context("failed to submit bench score")?;
         Ok(())
@@ -545,13 +615,15 @@ impl BridgeState {
         let (chain_state_tx, mut chain_state_rx) = mpsc::channel(1);
         let mut chain_state_monitor = pin!(monitor_chain_state(node_url, chain_state_tx));
         let mut downloader_events = self.ipfs_downloader.subscribe_events();
+        self.maybe_register_worker().await?;
+        self.maybe_update_session().await?;
         loop {
             tokio::select! {
                 _ = &mut chain_state_monitor => {}
                 state = chain_state_rx.recv() => {
-                    self.set_chain_state(state.context("chain state monitor ended")?);
                     self.maybe_report_bench_score().await.ignore_error("failed to report bench score");
                     self.maybe_report_app_metrics().await.ignore_error("failed to report app metrics");
+                    self.set_chain_state(state.context("chain state monitor ended")?);
                     self.maybe_sync_bench_app().await.ignore_error("failed to sync bench app");
                 }
                 event = downloader_events.recv() => {

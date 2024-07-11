@@ -23,6 +23,7 @@ use rpc::{
     types::{VersionedWorkerEndpoints, WorkerEndpointPayload},
 };
 use scale::Encode;
+use sp_core::crypto::{AccountId32, Ss58Codec};
 use tracing::{error, field::Empty, info, warn};
 use wapo_host::{
     rocket_stream::{RequestInfo, StreamResponse},
@@ -107,7 +108,9 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
         if request.nonce.len() > 64 {
             bail!("the salt is too long");
         }
-        let update = self.init(&request.nonce)?;
+        let account =
+            AccountId32::from_string(&request.reward_receiver).context("invalid account")?;
+        let update = self.init(&request.nonce, account.into())?;
         let signature = T::KeyProvider::get_key()
             .sign(wapod_types::ContentType::SessionUpdate, update.encode());
         let pubkey = T::KeyProvider::get_key().public();
@@ -195,8 +198,10 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
             },
             apps: Default::default(),
         };
+
         self.for_each_app(addresses, |address, app| {
             let m = app.metrics();
+            let todo = "meter the storage and memory usage";
             metrics.apps.0.push(rpc::types::AppMetrics {
                 address,
                 session: app.session,
@@ -208,6 +213,8 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
                 storage_write: m.storage_written,
                 tip: m.tip,
                 starts: m.starts,
+                storage_used: 0,
+                memory_used: 0,
             });
         });
         let metrics = rpc::types::VersionedAppsMetrics::V0(metrics);

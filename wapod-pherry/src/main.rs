@@ -34,13 +34,10 @@ enum Command {
     Register {
         #[command(flatten)]
         other: CommonArgs,
-        #[arg(
-            long,
-            default_value = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
-        )]
+        #[arg(long)]
         operator: String,
         #[arg(long)]
-        pccs: String,
+        pccs_url: String,
     },
     UpdateEndpoint {
         #[command(flatten)]
@@ -51,6 +48,12 @@ enum Command {
     Bridge {
         #[command(flatten)]
         other: CommonArgs,
+        /// The operator account.
+        #[arg(long)]
+        operator: Option<String>,
+        /// The PCCS URL.
+        #[arg(long, default_value = "")]
+        pccs_url: String,
         /// The base URL of the IPFS gateway.
         #[arg(long, default_value = "https://ipfs.io/ipfs/")]
         ipfs_url: String,
@@ -63,6 +66,9 @@ enum Command {
         /// The interval in seconds of reporting app metrics.
         #[arg(long, default_value = "600")]
         metrics_interval: u64,
+        /// The account to receive rewards.
+        #[arg(long)]
+        reward_receiver: String,
     },
     CreateWorkerList {
         #[command(flatten)]
@@ -97,7 +103,7 @@ async fn main() -> Result<()> {
     match args.command {
         Command::Register {
             operator,
-            pccs,
+            pccs_url,
             other,
         } => {
             let args = RegisterArgs {
@@ -106,7 +112,7 @@ async fn main() -> Result<()> {
                 node_url: other.node_url,
                 signer: other.signer,
                 operator,
-                pccs_url: pccs,
+                pccs_url,
             };
             register(args).await?;
         }
@@ -126,6 +132,9 @@ async fn main() -> Result<()> {
             ipfs_cache_dir,
             max_apps,
             metrics_interval,
+            reward_receiver,
+            operator,
+            pccs_url,
         } => {
             let config = BridgeConfig {
                 node_url: other.node_url,
@@ -136,6 +145,9 @@ async fn main() -> Result<()> {
                 ipfs_cache_dir,
                 max_apps,
                 metrics_interval: Duration::from_secs(metrics_interval),
+                reward_receiver,
+                operator: operator.unwrap_or_default(),
+                pccs_url,
             };
             run_bridge(config).await?;
         }

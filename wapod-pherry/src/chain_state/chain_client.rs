@@ -4,9 +4,14 @@ use anyhow::{Context, Result};
 use phaxt::{
     phala::Event,
     signer::PhalaSigner,
-    subxt::{dynamic::Value, tx::Payload},
+    subxt::{
+        dynamic::Value,
+        ext::scale_encode::EncodeAsFields,
+        tx::{DefaultPayload, Payload},
+    },
     ChainApi,
 };
+use scale::Decode;
 use sp_core::{sr25519, Pair};
 use tokio::time::timeout;
 use tracing::info;
@@ -45,15 +50,26 @@ impl ChainClient {
         Ok(Self::new(client, signer))
     }
 
-    pub async fn submit_tx<Call>(&self, tx: &Call, wait_finalized: bool) -> Result<()>
+    pub async fn submit_tx<CallData>(
+        &self,
+        tx: DefaultPayload<CallData>,
+        wait_finalized: bool,
+    ) -> Result<()>
     where
-        Call: Payload,
+        CallData: EncodeAsFields,
     {
         let todo = "support tx lifetime and tip";
+        let todo = "manage account nonce";
+        let tx = tx.unvalidated();
+        let params = self
+            .mk_params(8, 0)
+            .await
+            .context("mk params failed")?
+            .build();
         let signed_tx = self
             .client
             .tx()
-            .create_signed(tx, self.signer(), Default::default())
+            .create_signed(&tx, self.signer(), params)
             .await
             .context("sign tx failed")?;
         let progress = signed_tx
@@ -105,5 +121,17 @@ impl ChainClient {
             .as_u128()
             .context("invalid balance")?;
         Ok(balance)
+    }
+
+    pub async fn register_worker(
+        &self,
+        encoded_runtime_info: Vec<u8>,
+        attestation: Vec<u8>,
+    ) -> Result<()> {
+        let tx = phaxt::phala::tx().phala_registry().register_worker_v2(
+            Decode::decode(&mut &encoded_runtime_info[..]).context("decode runtime info failed")?,
+            Decode::decode(&mut &attestation[..]).context("decode attestation failed")?,
+        );
+        self.submit_tx(tx, true).await
     }
 }

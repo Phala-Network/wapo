@@ -318,6 +318,8 @@ message Boolean { bool value = 1; }
 message InitArgs {
   // The previous metrics nonce reported to the chain.
   bytes nonce = 1;
+  // The AccountId of the reward receiver.
+  string reward_receiver = 2;
 }
 
 message InitResponse {

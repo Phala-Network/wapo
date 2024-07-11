@@ -11,6 +11,56 @@ pub type Address = [u8; 32];
 #[derive(Debug, Clone, PartialEq, Eq, Encode)]
 pub struct BoundedVec<T, const B: usize>(pub Vec<T>);
 
+impl<T, const B: usize> BoundedVec<T, B> {
+    pub fn max_len(&self) -> usize {
+        B
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn push(&mut self, value: T) -> Result<(), T> {
+        if self.len() >= B {
+            return Err(value);
+        }
+        self.0.push(value);
+        Ok(())
+    }
+
+    pub fn pop(&mut self) -> Option<T> {
+        self.0.pop()
+    }
+
+    pub fn clear(&mut self) {
+        self.0.clear()
+    }
+
+    pub fn iter(&self) -> core::slice::Iter<'_, T> {
+        self.0.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> core::slice::IterMut<'_, T> {
+        self.0.iter_mut()
+    }
+
+    pub fn as_slice(&self) -> &[T] {
+        self.0.as_slice()
+    }
+
+    pub fn as_mut_slice(&mut self) -> &mut [T] {
+        self.0.as_mut_slice()
+    }
+
+    pub fn into_inner(self) -> Vec<T> {
+        self.0
+    }
+}
+
 impl<T, const B: usize> Default for BoundedVec<T, B> {
     fn default() -> Self {
         Self(Default::default())
@@ -66,6 +116,14 @@ impl<T: TypeInfo + 'static, const B: usize> TypeInfo for BoundedVec<T, B> {
 
     fn type_info() -> scale_info::Type {
         <Vec<T> as TypeInfo>::type_info()
+    }
+}
+
+impl<T, const B: usize> IntoIterator for BoundedVec<T, B> {
+    type Item = <Vec<T> as IntoIterator>::Item;
+    type IntoIter = <Vec<T> as IntoIterator>::IntoIter;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }
 

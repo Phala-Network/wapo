@@ -141,39 +141,6 @@ impl ChainApi {
         Ok(())
     }
 
-    pub async fn register_worker<P>(
-        &self,
-        encoded_runtime_info: Vec<u8>,
-        attestation: Vec<u8>,
-        signer: &mut PairSigner<super::Config, P>,
-    ) -> Result<()>
-    where
-        P: sp_core::Pair,
-        P::Signature: ToMultiSignature,
-    {
-        let params = self.mk_params(8, 0).await?.build();
-        let tx = crate::dynamic::tx::register_worker(encoded_runtime_info, attestation, true);
-        info!("sending register_worker");
-        let progress = self
-            .tx()
-            .create_signed(&tx, signer, params)
-            .await
-            .context("failed to sign the register_worker tx")?
-            .submit_and_watch()
-            .await
-            .context("failed to submit the register_worker tx")?;
-        info!("register_worker tx submitted, waiting for finalization...");
-        let block = progress
-            .wait_for_finalized()
-            .await
-            .context("failed to finalize the register_worker tx")?;
-        info!(
-            "register_worker tx finalized at block {:?}",
-            block.block_hash()
-        );
-        Ok(())
-    }
-
     pub async fn get_genesis_hash(&self) -> Result<[u8; 32]> {
         let hash = self.backend().genesis_hash().await?;
         Ok(hash.into())

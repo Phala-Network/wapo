@@ -512,8 +512,8 @@ impl<T: WorkerConfig> Worker<T> {
         self.lock().session
     }
 
-    pub fn init(&self, salt: &[u8]) -> Result<SessionUpdate> {
-        self.lock().init(salt)
+    pub fn init(&self, salt: &[u8], reward_receiver: Address) -> Result<SessionUpdate> {
+        self.lock().init(salt, reward_receiver)
     }
 
     pub fn num_instances_of(&self, address: Address) -> Option<usize> {
@@ -727,12 +727,12 @@ impl<T: WorkerConfig> WorkerState<T> {
         self.apps.values().map(|app| app.instances.len()).sum()
     }
 
-    fn init(&mut self, nonce: &[u8]) -> Result<SessionUpdate> {
+    fn init(&mut self, nonce: &[u8], reward_receiver: Address) -> Result<SessionUpdate> {
         if !self.apps.is_empty() {
             bail!("init session failed, apps already deployed")
         }
         let seed: [u8; 32] = rand::thread_rng().gen();
-        let update = SessionUpdate::from_seed::<SpCoreHash>(seed, nonce);
+        let update = SessionUpdate::from_seed::<SpCoreHash>(seed, nonce, reward_receiver);
         self.session = Some(update.session);
         self.metrics_sn = 0;
         Ok(update)
