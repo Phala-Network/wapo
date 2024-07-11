@@ -1,0 +1,13 @@
+{
+    "output_dir": "output",
+    "wasm_code": "../../target/wasm32-wasi/release/benchmark.wasm",
+    "args": [],
+    "env_vars": {
+        "RUST_LOG": "info"
+    },
+    "on_demand": false,
+    "resizable": true,
+    "max_query_size": 102400,
+    "label": "worker-benchmark",
+    "deps": []
+}
