@@ -20,6 +20,7 @@ tinyvec = { version = "1.5.1", features = ["alloc"] }
 log = "0.4.16"
 futures = "0.3"
 wiggle = { version = "20.0.0", optional = true }
+scopeguard = { version = "1.2.0", default-features = false }
 
 [features]
 default = ["host"]

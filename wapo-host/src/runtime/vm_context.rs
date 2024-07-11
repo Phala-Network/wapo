@@ -30,7 +30,7 @@ use wapo_env::{self as env, MetricsToken};
 use wasmtime::Caller;
 
 use super::{
-    async_context::{get_task_cx, poll_in_task_cx, set_task_env, wake_current, GuestWaker},
+    async_context::{get_task_cx, poll_in_task_cx, set_task_env, GuestWaker},
     metrics::Meter,
     resource::{PollContext, Resource, ResourceTable, TcpListenerResource},
     tls::{load_tls_config, TlsStream},

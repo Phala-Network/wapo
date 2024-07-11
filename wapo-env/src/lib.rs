@@ -17,7 +17,7 @@ use tinyvec::TinyVec;
 
 pub use args_stack::RetEncode;
 pub use ocall_def::*;
-pub use tasks::spawn;
+pub use tasks::{spawn, spawn_named};
 pub use wapo_macro::main;
 
 mod args_stack;

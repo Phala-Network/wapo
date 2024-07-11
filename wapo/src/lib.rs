@@ -8,7 +8,7 @@ pub use wapo_env as env;
 pub use wapo_macro::main;
 
 pub use env::ocall_funcs_guest as ocall;
-pub use env::spawn;
+pub use env::{spawn, spawn_named};
 pub use env::tasks as task;
 
 pub mod channel;

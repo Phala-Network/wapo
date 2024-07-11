@@ -8149,6 +8149,7 @@ dependencies = [
  "log",
  "num_enum",
  "parity-scale-codec",
+ "scopeguard",
  "tinyvec",
  "wapo-macro",
  "wapod-types",

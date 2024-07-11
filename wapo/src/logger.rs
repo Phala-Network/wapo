@@ -50,3 +50,42 @@ impl Log for Logger {
 
     fn flush(&self) {}
 }
+
+pub use poll_logging::{log_polling, LogFuture};
+mod poll_logging {
+    use std::future::Future;
+
+    /// A future that logs polling.
+    #[pin_project::pin_project]
+    pub struct LogFuture<F> {
+        label: String,
+        #[pin]
+        fut: F,
+    }
+
+    /// Create a future that logs polling.
+    pub fn log_polling<F: Future>(label: &str, fut: F) -> LogFuture<F> {
+        LogFuture {
+            label: label.to_string(),
+            fut,
+        }
+    }
+
+    impl<F> Future for LogFuture<F>
+    where
+        F: Future,
+    {
+        type Output = F::Output;
+
+        fn poll(
+            self: std::pin::Pin<&mut Self>,
+            cx: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Self::Output> {
+            let this = self.project();
+            let label = this.label;
+            let output = this.fut.poll(cx);
+            log::trace!("polled <{}>, ready={}", label, output.is_ready());
+            output
+        }
+    }
+}

@@ -1,8 +1,10 @@
 use core::panic;
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{Poll, Waker};
 
 use futures::{channel::oneshot, pin_mut};
+use log::trace;
 
 use super::*;
 
@@ -27,7 +29,7 @@ thread_local! {
     };
     /// New spawned tasks are pushed to this queue. Since tasks are always spawned from inside a
     /// running task which borrowing the TASKS, it can not be immediately pushed to the TASKS.
-    static SPAWNING_TASKS: RefCell<Vec<TaskFuture>> = const { RefCell::new(vec![]) };
+    static SPAWNING_TASKS: RefCell<Vec<(usize, TaskFuture)>> = const { RefCell::new(vec![]) };
     /// Wakers might being referenced by the wapo host runtime.
     ///
     /// When a ocall polling some resource, we can not pass the waker to the host runtime,
@@ -73,6 +75,12 @@ fn get_free_waker_id() -> Option<i32> {
 }
 
 pub fn intern_waker(waker: task::Waker) -> i32 {
+    let id = intern_waker_impl(waker);
+    trace!("intern waker: {id}");
+    id
+}
+
+fn intern_waker_impl(waker: task::Waker) -> i32 {
     const MAX_N_WAKERS: usize = (i32::MAX / 2) as usize;
     let free_slot = get_free_waker_id();
     WAKERS.with(|wakers| {
@@ -94,6 +102,7 @@ fn wake_waker(waker_id: i32) {
     WAKERS.with(|wakers| {
         let wakers = wakers.borrow();
         if let Some(Some(waker)) = wakers.get(waker_id as usize) {
+            trace!("wake waker: {waker_id}");
             waker.wake_by_ref();
         }
     });
@@ -130,28 +139,49 @@ impl<T> Future for JoinHandle<T> {
 }
 
 pub fn spawn<T: 'static>(fut: impl Future<Output = T> + 'static) -> JoinHandle<T> {
+    spawn_named("unnamed", fut)
+}
+
+pub fn spawn_named<T: 'static>(
+    name: &str,
+    fut: impl Future<Output = T> + 'static,
+) -> JoinHandle<T> {
+    static GLOBAL_TASK_SN: AtomicUsize = AtomicUsize::new(0);
     let (tx, rx) = oneshot::channel();
+    let gsn = GLOBAL_TASK_SN.fetch_add(1, Ordering::Relaxed);
+    trace!("[gsn={gsn}] spawn task <{name}>");
     SPAWNING_TASKS.with(move |tasks| {
-        (*tasks).borrow_mut().push(Box::pin(async move {
-            let _ = tx.send(fut.await);
-        }))
+        (*tasks).borrow_mut().push((
+            gsn,
+            Box::pin(async move {
+                trace!("[gsn={gsn}] task started");
+                scopeguard::defer! {
+                    trace!("[gsn={gsn}] task exited");
+                }
+                let _ = tx.send(fut.await);
+            }),
+        ))
     });
     JoinHandle(rx)
 }
 
-fn start_task(tasks: &mut Tasks, task: TaskFuture) {
+fn start_task(gsn: usize, tasks: &mut Tasks, task: TaskFuture) {
     const MAX_N_TASKS: usize = (i32::MAX / 2) as _;
+
+    trace!("[gsn={gsn}] start task");
 
     for (task_id, task_ref) in tasks.iter_mut().enumerate().skip(1) {
         if task_ref.is_none() {
             *task_ref = Some(task);
             ocall::mark_task_ready(task_id as _).expect("mark task ready failed");
+            trace!("[gsn={gsn}] started task, reuse id {task_id}");
             return;
         }
     }
 
     if tasks.len() < MAX_N_TASKS {
         let task_id = tasks.len();
+        trace!("[gsn={gsn}] started task, new id {task_id}");
         tasks.push(Some(task));
         ocall::mark_task_ready(task_id as _).expect("mark task ready failed");
         return;
@@ -162,10 +192,10 @@ fn start_task(tasks: &mut Tasks, task: TaskFuture) {
 
 fn start_spawned_tasks(tasks: &mut Tasks) {
     SPAWNING_TASKS.with(|spowned_tasks| {
-        for task in spowned_tasks.borrow_mut().drain(..) {
-            start_task(tasks, task);
+        for (gsn, task) in spowned_tasks.borrow_mut().drain(..) {
+            start_task(gsn, tasks, task);
         }
-    })
+    });
 }
 
 pub(crate) fn current_task() -> i32 {
@@ -207,7 +237,10 @@ pub fn wapo_poll() -> i32 {
 
     fn poll() -> task::Poll<()> {
         {
-            for waker_id in ocall::awake_wakers().expect("failed to get awake wakers") {
+            let wakers = ocall::awake_wakers().expect("failed to get awake wakers");
+            trace!("awake wakers: {wakers:?}");
+
+            for waker_id in wakers {
                 if waker_id >= 0 {
                     wake_waker(waker_id);
                 } else {
@@ -215,7 +248,9 @@ pub fn wapo_poll() -> i32 {
                 }
             }
 
-            let task_id = match ocall::next_ready_task() {
+            let next_ready_task = ocall::next_ready_task();
+            trace!("next ready task: {next_ready_task:?}");
+            let task_id = match next_ready_task {
                 Ok(id) => id as usize,
                 Err(OcallError::NotFound) => return task::Poll::Pending,
                 Err(err) => panic!("Error occured: {:?}", err),
@@ -225,7 +260,9 @@ pub fn wapo_poll() -> i32 {
                     let mut tasks = tasks.borrow_mut();
                     let task = tasks.get_mut(task_id)?.as_mut()?;
                     set_current_task(task_id as _);
-                    match poll_with_guest_context(task.as_mut()) {
+                    let ret = poll_with_guest_context(task.as_mut());
+                    trace!("poll task {task_id}: {ret:?}");
+                    match ret {
                         Pending => (),
                         Ready(()) => {
                             tasks[task_id] = None;
