@@ -2,22 +2,11 @@ use anyhow::{bail, Result};
 use futures::stream::FuturesUnordered;
 use futures::StreamExt as _;
 use log::{debug, info};
-use serde::Serialize;
 use std::time::{Duration, Instant, SystemTime};
 use tokio::sync::mpsc::Sender;
 
-use wapo::env::MetricsToken;
-use wapod_types::bench_app::{SignedMessage, SigningMessage};
+use wapod_types::bench_app::{BenchScore, SignedMessage, SigningMessage};
 use wapod_types::scale::Encode;
-
-#[derive(Default, Debug, Serialize)]
-struct BenchScore {
-    gas_per_second: u64,
-    gas_consumed: u64,
-    timestamp_secs: u64,
-    #[serde(skip)]
-    metrics_token: MetricsToken,
-}
 
 struct State {
     score: BenchScore,
@@ -27,7 +16,9 @@ pub async fn query_serve() {
     let query_rx = wapo::channel::incoming_queries();
 
     let (score_tx, mut score_rx) = tokio::sync::mpsc::channel(1);
-    wapo::spawn(score_update(score_tx));
+
+    debug!("spawning score update task");
+    wapo::spawn_named("score update", score_update(score_tx));
 
     let mut state = State {
         score: BenchScore::default(),
@@ -60,6 +51,7 @@ pub async fn query_serve() {
 }
 
 async fn score_update(tx: Sender<BenchScore>) {
+    debug!("score update task started");
     loop {
         let net_start_time = net_now().await;
         let local_start_time = Instant::now();
@@ -134,12 +126,7 @@ async fn handle_query(state: &mut State, path: String, _payload: Vec<u8>) -> Res
             .map_err(|e| anyhow::anyhow!("failed to serialize score: {}", e)),
         "/signedScore" => {
             let score = &state.score;
-            let message = SigningMessage::BenchScore {
-                gas_per_second: score.gas_per_second,
-                timestamp_secs: score.timestamp_secs,
-                gas_consumed: score.gas_consumed,
-                matrics_token: score.metrics_token.clone(),
-            };
+            let message = SigningMessage::BenchScore(score.clone());
             let encoded_message = message.encode();
             let signature = wapo::ocall::sign(&encoded_message)
                 .expect("ocall::sign never fails")
