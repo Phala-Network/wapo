@@ -30,7 +30,7 @@ use wapo_env::{self as env, MetricsToken};
 use wasmtime::Caller;
 
 use super::{
-    async_context::{get_task_cx, poll_in_task_cx, set_task_env, GuestWaker},
+    async_context::{get_task_cx, poll_in_task_cx, set_task_env, wake_current, GuestWaker},
     metrics::Meter,
     resource::{PollContext, Resource, ResourceTable, TcpListenerResource},
     tls::{load_tls_config, TlsStream},
@@ -54,38 +54,35 @@ fn _sizeof_i32_must_eq_to_intptr() {
 }
 
 pub(crate) struct TaskSet {
-    awake_tasks: dashmap::DashSet<i32>,
+    awake_tasks: Mutex<VecDeque<i32>>,
     /// Guest waker ids that are ready to be woken up, or to be dropped if negative.
     pub(crate) awake_wakers: Mutex<VecDeque<i32>>,
 }
 
 impl TaskSet {
     fn with_task0() -> Self {
-        let awake_tasks = dashmap::DashSet::new();
-        awake_tasks.insert(0);
+        let mut deque = VecDeque::new();
+        deque.push_back(0);
         Self {
-            awake_tasks,
+            awake_tasks: Mutex::new(deque),
             awake_wakers: Default::default(),
         }
     }
 
     pub(crate) fn push_task(&self, task_id: i32) {
-        self.awake_tasks.insert(task_id);
-    }
-
-    pub(crate) fn pop_task(&self) -> Option<i32> {
-        let item = self.awake_tasks.iter().next().map(|task_id| *task_id);
-        match item {
-            Some(task_id) => {
-                self.awake_tasks.remove(&task_id);
-                Some(task_id)
-            }
-            None => None,
+        let mut guard = self.awake_tasks.lock().unwrap();
+        let exists = guard.iter().rev().take(8).any(|&id| id == task_id);
+        if !exists {
+            guard.push_back(task_id);
         }
     }
 
+    pub(crate) fn pop_task(&self) -> Option<i32> {
+        self.awake_tasks.lock().unwrap().pop_front()
+    }
+
     pub(crate) fn is_empty(&self) -> bool {
-        self.awake_tasks.is_empty() && self.awake_wakers.lock().unwrap().is_empty()
+        self.awake_tasks.lock().unwrap().is_empty() && self.awake_wakers.lock().unwrap().is_empty()
     }
 }
 
