@@ -59,6 +59,10 @@ pub struct Prices {
 }
 
 impl Prices {
+    pub fn is_empty(&self) -> bool {
+        self == &Self::default()
+    }
+
     pub fn cost_of(&self, rhs: &AppMetrics) -> u128 {
         let mut total = 0_u128;
         macro_rules! add_mul {

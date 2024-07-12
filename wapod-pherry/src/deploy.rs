@@ -6,16 +6,13 @@ use std::{
 use anyhow::{Context, Result};
 use hex_fmt::HexFmt;
 use phaxt::{
-    phala::{
-        phala_wapod_workers::calls::types::create_system_ticket::Address,
-        runtime_types::{sp_core::sr25519::Public, wapod_types::ticket::Prices},
-    },
+    phala::runtime_types::{sp_core::sr25519::Public, wapod_types::ticket::Prices},
     RecodeTo,
 };
 use serde::Deserialize;
 use tracing::info;
 use wapod_rpc::prpc::SignWorkerDescriptionArgs;
-use wapod_types::ticket::AppManifest;
+use wapod_types::{ticket::AppManifest, Address};
 
 use crate::{
     chain_state::ChainClient,
