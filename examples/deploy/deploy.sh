@@ -1,6 +1,6 @@
-L=0
+LIST=0
 if [ x$1 != x ]; then
-L=$1
+    LIST=$1
 fi
 
-wapod-pherry deploy --worker-list $L --deposit 10000000000000
+wapod-pherry deploy --worker-list $LIST --deposit 10000000000000

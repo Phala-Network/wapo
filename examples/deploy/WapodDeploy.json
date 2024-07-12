@@ -1,9 +1,9 @@
 {
-    "output_dir": "output",
-    "wasm_code": "test.wasm",
+    "output_dir": "dist",
+    "wasm_code": "artifacts/test.wasm",
     "args": [
         "--code-hash",
-        "sha256-of-file:res1.txt"
+        "sha256-of-file:artifacts/res1.txt"
     ],
     "env_vars": {
         "RUST_LOG": "info"
@@ -13,7 +13,7 @@
     "max_query_size": 10240,
     "label": "test app",
     "deps": [
-        "res1.txt",
-        "res2.txt"
+        "artifacts/res1.txt",
+        "artifacts/res2.txt"
     ]
 }

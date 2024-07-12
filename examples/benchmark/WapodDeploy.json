@@ -1,5 +1,5 @@
 {
-    "output_dir": "output",
+    "output_dir": "dist",
     "wasm_code": "../../target/wasm32-wasi/release/benchmark.wasm",
     "args": [],
     "env_vars": {
