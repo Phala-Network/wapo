@@ -12,9 +12,7 @@ use phaxt::{
     phala::{
         phala_computation::events::HeartbeatChallenge,
         runtime_types::{
-            phala_pallets::wapod_workers::pallet::{TicketInfo, WorkerSet},
-            sp_core::sr25519::Public,
-            wapod_types::session::SessionUpdate,
+            phala_pallets::wapod_workers::pallet::WorkerSet, sp_core::sr25519::Public,
         },
     },
     RecodeTo,
@@ -31,11 +29,12 @@ use wapod_types::{
     bench_app::BenchScore,
     metrics::{SignedAppsMetrics, MAX_CLAIM_TICKETS},
     primitives::BoundedVec,
+    session::SignedSessionUpdate,
     ticket::AppManifest,
 };
 
 use crate::{
-    chain_state::{monitor_chain_state, ChainClient, NonceJar},
+    chain_state::{monitor_chain_state, ChainClient, NonceJar, TicketInfo},
     ipfs_downloader::IpfsDownloader,
     register::register_with_client,
     util::IgnoreError,
@@ -190,15 +189,16 @@ impl BridgeState {
             .await?;
         let update = response.decode_session_update()?;
         info!(?update, "updating worker session");
-        let tx = phaxt::phala::tx().phala_wapod_workers().update_session(
-            pubkey.0,
-            SessionUpdate {
-                session: update.session,
-                seed: update.seed,
-                reward_receiver: update.reward_receiver,
-            },
-            response.signature,
-        );
+        let signed_update = SignedSessionUpdate {
+            update,
+            signature: response.signature.into(),
+            public_key: pubkey.0,
+        }
+        .recode_to()
+        .context("failed to encode session update")?;
+        let tx = phaxt::phala::tx()
+            .phala_wapod_workers()
+            .worker_update_session(signed_update);
         self.chain_client
             .submit_tx("update session", tx, true, nonce_jar)
             .await
@@ -478,6 +478,7 @@ impl BridgeState {
                     balance
                 }
             };
+            let rm = info!("ticket {id} balance: {balance}");
             let entry = all_apps.entry(address);
             let app_info = entry.or_insert(AppInfo {
                 manifest: manifest.clone(),
@@ -554,7 +555,7 @@ impl BridgeState {
             SignedAppsMetrics::new(metrics, signature.into(), self.worker_pubkey, claim_map);
         let tx = phaxt::phala::tx()
             .phala_wapod_workers()
-            .submit_app_metrics(signed.recode_to().context("failed to encode app metrics")?);
+            .ticket_settle(signed.recode_to().context("failed to encode app metrics")?);
         self.chain_client
             .submit_tx("report metrics", tx, false, nonce_jar)
             .await
@@ -629,7 +630,7 @@ impl BridgeState {
             .output;
         let tx = phaxt::phala::tx()
             .phala_wapod_workers()
-            .submit_bench_message(Decode::decode(&mut &signed_score[..])?);
+            .benchmark_submit(Decode::decode(&mut &signed_score[..])?);
         info!("submitting bench score");
         self.chain_client
             .submit_tx("report bench score", tx, false, nonce_jar)
@@ -640,6 +641,7 @@ impl BridgeState {
     }
 
     async fn bridge(mut self) -> Result<()> {
+        let todo = "tx queue";
         // things the bridge does:
         //  init worker if needed
         //  sync chain state
@@ -694,6 +696,10 @@ pub fn is_challenging_the_worker(heartbeat: &HeartbeatChallenge, worker: &Addres
     let hashed_id: sp_core::U256 = pkh.into();
     let seed = sp_core::U256(heartbeat.seed.0);
     let online_target = sp_core::U256(heartbeat.online_target.0);
+    info!(
+        "chanllenge target: {}/10000",
+        online_target / (sp_core::U256::MAX / 10000)
+    );
     let x = hashed_id ^ seed;
     x <= online_target
 }

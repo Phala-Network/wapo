@@ -15,6 +15,8 @@ pub mod ticket;
 pub mod metrics;
 pub mod worker;
 
+mod helpers;
+
 pub type Bytes32 = [u8; 32];
 pub type Address = Bytes32;
 pub type Pubkey = Bytes32;

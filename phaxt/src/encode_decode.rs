@@ -25,3 +25,4 @@ impl_recode_for!(wapod_types::ticket::Prices);
 impl_recode_for!(wapod_types::ticket::WorkerDescription);
 impl_recode_for!(wapod_types::ticket::SignedWorkerDescription);
 impl_recode_for!(wapod_types::metrics::SignedAppsMetrics);
+impl_recode_for!(wapod_types::session::SignedSessionUpdate);

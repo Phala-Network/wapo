@@ -6,13 +6,18 @@ use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    crypto::{verify::verify_message, CryptoProvider},
+    crypto::{
+        verify::{verify_message, Verifiable},
+        CryptoProvider, Signature,
+    },
+    helpers::scale::TrailingZeroInput,
     metrics::AppMetrics,
-    primitives::{BoundedString, BoundedVec, WorkerPubkey},
+    primitives::{BoundedString, WorkerPubkey},
     ContentType,
 };
 
 pub type TicketId = u64;
+pub type Balance = u128;
 
 #[derive(Decode, Encode, TypeInfo, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppManifest {
@@ -47,15 +52,15 @@ impl AppManifest {
 
 #[derive(Encode, Decode, TypeInfo, Default, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
 pub struct Prices {
-    pub general_fee_per_second: Option<u128>,
-    pub gas_price: Option<u128>,
-    pub net_ingress_price: Option<u128>,
-    pub net_egress_price: Option<u128>,
-    pub storage_read_price: Option<u128>,
-    pub storage_write_price: Option<u128>,
-    pub storage_price: Option<u128>,
-    pub memory_price: Option<u128>,
-    pub tip_price: Option<u128>,
+    pub general_fee_per_second: Option<Balance>,
+    pub gas_price: Option<Balance>,
+    pub net_ingress_price: Option<Balance>,
+    pub net_egress_price: Option<Balance>,
+    pub storage_read_price: Option<Balance>,
+    pub storage_write_price: Option<Balance>,
+    pub storage_price: Option<Balance>,
+    pub memory_price: Option<Balance>,
+    pub tip_price: Option<Balance>,
 }
 
 impl Prices {
@@ -63,12 +68,12 @@ impl Prices {
         self == &Self::default()
     }
 
-    pub fn cost_of(&self, rhs: &AppMetrics) -> u128 {
-        let mut total = 0_u128;
+    pub fn cost_of(&self, rhs: &AppMetrics) -> Balance {
+        let mut total: Balance = 0;
         macro_rules! add_mul {
             ($price: expr, $usage: expr) => {
                 if let Some(price) = $price {
-                    let cost = price.saturating_mul($usage as u128);
+                    let cost = price.saturating_mul($usage as Balance);
                     total = total.saturating_add(cost);
                 }
             };
@@ -110,12 +115,12 @@ pub struct WorkerDescription {
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
 pub struct SignedWorkerDescription {
     pub worker_description: WorkerDescription,
-    pub signature: BoundedVec<u8, 128>,
+    pub signature: Signature,
     pub worker_pubkey: WorkerPubkey,
 }
 
-impl SignedWorkerDescription {
-    pub fn verify<Crypto: CryptoProvider>(&self) -> bool {
+impl Verifiable for SignedWorkerDescription {
+    fn verify<Crypto: CryptoProvider>(&self) -> bool {
         let encoded_message = self.worker_description.encode();
         verify_message::<Crypto>(
             ContentType::WorkerDescription,
@@ -124,4 +129,13 @@ impl SignedWorkerDescription {
             &self.worker_pubkey,
         )
     }
+}
+
+pub fn ticket_account_address<T>(ticket_id: TicketId, blake2_256_fn: fn(&[u8]) -> [u8; 32]) -> T
+where
+    T: Encode + Decode,
+{
+    let hash = blake2_256_fn(&(b"wapod/ticket/", ticket_id).encode());
+    T::decode(&mut TrailingZeroInput::new(&hash))
+        .expect("Decoding zero-padded account id should always succeed; qed")
 }

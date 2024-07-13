@@ -3,7 +3,10 @@ use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    crypto::{verify::verify_message, CryptoProvider},
+    crypto::{
+        verify::{verify_message, Verifiable},
+        CryptoProvider, Signature,
+    },
     primitives::{BoundedVec, WorkerPubkey},
     ticket::TicketId,
     Address, Bytes32, ContentType,
@@ -64,7 +67,7 @@ pub type ClaimMap =
 #[derive(Debug, Encode, Decode, TypeInfo, MaxEncodedLen, Clone, PartialEq, Eq)]
 pub struct SignedAppsMetrics {
     pub metrics: VersionedAppsMetrics,
-    pub signature: BoundedVec<u8, 128>,
+    pub signature: Signature,
     pub worker_pubkey: WorkerPubkey,
     // A map of app addresses to the tickets that the worker wants to claim.
     pub claim_map: ClaimMap,
@@ -84,8 +87,9 @@ impl SignedAppsMetrics {
             claim_map,
         }
     }
-
-    pub fn verify<Crypto: CryptoProvider>(&self) -> bool {
+}
+impl Verifiable for SignedAppsMetrics {
+    fn verify<Crypto: CryptoProvider>(&self) -> bool {
         let encoded_message = self.metrics.encode();
         verify_message::<Crypto>(
             ContentType::Metrics,

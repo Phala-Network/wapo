@@ -1,4 +1,5 @@
 {
+    "label": "test app",
     "output_dir": "dist",
     "wasm_code": "artifacts/test.wasm",
     "args": [
@@ -11,7 +12,6 @@
     "on_demand": false,
     "resizable": false,
     "max_query_size": 10240,
-    "label": "test app",
     "deps": [
         "artifacts/res1.txt",
         "artifacts/res2.txt"

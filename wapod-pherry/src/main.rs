@@ -2,12 +2,17 @@ use std::time::Duration;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use sp_core::hashing::blake2_256;
 use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 use wapod_pherry::{
     bridge::{run_bridge, BridgeConfig},
     deploy,
     endpoints::{update_endpoint, UpdateEndpointArgs},
     register::{register, RegisterArgs},
+};
+use wapod_types::{
+    ticket::{ticket_account_address, TicketId},
+    Address,
 };
 
 #[derive(Parser, Clone, Debug)]
@@ -93,6 +98,9 @@ enum Command {
         #[arg(long, default_value = "10000000000")]
         deposit: u128,
     },
+    TicketAddress {
+        ticket_id: TicketId,
+    },
 }
 
 #[tokio::main]
@@ -171,6 +179,10 @@ async fn main() -> Result<()> {
         } => {
             deploy::deploy_manifest(config, &other.node_url, &other.signer, deposit, worker_list)
                 .await?;
+        }
+        Command::TicketAddress { ticket_id } => {
+            let address: Address = ticket_account_address(ticket_id, blake2_256);
+            println!("0x{}", hex_fmt::HexFmt(address));
         }
     }
     Ok(())

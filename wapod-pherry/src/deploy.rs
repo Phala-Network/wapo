@@ -126,7 +126,7 @@ pub async fn deploy_manifest(
     worker_list: u64,
 ) -> Result<()> {
     let (address, manifest_cid) = build_manifest(config_file)?;
-    let tx = phaxt::phala::tx().phala_wapod_workers().create_ticket(
+    let tx = phaxt::phala::tx().phala_wapod_workers().ticket_create(
         deposit,
         address,
         manifest_cid,
@@ -166,7 +166,7 @@ pub async fn create_worker_list(
     info!("signed worker description");
     let tx = phaxt::phala::tx()
         .phala_wapod_workers()
-        .set_worker_description(
+        .worker_set_description(
             signed
                 .recode_to()
                 .context("failed to encode worker description")?,
@@ -177,7 +177,7 @@ pub async fn create_worker_list(
         .await?;
     info!("worker description set");
 
-    let tx = phaxt::phala::tx().phala_wapod_workers().create_worker_list(
+    let tx = phaxt::phala::tx().phala_wapod_workers().worker_list_create(
         "pherry-created".into(),
         Prices {
             general_fee_per_second: Some(1_000_000_000),

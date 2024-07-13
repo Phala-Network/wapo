@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, mem::size_of};
 use anyhow::{bail, Context, Result};
 use phaxt::phala::phala_computation::events::HeartbeatChallenge;
 use phaxt::phala::runtime_types::phala_pallets::wapod_workers::pallet::{
-    BenchAppInfo, TicketInfo, WorkerListInfo,
+    BenchAppInfo, TicketInfo as TicketInfoRT, WorkerListInfo as WorkerListInfoRT,
 };
 use scale::Decode;
 use tokio::{
@@ -19,6 +19,10 @@ mod chain_client;
 
 pub type TicketId = u64;
 pub type WorkerListId = u64;
+pub type AccountId = phaxt::subxt::utils::AccountId32;
+
+pub(crate) type TicketInfo = TicketInfoRT<AccountId>;
+pub(crate) type WorkerListInfo = WorkerListInfoRT<AccountId>;
 
 #[derive(Default)]
 pub struct ChainState {

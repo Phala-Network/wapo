@@ -3,9 +3,12 @@ use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    crypto::{verify::verify_app_data, CryptoProvider},
+    crypto::{
+        verify::{verify_app_data, Verifiable},
+        CryptoProvider, Signature,
+    },
     metrics::MetricsToken,
-    primitives::{Address, BoundedVec, WorkerPubkey},
+    primitives::{Address, WorkerPubkey},
 };
 
 /// The json response of the benchmark app.
@@ -45,13 +48,13 @@ pub enum SigningMessage {
 #[derive(Decode, Encode, TypeInfo, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
 pub struct SignedMessage {
     pub message: SigningMessage,
-    pub signature: BoundedVec<u8, 128>,
+    pub signature: Signature,
     pub worker_pubkey: WorkerPubkey,
     pub app_address: Address,
 }
 
-impl SignedMessage {
-    pub fn verify<Crypto: CryptoProvider>(&self) -> bool {
+impl Verifiable for SignedMessage {
+    fn verify<Crypto: CryptoProvider>(&self) -> bool {
         let encoded_message = self.message.encode();
         verify_app_data::<Crypto>(
             &self.app_address,

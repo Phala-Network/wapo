@@ -1,4 +1,5 @@
 {
+    "label": "worker-benchmark",
     "output_dir": "dist",
     "wasm_code": "../../target/wasm32-wasi/release/benchmark.wasm",
     "args": [],
@@ -8,6 +9,5 @@
     "on_demand": false,
     "resizable": true,
     "max_query_size": 102400,
-    "label": "worker-benchmark",
     "deps": []
 }

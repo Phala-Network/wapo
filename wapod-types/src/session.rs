@@ -1,9 +1,12 @@
-use alloc::vec::Vec;
 use scale::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
 use crate::{
-    crypto::{verify::verify_message, CryptoProvider},
+    crypto::{
+        verify::{verify_message, Verifiable},
+        CryptoProvider, Signature,
+    },
+    primitives::{BoundedVec, WorkerPubkey},
     Address, ContentType,
 };
 
@@ -11,7 +14,7 @@ use crate::{
 pub struct SessionUpdate {
     pub session: [u8; 32],
     pub seed: [u8; 32],
-    pub reward_receiver: Address,
+    pub reward_receiver: BoundedVec<u8, 32>,
 }
 
 impl SessionUpdate {
@@ -19,7 +22,7 @@ impl SessionUpdate {
         Crypto::blake2b_256(&[&seed, nonce].concat())
     }
 
-    pub fn from_seed<Crypto: CryptoProvider>(
+    pub fn new<Crypto: CryptoProvider>(
         seed: [u8; 32],
         nonce: &[u8],
         reward_receiver: Address,
@@ -28,7 +31,7 @@ impl SessionUpdate {
         Self {
             session,
             seed,
-            reward_receiver,
+            reward_receiver: reward_receiver.to_vec().into(),
         }
     }
 }
@@ -36,17 +39,18 @@ impl SessionUpdate {
 #[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq)]
 pub struct SignedSessionUpdate {
     pub update: SessionUpdate,
-    pub signature: Vec<u8>,
+    pub signature: Signature,
+    pub public_key: WorkerPubkey,
 }
 
-impl SignedSessionUpdate {
-    pub fn verify<Crypto: CryptoProvider>(&self, public_key: &[u8]) -> bool {
+impl Verifiable for SignedSessionUpdate {
+    fn verify<Crypto: CryptoProvider>(&self) -> bool {
         let message = self.update.encode();
         verify_message::<Crypto>(
             ContentType::SessionUpdate,
             &message,
             &self.signature,
-            public_key,
+            &self.public_key,
         )
     }
 }

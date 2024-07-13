@@ -732,7 +732,7 @@ impl<T: WorkerConfig> WorkerState<T> {
             bail!("init session failed, apps already deployed")
         }
         let seed: [u8; 32] = rand::thread_rng().gen();
-        let update = SessionUpdate::from_seed::<SpCoreHash>(seed, nonce, reward_receiver);
+        let update = SessionUpdate::new::<SpCoreHash>(seed, nonce, reward_receiver);
         self.session = Some(update.session);
         self.metrics_sn = 0;
         Ok(update)
