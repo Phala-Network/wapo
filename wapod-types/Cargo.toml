@@ -1,7 +1,11 @@
 [package]
 name = "wapod-types"
-version = "0.1.0"
+version = "0.1.0-dev.0"
 edition = "2021"
+
+description = "Types for wapod interface"
+license = "Apache-2.0"
+homepage = "https://github.com/Phala-Network/wapo"
 
 [dependencies]
 scale = { version = "3.6.12", package = "parity-scale-codec", default-features = false, features = ["max-encoded-len"]}
