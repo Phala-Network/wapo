@@ -527,7 +527,7 @@ impl BridgeState {
         let signature = response.signature;
         let VersionedAppsMetrics::V0(all_metrics) = &metrics;
 
-        let mut claim_map = BoundedVec::default();
+        let mut claim_map = vec![];
 
         for m in all_metrics.apps.0.iter() {
             let Some(info) = self.planning_state.all_apps.get(&m.address) else {
@@ -543,7 +543,7 @@ impl BridgeState {
                 .cloned()
                 .take(MAX_CLAIM_TICKETS)
                 .collect::<Vec<_>>();
-            if claim_map.push((m.address, ids.into())).is_err() {
+            if claim_map.push((m.address, ids)).is_err() {
                 break;
             }
         }
@@ -551,11 +551,11 @@ impl BridgeState {
             return Ok(());
         }
 
-        let signed =
-            SignedAppsMetrics::new(metrics, signature.into(), self.worker_pubkey, claim_map);
-        let tx = phaxt::phala::tx()
-            .phala_wapod_workers()
-            .ticket_settle(signed.recode_to().context("failed to encode app metrics")?);
+        let signed = SignedAppsMetrics::new(metrics, signature.into(), self.worker_pubkey);
+        let tx = phaxt::phala::tx().phala_wapod_workers().ticket_settle(
+            signed.recode_to().context("failed to encode app metrics")?,
+            claim_map,
+        );
         self.chain_client
             .submit_tx("report metrics", tx, false, nonce_jar)
             .await
@@ -583,7 +583,7 @@ impl BridgeState {
             info!("skipping to report init score, wait a while to get more accurate score");
             return Ok(());
         }
-        self.do_report_bench_score(nonce_jar).await?;
+        self.do_report_bench_score(true, nonce_jar).await?;
         Ok(())
     }
 
@@ -608,10 +608,14 @@ impl BridgeState {
                 return Ok(());
             }
         };
-        self.do_report_bench_score(nonce_jar).await
+        self.do_report_bench_score(false, nonce_jar).await
     }
 
-    async fn do_report_bench_score(&mut self, nonce_jar: &mut NonceJar) -> Result<()> {
+    async fn do_report_bench_score(
+        &mut self,
+        is_init: bool,
+        nonce_jar: &mut NonceJar,
+    ) -> Result<()> {
         let Some((address, _instances)) = &self.planning_state.bench_app else {
             debug!("no bench app");
             return Ok(());
@@ -630,7 +634,7 @@ impl BridgeState {
             .output;
         let tx = phaxt::phala::tx()
             .phala_wapod_workers()
-            .benchmark_submit(Decode::decode(&mut &signed_score[..])?);
+            .benchmark_submit_score(is_init, Decode::decode(&mut &signed_score[..])?);
         info!("submitting bench score");
         self.chain_client
             .submit_tx("report bench score", tx, false, nonce_jar)
@@ -642,6 +646,7 @@ impl BridgeState {
 
     async fn bridge(mut self) -> Result<()> {
         let todo = "tx queue";
+        let todo = "reinit worker if it was restarted";
         // things the bridge does:
         //  init worker if needed
         //  sync chain state

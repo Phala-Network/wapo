@@ -52,6 +52,7 @@ fn hash(data: &[u8], output_dir: impl AsRef<Path>) -> Result<(String, String)> {
 }
 
 pub fn build_manifest(config_file: impl AsRef<Path>) -> Result<(Address, String)> {
+    let todo = "more config items";
     let config_file = std::fs::canonicalize(config_file.as_ref())?;
     let config: DeployConfig = serde_json::from_reader(std::fs::File::open(&config_file)?)
         .context("failed to parse config")?;

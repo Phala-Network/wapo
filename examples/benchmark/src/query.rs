@@ -122,6 +122,7 @@ async fn net_now() -> Result<SystemTime> {
 
 async fn handle_query(state: &mut State, path: String, _payload: Vec<u8>) -> Result<Vec<u8>> {
     match path.as_str() {
+        "/version" => Ok(env!("CARGO_PKG_VERSION").as_bytes().to_vec()),
         "/score" => serde_json::to_vec(&state.score)
             .map_err(|e| anyhow::anyhow!("failed to serialize score: {}", e)),
         "/signedScore" => {

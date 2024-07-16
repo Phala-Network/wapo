@@ -31,7 +31,7 @@ pub struct MetricsToken {
     pub nonce: [u8; 32],
 }
 
-#[derive(Debug, Encode, Decode, TypeInfo, MaxEncodedLen, Clone, PartialEq, Eq)]
+#[derive(Debug, Encode, Decode, TypeInfo, MaxEncodedLen, Clone, PartialEq, Eq, Default)]
 pub struct AppMetrics {
     pub address: Address,
     pub session: Bytes32,
@@ -69,8 +69,6 @@ pub struct SignedAppsMetrics {
     pub metrics: VersionedAppsMetrics,
     pub signature: Signature,
     pub worker_pubkey: WorkerPubkey,
-    // A map of app addresses to the tickets that the worker wants to claim.
-    pub claim_map: ClaimMap,
 }
 
 impl SignedAppsMetrics {
@@ -78,13 +76,11 @@ impl SignedAppsMetrics {
         metrics: VersionedAppsMetrics,
         signature: BoundedVec<u8, 128>,
         worker_pubkey: WorkerPubkey,
-        claim_map: ClaimMap,
     ) -> Self {
         Self {
             metrics,
             signature,
             worker_pubkey,
-            claim_map,
         }
     }
 }
