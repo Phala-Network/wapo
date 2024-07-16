@@ -9,10 +9,10 @@ pub use scale;
 
 pub mod bench_app;
 pub mod crypto;
+pub mod metrics;
 pub mod primitives;
 pub mod session;
 pub mod ticket;
-pub mod metrics;
 pub mod worker;
 
 mod helpers;
@@ -21,7 +21,6 @@ pub type Bytes32 = [u8; 32];
 pub type Address = Bytes32;
 pub type Pubkey = Bytes32;
 pub type Hash = Bytes32;
-
 
 #[derive(Clone, Copy, Debug)]
 #[repr(u8)]
@@ -41,9 +40,6 @@ impl ContentType {
         self.wrap_message_iter(message.as_ref().iter().copied())
     }
     pub fn wrap_message_iter(&self, message: impl IntoIterator<Item = u8>) -> Vec<u8> {
-        [0xff_u8, *self as u8]
-            .into_iter()
-            .chain(message.into_iter())
-            .collect()
+        [0xff_u8, *self as u8].into_iter().chain(message).collect()
     }
 }

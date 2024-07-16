@@ -576,7 +576,7 @@ impl<T: WorkerConfig> WorkerState<T> {
                     .chain(app.manifest.args.iter().cloned())
                     .collect(),
             )
-            .envs(app.manifest.env_vars.iter().cloned().collect())
+            .envs(app.manifest.env_vars.to_vec())
             .tcp_listen_port_range(self.args.tcp_listen_port_range.clone())
             .sni_tls_listener(self.sni_tls_listener.clone())
             .verify_tls_server_cert(self.args.verify_tls_server_cert)

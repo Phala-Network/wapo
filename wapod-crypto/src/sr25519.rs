@@ -47,7 +47,7 @@ impl Pair {
     pub fn derive(&self, path: impl IntoIterator<Item = [u8; 32]>) -> Self {
         let (pair, _seed) = self
             .pair
-            .derive(path.into_iter().map(|j| DeriveJunction::Hard(j)), None)
+            .derive(path.into_iter().map(DeriveJunction::Hard), None)
             .expect("derive key should never fail");
         Self { pair }
     }

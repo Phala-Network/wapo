@@ -198,7 +198,7 @@ impl BridgeState {
         .context("failed to encode session update")?;
         let tx = phaxt::phala::tx()
             .phala_wapod_workers()
-            .worker_update_session(signed_update);
+            .worker_session_update(signed_update);
         self.chain_client
             .submit_tx("update session", tx, true, nonce_jar)
             .await
@@ -529,7 +529,7 @@ impl BridgeState {
 
         let mut claim_map = vec![];
 
-        for m in all_metrics.apps.0.iter() {
+        for m in all_metrics.apps.0.iter().take(3) {
             let Some(info) = self.planning_state.all_apps.get(&m.address) else {
                 debug!(
                     "app 0x{} not found, skipping to claim settlement",
@@ -543,9 +543,7 @@ impl BridgeState {
                 .cloned()
                 .take(MAX_CLAIM_TICKETS)
                 .collect::<Vec<_>>();
-            if claim_map.push((m.address, ids)).is_err() {
-                break;
-            }
+            claim_map.push((m.address, ids));
         }
         if claim_map.is_empty() {
             return Ok(());
@@ -597,7 +595,7 @@ impl BridgeState {
         {
             let working_address = phaxt::phala::storage()
                 .phala_wapod_workers()
-                .working_workers(Public(self.worker_pubkey));
+                .computation_workers(Public(self.worker_pubkey));
             let working = self
                 .chain_client
                 .fetch(working_address)
@@ -634,7 +632,7 @@ impl BridgeState {
             .output;
         let tx = phaxt::phala::tx()
             .phala_wapod_workers()
-            .benchmark_submit_score(is_init, Decode::decode(&mut &signed_score[..])?);
+            .benchmark_score_submit(is_init, Decode::decode(&mut &signed_score[..])?);
         info!("submitting bench score");
         self.chain_client
             .submit_tx("report bench score", tx, false, nonce_jar)

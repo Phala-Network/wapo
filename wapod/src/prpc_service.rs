@@ -270,21 +270,19 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
     async fn app_query(self, request: pb::QueryArgs) -> Result<pb::QueryResponse> {
         let caller = if request.encoded_signature.is_empty() {
             None
+        } else if let Some(signature) = request.decode_signature()? {
+            let query = Query {
+                address: request.address.clone(),
+                path: request.path.clone(),
+                payload: request.payload.clone(),
+            };
+            let caller = signature
+                .signer
+                .verify_query(query, &signature.signature, signature.signature_type)
+                .map_err(|err| anyhow!("failed to verify the signature: {err:?}"))?;
+            Some(caller)
         } else {
-            if let Some(signature) = request.decode_signature()? {
-                let query = Query {
-                    address: request.address.clone(),
-                    path: request.path.clone(),
-                    payload: request.payload.clone(),
-                };
-                let caller = signature
-                    .signer
-                    .verify_query(query, &signature.signature, signature.signature_type)
-                    .map_err(|err| anyhow!("failed to verify the signature: {err:?}"))?;
-                Some(caller)
-            } else {
-                None
-            }
+            None
         };
         let output = self
             .worker
@@ -363,10 +361,7 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
         let pair = T::KeyProvider::get_key();
         let worker_description = rpc::types::WorkerDescription {
             prices: request.decode_prices()?,
-            description: request
-                .description
-                .try_into()
-                .context("description too long")?,
+            description: request.description.into(),
         };
         let signature = pair.sign(
             wapod_types::ContentType::WorkerDescription,
@@ -374,9 +369,7 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
         );
         let signed = rpc::types::SignedWorkerDescription {
             worker_description,
-            signature: signature
-                .try_into()
-                .context("failed to convert signature")?,
+            signature: signature.into(),
             worker_pubkey: pair.public().to_array(),
         };
         Ok(pb::SignWorkerDescriptionResponse::new(signed))

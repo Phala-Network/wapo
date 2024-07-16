@@ -12,7 +12,7 @@ ring = "0.17.8"
 curve25519-dalek = "4.1.2"
 schnorrkel = "0.11.4"
 rand = "0.8.5"
-wapod-types = { path = "../wapod-types", version = "0.1.0" }
+wapod-types = { path = "../wapod-types" }
 thiserror = "1.0.61"
 derive_more = "0.99.17"
 ethers = { version = "2.0.14", features = ["eip712"] }

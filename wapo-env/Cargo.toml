@@ -8,7 +8,7 @@ version = "0.1.0"
 
 [dependencies]
 wapo-macro = { version = "0.1.0", path = "../wapo-macro" }
-wapod-types = { version = "0.1.0", path = "../wapod-types" }
+wapod-types = { path = "../wapod-types" }
 
 derive_more = "0.99.17"
 num_enum = "0.7.2"
