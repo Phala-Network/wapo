@@ -27,8 +27,7 @@ use wapod_rpc::{
 };
 use wapod_types::{
     bench_app::BenchScore,
-    metrics::{SignedAppsMetrics, MAX_CLAIM_TICKETS},
-    primitives::BoundedVec,
+    metrics::{SignedAppsMetrics, MAX_APPS_METRICS, MAX_CLAIM_TICKETS},
     session::SignedSessionUpdate,
     ticket::AppManifest,
 };
@@ -168,7 +167,7 @@ impl BridgeState {
         }
         // if there is a session recorded on-chain, use the last_nonce to initialize the worker
         // else initialize the worker with an empty nonce
-        let nonce = match &session {
+        let pnonce = match &session {
             Some(session) => &session.last_nonce[..],
             None => &[],
         };
@@ -178,12 +177,12 @@ impl BridgeState {
             .app_remove_all()
             .await
             .context("failed to remove all apps")?;
-        info!("initializing worker with nonce: 0x{}", Hex(nonce));
+        info!("initializing worker with pnonce: 0x{}", Hex(pnonce));
         let response = self
             .worker_client
             .operation()
             .worker_init(InitArgs {
-                nonce: nonce.to_vec(),
+                pnonce: pnonce.to_vec(),
                 recipient: self.config.recipient.clone(),
             })
             .await?;
