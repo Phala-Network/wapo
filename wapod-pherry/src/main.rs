@@ -73,7 +73,7 @@ enum Command {
         metrics_interval: u64,
         /// The account to receive rewards.
         #[arg(long)]
-        reward_receiver: String,
+        recipient: String,
         /// Waiting for the benchmark app to consume amount of gas until report the init score.
         #[arg(long, default_value = "1000000000")]
         gas_until_report: u64,
@@ -143,7 +143,7 @@ async fn main() -> Result<()> {
             ipfs_cache_dir,
             max_apps,
             metrics_interval,
-            reward_receiver,
+            recipient,
             operator,
             pccs_url,
             gas_until_report,
@@ -157,7 +157,7 @@ async fn main() -> Result<()> {
                 ipfs_cache_dir,
                 max_apps,
                 metrics_interval: Duration::from_secs(metrics_interval),
-                reward_receiver,
+                recipient,
                 operator: operator.unwrap_or_default(),
                 pccs_url,
                 gas_until_report,

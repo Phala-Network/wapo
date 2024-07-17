@@ -53,7 +53,7 @@ pub struct BridgeConfig {
     pub ipfs_cache_dir: String,
     pub max_apps: usize,
     pub metrics_interval: Duration,
-    pub reward_receiver: String,
+    pub recipient: String,
     pub operator: String,
     pub pccs_url: String,
     pub gas_until_report: u64,
@@ -184,7 +184,7 @@ impl BridgeState {
             .operation()
             .worker_init(InitArgs {
                 nonce: nonce.to_vec(),
-                reward_receiver: self.config.reward_receiver.clone(),
+                recipient: self.config.recipient.clone(),
             })
             .await?;
         let update = response.decode_session_update()?;

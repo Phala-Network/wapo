@@ -105,12 +105,12 @@ impl<T: WorkerConfig> Call<T> {
 
 impl<T: WorkerConfig> OperationRpc for Call<T> {
     async fn worker_init(self, request: pb::InitArgs) -> Result<pb::InitResponse> {
-        if request.nonce.len() > 64 {
+        if request.pnonce.len() > 64 {
             bail!("the salt is too long");
         }
         let account =
-            AccountId32::from_string(&request.reward_receiver).context("invalid account")?;
-        let update = self.init(&request.nonce, account.into())?;
+            AccountId32::from_string(&request.recipient).context("invalid account")?;
+        let update = self.init(&request.pnonce, account.into())?;
         let signature = T::KeyProvider::get_key()
             .sign(wapod_types::ContentType::SessionUpdate, update.encode());
         let pubkey = T::KeyProvider::get_key().public();
