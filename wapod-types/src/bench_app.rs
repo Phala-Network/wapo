@@ -1,3 +1,5 @@
+//! The types used by the benchmark app.
+
 use scale::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
@@ -37,7 +39,7 @@ pub struct BenchScore {
     pub metrics_token: MetricsToken,
 }
 
-/// The message that the benchmark app sends emits.
+/// A message that the benchmark app can emit.
 #[derive(Decode, Encode, TypeInfo, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
 pub enum SigningMessage {
     /// A benchmark score. This can be submitted to the chain as the worker's initial score.
@@ -47,9 +49,13 @@ pub enum SigningMessage {
 /// A signed message.
 #[derive(Decode, Encode, TypeInfo, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
 pub struct SignedMessage {
+    /// The message.
     pub message: SigningMessage,
+    /// The signature of the message.
     pub signature: Signature,
+    /// The public key of the worker that signed the message.
     pub worker_pubkey: WorkerPubkey,
+    /// The address of the app that the message is intended for.
     pub app_address: Address,
 }
 

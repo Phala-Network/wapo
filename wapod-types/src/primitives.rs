@@ -1,3 +1,5 @@
+//! Some basic types used in the Wapod project.
+
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
@@ -5,25 +7,36 @@ use core::ops::Deref;
 use scale::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
-pub type WorkerPubkey = [u8; 32];
-pub type Address = [u8; 32];
+/// A 32-byte array.
+pub type Bytes32 = [u8; 32];
+/// Address of an application or a worker.
+pub type Address = Bytes32;
+/// A blake2b hash value.
+pub type Hash = Bytes32;
+/// Worker public key.
+pub type WorkerPubkey = Bytes32;
 
+/// A bounded vector with a maximum length.
 #[derive(Debug, Clone, PartialEq, Eq, Encode)]
 pub struct BoundedVec<T, const B: usize>(pub Vec<T>);
 
 impl<T, const B: usize> BoundedVec<T, B> {
+    /// The maximum length of the vector.
     pub fn max_len(&self) -> usize {
         B
     }
 
+    /// The current length of the vector.
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
+    /// Whether the vector is empty.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
+    /// Push a value to the vector.
     pub fn push(&mut self, value: T) -> Result<(), T> {
         if self.len() >= B {
             return Err(value);
@@ -32,30 +45,37 @@ impl<T, const B: usize> BoundedVec<T, B> {
         Ok(())
     }
 
+    /// Pop a value from the vector.
     pub fn pop(&mut self) -> Option<T> {
         self.0.pop()
     }
 
+    /// Clear the vector.
     pub fn clear(&mut self) {
         self.0.clear()
     }
 
+    /// Iterate over the vector.
     pub fn iter(&self) -> core::slice::Iter<'_, T> {
         self.0.iter()
     }
 
+    /// Mutably iterate over the vector.
     pub fn iter_mut(&mut self) -> core::slice::IterMut<'_, T> {
         self.0.iter_mut()
     }
 
+    /// As a slice.
     pub fn as_slice(&self) -> &[T] {
         self.0.as_slice()
     }
 
+    /// As a mutable slice.
     pub fn as_mut_slice(&mut self) -> &mut [T] {
         self.0.as_mut_slice()
     }
 
+    /// Convert into the inner vector.
     pub fn into_inner(self) -> Vec<T> {
         self.0
     }
@@ -127,6 +147,7 @@ impl<T, const B: usize> IntoIterator for BoundedVec<T, B> {
     }
 }
 
+/// A bounded string with a maximum length.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Default)]
 pub struct BoundedString<const B: usize>(pub String);
 

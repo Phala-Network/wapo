@@ -1,3 +1,5 @@
+//! Types related to the ticket system.
+
 use alloc::string::String;
 use alloc::vec::Vec;
 
@@ -16,9 +18,12 @@ use crate::{
     ContentType,
 };
 
+/// The ticket id type.
 pub type TicketId = u64;
+/// The balance type.
 pub type Balance = u128;
 
+/// The manifest of an application.
 #[derive(Decode, Encode, TypeInfo, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppManifest {
     /// The spec version of the manifest.
@@ -45,29 +50,42 @@ pub struct AppManifest {
 }
 
 impl AppManifest {
+    /// Calculate the address of the application.
     pub fn address(&self, blake2_256_fn: fn(&[u8]) -> [u8; 32]) -> [u8; 32] {
         blake2_256_fn(&self.encode())
     }
 }
 
+/// Resource prices.
 #[derive(Encode, Decode, TypeInfo, Default, MaxEncodedLen, Debug, Clone, PartialEq, Eq)]
 pub struct Prices {
+    /// The general fee per second.
     pub general_fee_per_second: Option<Balance>,
+    /// The gas price. (balance per gas)
     pub gas_price: Option<Balance>,
+    /// The network ingress price. (balance per byte)
     pub net_ingress_price: Option<Balance>,
+    /// The network egress price. (balance per byte)
     pub net_egress_price: Option<Balance>,
+    /// The storage read price. (balance per byte)
     pub storage_read_price: Option<Balance>,
+    /// The storage write price. (balance per byte)
     pub storage_write_price: Option<Balance>,
+    /// The storage price. (balance per MB*second)
     pub storage_price: Option<Balance>,
+    /// The memory price. (balance per KB*second)
     pub memory_price: Option<Balance>,
+    /// The tip price. (balance per tip)
     pub tip_price: Option<Balance>,
 }
 
 impl Prices {
+    /// Check if the prices are empty.
     pub fn is_empty(&self) -> bool {
         self == &Self::default()
     }
 
+    /// Calculate the cost of the given metrics.
     pub fn cost_of(&self, rhs: &AppMetrics) -> Balance {
         let mut total: Balance = 0;
         macro_rules! add_mul {
@@ -91,6 +109,7 @@ impl Prices {
         total
     }
 
+    /// Merge two prices together. If a field is present in both, the one in `self` will be used.
     pub fn merge(self, other: &Self) -> Self {
         Self {
             general_fee_per_second: self.general_fee_per_second.or(other.general_fee_per_second),
@@ -106,16 +125,23 @@ impl Prices {
     }
 }
 
+/// A worker description.
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
 pub struct WorkerDescription {
+    /// The resource prices of the worker.
     pub prices: Prices,
+    /// The description text of the worker.
     pub description: BoundedString<1024>,
 }
 
+/// A signed worker description.
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq, MaxEncodedLen)]
 pub struct SignedWorkerDescription {
+    /// The description content.
     pub worker_description: WorkerDescription,
+    /// The signature of the description.
     pub signature: Signature,
+    /// The public key of the worker.
     pub worker_pubkey: WorkerPubkey,
 }
 
@@ -131,6 +157,7 @@ impl Verifiable for SignedWorkerDescription {
     }
 }
 
+/// Calculate the deposit account id of a ticket.
 pub fn ticket_account_address<T>(ticket_id: TicketId, blake2_256_fn: fn(&[u8]) -> [u8; 32]) -> T
 where
     T: Encode + Decode,

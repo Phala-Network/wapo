@@ -529,7 +529,7 @@ impl BridgeState {
 
         let mut claim_map = vec![];
 
-        for m in all_metrics.apps.0.iter().take(3) {
+        for m in all_metrics.apps.0.iter().take(MAX_APPS_METRICS) {
             let Some(info) = self.planning_state.all_apps.get(&m.address) else {
                 debug!(
                     "app 0x{} not found, skipping to claim settlement",
