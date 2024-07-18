@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 use futures::stream::FuturesUnordered;
 use futures::StreamExt as _;
-use log::{debug, info};
+use log::{debug, info, warn};
 use std::time::{Duration, Instant, SystemTime};
 use tokio::sync::mpsc::Sender;
 
@@ -59,7 +59,7 @@ async fn score_update(tx: Sender<BenchScore>) {
             wapo::ocall::app_gas_consumed().expect("failed to get gas consumed");
         debug!("net_start_time: {:?}", net_start_time);
         debug!("gas_at_start: {:?}", gas_at_start);
-        wapo::time::sleep(Duration::from_secs(30)).await;
+        wapo::time::sleep(Duration::from_secs(60)).await;
         let (gas_at_end, token) =
             wapo::ocall::app_gas_consumed().expect("failed to get gas consumed");
         let local_elapsed = local_start_time.elapsed();
@@ -67,14 +67,14 @@ async fn score_update(tx: Sender<BenchScore>) {
         debug!("net_end_time: {:?}", net_end_time);
         debug!("gas_at_end: {:?}", gas_at_end);
         match (&net_start_time, &net_end_time) {
-            (Ok(start_time), Ok(end_time)) => {
-                let Ok(net_elapsed) = end_time.duration_since(*start_time) else {
-                    info!("invalid net time, skipping score update");
+            (Ok(net_start_time), Ok(net_end_time)) => {
+                let Ok(net_elapsed) = net_end_time.duration_since(*net_start_time) else {
+                    warn!("invalid net time, skipping score update");
                     continue;
                 };
                 let diff = local_elapsed.as_secs_f64() - net_elapsed.as_secs_f64();
-                if diff.abs() > 10_f64 {
-                    info!("time diff between local and net is too large: {diff}");
+                if diff.abs() > 5_f64 {
+                    warn!("time diff between local and net is too large: {diff}");
                     continue;
                 }
                 let gas_diff = gas_at_end.saturating_sub(gas_at_start);
@@ -83,7 +83,7 @@ async fn score_update(tx: Sender<BenchScore>) {
                 let score = BenchScore {
                     gas_per_second: score,
                     gas_consumed: gas_at_end,
-                    timestamp_secs: end_time
+                    timestamp_secs: net_end_time
                         .duration_since(SystemTime::UNIX_EPOCH)
                         .expect("failed to get timestamp")
                         .as_secs(),
@@ -92,7 +92,7 @@ async fn score_update(tx: Sender<BenchScore>) {
                 tx.send(score).await.expect("failed to send score");
             }
             _ => {
-                info!("failed to get net time, skipping score update");
+                warn!("failed to get net time, skipping score update");
             }
         }
     }
