@@ -6,12 +6,12 @@ fn sha256(data: &[u8]) -> [u8; 32] {
 }
 
 pub async fn benchmark() {
-    let mut init = sha256(b"init");
+    let mut buffer = sha256(b"init");
     loop {
         for _ in 0..10000 {
-            init = sha256(&init);
+            buffer = sha256(&buffer);
         }
-        std::hint::black_box(&init);
+        std::hint::black_box(&buffer);
         wapo::time::breath().await;
     }
 }
