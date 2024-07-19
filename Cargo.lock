@@ -6492,6 +6492,7 @@ name = "sni-tls-listener"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "pin-project",
  "rustls 0.23.10",
  "rustls-pemfile 2.1.2",
  "rustls-pki-types",

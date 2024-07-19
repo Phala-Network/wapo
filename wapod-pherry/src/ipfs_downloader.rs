@@ -232,7 +232,7 @@ impl IpfsDownloader {
             };
             let mut state = self.state.lock().unwrap();
             state.downloading.remove(&cid_str);
-            self.config.notify.send(event).ok();
+            self.notify(event);
             if let Some(next_cid) = state.pending.pop_first() {
                 state.downloading.insert(next_cid.clone());
                 cid_str = next_cid;
@@ -240,5 +240,9 @@ impl IpfsDownloader {
             }
             break;
         }
+    }
+
+    fn notify(&self, event: Event) {
+        self.config.notify.send(event).ok();
     }
 }

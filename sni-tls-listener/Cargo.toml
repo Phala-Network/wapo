@@ -16,3 +16,6 @@ webpki-roots = "0.26.3"
 [features]
 ring = ["rustls/ring"]
 aws_lc_rs = ["rustls/aws_lc_rs"]
+
+[dev-dependencies]
+pin-project = "1.1.5"
