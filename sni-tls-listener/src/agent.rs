@@ -78,11 +78,6 @@ impl<T: Config> Drop for Subscription<T> {
     }
 }
 
-#[derive(Debug, Clone)]
-enum Event {
-    NewSubscription,
-}
-
 #[derive(Debug)]
 struct SubTx<T: Config> {
     tx: mpsc::Sender<ConnectionOf<T>>,
@@ -126,7 +121,7 @@ impl<T: Config> SubState<T> {
 
     fn clear_timeout_connections(&mut self, threshold: Duration) {
         self.queue
-            .retain(|(instant, _)| instant.elapsed() >= threshold);
+            .retain(|(instant, _)| instant.elapsed() < threshold);
     }
 }
 
@@ -162,6 +157,7 @@ struct AgentState<T: Config> {
     subscribers: BTreeMap<String, SubState<T>>,
     create_instance: Box<dyn Fn() + Send + Sync + 'static>,
     reuse_subscriber: bool,
+    connect_timeout: Duration,
 }
 
 impl<T: Config> Agent<T> {
@@ -169,6 +165,7 @@ impl<T: Config> Agent<T> {
         listener: T::Listener,
         create_instance: impl Fn() + Send + Sync + 'static,
         reuse_subscriber: bool,
+        connect_timeout: Duration,
     ) -> Self {
         Self {
             state: Arc::new_cyclic(|weak_self| {
@@ -178,6 +175,7 @@ impl<T: Config> Agent<T> {
                     subscribers: Default::default(),
                     create_instance: Box::new(create_instance) as _,
                     reuse_subscriber,
+                    connect_timeout,
                 })
             }),
         }
@@ -286,10 +284,25 @@ where
                         }
                     }
                 };
+                let weak_self = self.weak_self.clone();
+                let owned_domain = domain.to_string();
+                let timeout = self.connect_timeout;
+                let conn_timeout_checker = async move {
+                    loop {
+                        tokio::time::sleep(timeout / 2).await;
+                        if let Some(agent) = weak_self.upgrade() {
+                            let mut state = agent.lock();
+                            if let Some(sub) = state.subscribers.get_mut(&owned_domain) {
+                                sub.clear_timeout_connections(timeout);
+                            }
+                        }
+                    }
+                };
                 tokio::spawn(async move {
                     tokio::select! {
                         _ = task => {}
                         _ = cancel_rx => {}
+                        _ = conn_timeout_checker => {}
                     }
                 });
                 self.subscribers.insert(domain.to_string(), sub_state);
@@ -311,7 +324,6 @@ where
                 .send(connection)
                 .context("failed to dispatch the connection")?;
         } else {
-            let todo = "timeout the connection";
             sub.queue.push_back((Instant::now(), connection));
             (self.create_instance)();
         }

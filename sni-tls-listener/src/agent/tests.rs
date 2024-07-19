@@ -118,6 +118,7 @@ async fn subscribe_works() {
         listener.clone(),
         move || inst_tx.try_send(()).unwrap(),
         true,
+        Duration::from_millis(1000),
     );
 
     let sub0 = agent.subscribe(EXAMPLE_DOMAIN, "key0".to_string()).unwrap();
@@ -159,6 +160,7 @@ async fn dispatch_reusing_sub_works() {
         listener.clone(),
         move || inst_tx.try_send(()).unwrap(),
         reuse,
+        Duration::from_millis(1000),
     );
 
     listener.send_connection(EXAMPLE_DOMAIN, "conn0".to_string());
@@ -195,6 +197,7 @@ async fn dispatch_exclusive_sub_works() {
         listener.clone(),
         move || inst_tx.try_send(()).unwrap(),
         reuse,
+        Duration::from_millis(1000),
     );
 
     listener.send_connection(EXAMPLE_DOMAIN, "conn0".to_string());
@@ -215,4 +218,32 @@ async fn dispatch_exclusive_sub_works() {
     let mut sub1 = agent.subscribe(EXAMPLE_DOMAIN, "key0".to_string()).unwrap();
     assert_eq!(agent.queued_connections(EXAMPLE_DOMAIN), 0);
     assert_eq!(should_ready(sub1.next()).await.unwrap().unwrap(), "conn1");
+}
+
+#[tokio::test]
+async fn connect_timeout_works() {
+    let listener = TestListener {
+        subscriptions: Default::default(),
+    };
+
+    let (inst_tx, _inst_rx) = mpsc::channel(32);
+    let reuse = false;
+    let timeout = Duration::from_millis(100);
+    let agent = Agent::<TestConfig>::new(
+        listener.clone(),
+        move || inst_tx.try_send(()).unwrap(),
+        reuse,
+        timeout,
+    );
+
+    let _sub0 = agent.subscribe(EXAMPLE_DOMAIN, "key0".to_string()).unwrap();
+    listener.send_connection(EXAMPLE_DOMAIN, "conn1".to_string());
+    sleep_ms(55).await;
+
+    // Should be queued
+    assert_eq!(agent.queued_connections(EXAMPLE_DOMAIN), 1);
+    sleep_ms(100).await;
+
+    // Should timed out
+    assert_eq!(agent.queued_connections(EXAMPLE_DOMAIN), 0);
 }
