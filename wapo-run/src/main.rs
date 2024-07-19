@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
@@ -103,12 +103,14 @@ pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
     SniTlsListener::install_ring_provider();
     let sni_tls_listener = match args.tls_port {
         Some(port) => Some({
-            SniTlsListener::bind("0.0.0.0", port)
+            SniTlsListener::bind("0.0.0.0", port, args.verify_tls_server_cert)
                 .await
                 .context("failed to bind sni tls listener")?
         }),
         None => None,
     };
+    let agent =
+        sni_tls_listener.map(|listener| listener.agent(|| (), true, Duration::from_secs(1)));
     let config = InstanceConfig::builder()
         .epoch_deadline(args.epoch_deadline)
         .max_memory_pages(args.max_memory_pages)
@@ -117,8 +119,7 @@ pub async fn run(mut args: Args) -> Result<(Vec<u8>, Arc<Meter>)> {
         .blobs_dir("./data/storage_files/blobs".into())
         .runtime_calls(())
         .tcp_listen_port_range(0..=65535)
-        .sni_tls_listener(sni_tls_listener)
-        .verify_tls_server_cert(args.verify_tls_server_cert)
+        .sni_tls_listener(agent)
         .build();
     let mut wasm_run = module.run(config).context("failed to start the instance")?;
     if let Some(kill_timeout) = args.kill_timeout {

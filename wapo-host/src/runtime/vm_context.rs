@@ -11,7 +11,7 @@ use std::{
 };
 
 use anyhow::Context;
-use sni_tls_listener::{verify_certifacate, wrap_certified_key, SniTlsListener};
+use sni_tls_listener::{wrap_certified_key, Agent, Generate};
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::oneshot::Sender as OneshotSender,
@@ -128,8 +128,7 @@ impl RuntimeCalls for () {
 #[derive(typed_builder::TypedBuilder, Debug)]
 pub struct WapoVmConfig {
     pub tcp_listen_port_range: RangeInclusive<u16>,
-    pub sni_tls_listener: Option<SniTlsListener>,
-    pub verify_tls_server_cert: bool,
+    pub sni_tls_listener: Option<Agent>,
 }
 
 pub(crate) struct WapoCtx {
@@ -335,11 +334,11 @@ impl env::OcallFuncs for WapoCtx {
                     };
                     (res, addr)
                 }
-                Resource::SniSubscription(res) => {
+                Resource::SniSubscription(ref mut res) => {
                     let fut = res.next();
                     futures::pin_mut!(fut);
                     let (stream, addr) = match poll_in_task_cx(waker, fut) {
-                        Ready(Some(data)) => data,
+                        Ready(Some(data)) => (data.stream, data.remote_addr),
                         Ready(None) => return Err(OcallError::EndOfFile),
                         Pending => return Err(OcallError::Pending),
                     };
@@ -414,12 +413,6 @@ impl env::OcallFuncs for WapoCtx {
                     warn!(target: "wapo::tls", "failed to wrap certified key: {e}");
                     OcallError::InvalidParameter
                 })?;
-            if self.config.verify_tls_server_cert {
-                verify_certifacate(&certified_key, &sni).map_err(|e| {
-                    warn!(target: "wapo::tls", "failed to verify certificate: {e}");
-                    OcallError::InvalidParameter
-                })?;
-            }
             listener
                 .subscribe(sni.as_ref(), certified_key)
                 .map_err(|e| {

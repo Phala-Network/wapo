@@ -236,6 +236,8 @@ message Blob {
 message DeployArgs {
   // Manifest of the app to be deployed.
   Manifest manifest = 1;
+  // Whether to reuse instances for incoming HTTP requests.
+  bool reuse_instances = 2;
 }
 
 message DeployResponse {
@@ -309,6 +311,8 @@ message AppInfo {
   uint64 instances = 3;
   // The elapsed time since last query to the app (in seconds).
   uint64 last_query_elapsed = 4;
+  // Whether reuse instances to handle incoming HTTP requests.
+  bool reuse_instances = 6;
   // The manifest
   Manifest manifest = 5;
 }

@@ -108,8 +108,7 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
         if request.pnonce.len() > 64 {
             bail!("the salt is too long");
         }
-        let account =
-            AccountId32::from_string(&request.recipient).context("invalid account")?;
+        let account = AccountId32::from_string(&request.recipient).context("invalid account")?;
         let update = self.init(&request.pnonce, account.into())?;
         let signature = T::KeyProvider::get_key()
             .sign(wapod_types::ContentType::SessionUpdate, update.encode());
@@ -155,7 +154,7 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
         }
         let manifest = request.manifest.ok_or(anyhow::Error::msg("No manifest"))?;
         let info = self
-            .deploy_app(manifest.into(), true)
+            .deploy_app(manifest.into(), true, request.reuse_instances)
             .await
             .context("failed to deploy app")?;
         info!("app deployed, address={}", hex_fmt::HexFmt(&info.address));
@@ -251,6 +250,7 @@ impl<T: WorkerConfig> OperationRpc for Call<T> {
                     info.address,
                     info.running_instances as _,
                     info.last_query_elapsed_secs,
+                    info.reuse_instances,
                     Some(info.manifest),
                 )
             })
@@ -496,10 +496,13 @@ pub async fn connect_vm<'r, T: WorkerConfig>(
     let address =
         id.0.try_into()
             .map_err(|_| (Status::BadRequest, "invalid address".to_string()))?;
-    let guard = state.prepare_query(address, 0).await.map_err(|err| {
-        warn!("failed to prepare query: {err:?}");
-        (Status::NotFound, err.to_string())
-    })?;
+    let guard = state
+        .prepare_instance_for_query(address, 0)
+        .await
+        .map_err(|err| {
+            warn!("failed to prepare query: {err:?}");
+            (Status::NotFound, err.to_string())
+        })?;
     let command_tx = state
         .sender_for(address, 0)
         .ok_or((Status::NotFound, Default::default()))?;

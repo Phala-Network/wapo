@@ -481,6 +481,10 @@
                             <input type="checkbox" v-model="deployForm.resizable">
                         </div>
                         <div class="form-group">
+                            <label>Reuse:</label>
+                            <input type="checkbox" v-model="deployForm.reuse">
+                        </div>
+                        <div class="form-group">
                             <label>Max query size:</label>
                             <input type="number" v-model="deployForm.maxQuerySize">
                         </div>
@@ -511,7 +515,8 @@
                             <td>{{ app.manifest.label }}</td>
                             <td><span class="shortened-address">{{ app.address }}</span></td>
                             <td>{{ app.manifest.resizable ? 'Yes' : 'No' }}</td>
-                            <td>{{ app.manifest.on_demand ? 'OnDemand' : 'Background' }}</td>
+                            <td>{{ (app.manifest.on_demand ? 'OnDemand' : 'Background') + (app.reuse_instances ?
+                                '(Reused)' : '') }}</td>
                             <td>{{ app.instances }}</td>
                             <td>{{ app.manifest.max_query_size }}</td>
                             <td>
@@ -693,7 +698,7 @@
                         alert('Please add a label for the app');
                         return;
                     }
-                    await this.rpcCall('AppDeploy', { manifest });
+                    await this.rpcCall('AppDeploy', { manifest, reuse_instances: this.deployForm.reuse });
                     this.loadApps();
                 } catch (error) {
                     console.error("Deploy App Error:", error);
@@ -944,6 +949,7 @@
                     envVars: '[]',
                     onDemand: false,
                     resizable: false,
+                    reuse: false,
                     maxQuerySize: 1024 * 1024,
                     label: '',
                 },

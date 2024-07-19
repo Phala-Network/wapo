@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::{bail, Context as _, Result};
 use clap::Parser;
 use tracing::{info, warn};
@@ -58,6 +60,10 @@ pub struct Args {
     /// Turn off the verification of the TLS server certificate when the guest tries to listen.
     #[arg(long)]
     pub do_not_verify_tls_server_cert: bool,
+
+    /// Time limit in seconds for on-demand instance handling.
+    #[arg(long, default_value_t = 60)]
+    pub on_demand_instance_time_secs: u64,
 }
 
 fn parse_port_range(input: &str) -> anyhow::Result<(u16, u16)> {
@@ -94,6 +100,7 @@ impl From<Args> for WorkerArgs {
             tcp_listen_port_range: value.tcp_listen_port_range.map_or(empty, |(f, t)| f..=t),
             tls_port: value.tls_port,
             verify_tls_server_cert: !value.do_not_verify_tls_server_cert,
+            on_demand_connection_timeout: Duration::from_secs(value.on_demand_instance_time_secs),
         }
     }
 }

@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use scopeguard::ScopeGuard;
 use serde::{Deserialize, Serialize};
-use sni_tls_listener::SniTlsListener;
-use std::future::Future;
+use sni_tls_listener::Agent;
+use std::future::{pending, Future};
 use std::ops::{Deref, RangeInclusive};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -264,8 +264,9 @@ pub struct InstanceStartConfig<OCalls> {
     args: Vec<String>,
     envs: Vec<(String, String)>,
     tcp_listen_port_range: RangeInclusive<u16>,
-    sni_tls_listener: Option<SniTlsListener>,
-    verify_tls_server_cert: bool,
+    sni_tls_listener: Option<Agent>,
+    #[builder(default)]
+    time_limit: Option<Duration>,
 }
 
 impl ServiceHandle {
@@ -289,7 +290,7 @@ impl ServiceHandle {
             envs,
             tcp_listen_port_range,
             sni_tls_listener,
-            verify_tls_server_cert,
+            time_limit,
         } = config;
         let (cmd_tx, mut cmd_rx) = channel(128);
         let (ctl_cmd_tx, mut ctl_cmd_rx) = unbounded_channel();
@@ -345,7 +346,6 @@ impl ServiceHandle {
                 .envs(envs)
                 .tcp_listen_port_range(tcp_listen_port_range)
                 .sni_tls_listener(sni_tls_listener)
-                .verify_tls_server_cert(verify_tls_server_cert)
                 .build();
             let mut wasm_run = match module.run(config.clone()).context("failed to create instance") {
                 Ok(i) => i,
@@ -371,10 +371,20 @@ impl ServiceHandle {
             const MIN_LIVE_TIME: Duration = Duration::from_secs(10);
 
             let reason = loop {
+                let time_limit_fut = async {
+                    match time_limit {
+                        Some(t) => tokio::time::sleep(t).await,
+                        None => pending().await,
+                    }
+                };
                 tokio::select! {
+                    _ = time_limit_fut => {
+                        info!(target: "wapo", "time limit reached. Exiting...");
+                        break ExitReason::Stopped;
+                    }
                     rv = &mut wasm_run => {
                         let live_time_allow_restart = start_time.elapsed() > MIN_LIVE_TIME;
-                        let need_restart = auto_restart && live_time_allow_restart && !meter_cloned.stopped();
+                        let need_restart = auto_restart && live_time_allow_restart && !meter_cloned.stopped() && time_limit.is_none();
                         match rv {
                             Ok(()) => {
                                 info!(target: "wapo", "the instance returned from main.");

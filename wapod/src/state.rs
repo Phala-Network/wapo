@@ -11,13 +11,13 @@ use wapod_crypto::wapod_types::ticket::AppManifest;
 use wapod_crypto::{ContentType, SpCoreHash};
 use wapod_rpc::prpc::{self as pb};
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use std::marker::PhantomData;
 use std::ops::{Add, RangeInclusive};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use service::{Command, CommandSender, ServiceHandle};
 
@@ -48,11 +48,18 @@ pub struct WorkerArgs {
     pub tls_port: Option<u16>,
     /// Whether to verify the TLS server certificate when the app tries to listen on an SNI.
     pub verify_tls_server_cert: bool,
+    /// The maximum instance execution time for handling a on-demand connection.
+    pub on_demand_connection_timeout: Duration,
 }
 
 struct Instance {
     sequence_number: u64,
     vm_handle: VmHandle,
+}
+
+struct InstanceInfo {
+    sn: u64,
+    status: VmStatusReceiver,
 }
 
 #[derive(Debug, Clone)]
@@ -62,6 +69,7 @@ pub struct AppInfo {
     pub session: [u8; 32],
     pub running_instances: usize,
     pub last_query_elapsed_secs: u64,
+    pub reuse_instances: bool,
     pub manifest: Manifest,
 }
 
@@ -70,10 +78,11 @@ pub struct AppState {
     pub session: [u8; 32],
     manifest: AppManifest,
     hist_metrics: Metrics,
-    instances: Vec<Instance>,
+    instances: BTreeMap<u64, Instance>,
     on_going_queries: usize,
     last_query_done: Instant,
     auto_restart: bool,
+    reuse_instance: bool,
 }
 
 impl AppState {
@@ -82,7 +91,7 @@ impl AppState {
     pub(crate) fn metrics(&self) -> Metrics {
         let init = self.hist_metrics.clone();
         self.instances
-            .iter()
+            .values()
             .map(|run| run.vm_handle.meter().to_metrics())
             .fold(init, Add::add)
     }
@@ -102,6 +111,7 @@ impl AppState {
             session: self.session,
             running_instances: self.instances.len(),
             last_query_elapsed_secs: self.last_query_done.elapsed().as_secs(),
+            reuse_instances: self.reuse_instance,
             manifest: self.manifest.clone().into(),
         }
     }
@@ -110,11 +120,13 @@ impl AppState {
 pub struct QueryGuard<T: WorkerConfig> {
     worker: Worker<T>,
     address: Address,
+    reuse: bool,
+    instance_id: Option<u64>,
 }
 
 impl<T: WorkerConfig> Drop for QueryGuard<T> {
     fn drop(&mut self) {
-        if let Err(err) = self.worker.end_query(self.address) {
+        if let Err(err) = self.worker.end_query(self.address, self.instance_id) {
             info!("end query error: {err}");
         }
     }
@@ -158,7 +170,7 @@ impl<T: WorkerConfig> Worker<T> {
         SniTlsListener::install_ring_provider();
         let sni_tcp_listener = match args.tls_port {
             Some(port) => Some({
-                SniTlsListener::bind("0.0.0.0", port)
+                SniTlsListener::bind("0.0.0.0", port, args.verify_tls_server_cert)
                     .await
                     .context("failed to bind sni tls listener")?
             }),
@@ -221,7 +233,7 @@ impl<T: WorkerConfig> Worker<T> {
             .apps
             .get(&vmid)?
             .instances
-            .get(index)?
+            .get(&(index as u64))?
             .vm_handle
             .command_sender()
             .clone();
@@ -287,14 +299,14 @@ impl<T: WorkerConfig> Worker<T> {
         }
     }
 
-    pub async fn prepare_query(
+    pub async fn prepare_instance_for_query(
         &self,
         address: Address,
         query_size: usize,
     ) -> Result<QueryGuard<T>> {
         // If the app is start-on-demand, we need to start an instance to serve the query if it is not already.
         let mut start_needed = false;
-        let guard = {
+        let mut guard = {
             let mut state = self.lock();
             let app = state
                 .apps
@@ -310,25 +322,41 @@ impl<T: WorkerConfig> Worker<T> {
             QueryGuard {
                 address,
                 worker: self.clone(),
+                reuse: app.reuse_instance,
+                instance_id: None,
             }
         };
         if start_needed {
-            self.resize_app_instances(address, 1, true)
-                .await
-                .context("failed to start app on-demand")?;
+            if guard.reuse {
+                self.resize_app_instances(address, 1, true)
+                    .await
+                    .context("failed to start app on-demand")?;
+            } else {
+                let info = self.try_inc_instances(address)?;
+                guard.instance_id = info.map(|x| x.sn);
+            }
         }
         Ok(guard)
     }
 
-    fn end_query(&self, address: Address) -> Result<()> {
+    fn end_query(&self, address: Address, instance_id: Option<u64>) -> Result<()> {
         let mut state = self.lock();
         let app = state
             .apps
             .get_mut(&address)
             .ok_or(anyhow::Error::msg("App not found"))?;
-        let rest = app.on_going_query_dec();
-        if rest == 0 && app.manifest.on_demand {
-            app.instances.clear();
+        match instance_id {
+            Some(id) => {
+                app.instances
+                    .remove(&id)
+                    .ok_or(anyhow!("Instance not found"))?;
+            }
+            None => {
+                let rest = app.on_going_query_dec();
+                if rest == 0 && app.manifest.on_demand {
+                    app.instances.clear();
+                }
+            }
         }
         Ok(())
     }
@@ -342,8 +370,8 @@ impl<T: WorkerConfig> Worker<T> {
     ) -> Result<Vec<u8>> {
         info!(address=%ShortId(address), "incomming query");
         let query_size = payload.len() + path.as_bytes().len();
-        let _guard = self
-            .prepare_query(address, query_size)
+        let guard = self
+            .prepare_instance_for_query(address, query_size)
             .await
             .context("failed to prepare query")?;
         let cmd_sender = {
@@ -352,11 +380,17 @@ impl<T: WorkerConfig> Worker<T> {
                 .apps
                 .get(&address)
                 .ok_or(anyhow::Error::msg("App not found"))?;
-            let instance = match app.instances.first() {
-                Some(instance) => instance,
-                None => {
-                    bail!("instance not found");
-                }
+            let instance = match guard.instance_id {
+                Some(id) => app
+                    .instances
+                    .get(&id)
+                    .ok_or(anyhow::Error::msg("Instance not found"))?,
+                None => match app.instances.values().next() {
+                    Some(instance) => instance,
+                    None => {
+                        bail!("instance not found");
+                    }
+                },
             };
             instance.vm_handle.command_sender().clone()
         };
@@ -393,13 +427,22 @@ impl<T: WorkerConfig> Worker<T> {
         count: usize,
         demand: bool,
     ) -> Result<()> {
-        let (created, removed) = self.lock().resize_app_instances(address, count, demand)?;
+        let (created, removed) = {
+            let mut state = self.lock();
+            let timeout = if demand {
+                Some(state.args.on_demand_connection_timeout)
+            } else {
+                None
+            };
+            state.resize_app_instances(address, count, timeout)?
+        };
         let total = removed.len();
         for (i, mut handle) in removed.into_iter().enumerate() {
             info!("stopping instances ({}/{total})...", i + 1);
             handle.stop().await?;
         }
-        for (i, mut status) in created.into_iter().enumerate() {
+        for (i, info) in created.into_iter().enumerate() {
+            let mut status = info.status;
             info!("waiting instance ({}/{count}) to start", i + 1);
             loop {
                 if status.changed().await.is_err() {
@@ -422,7 +465,16 @@ impl<T: WorkerConfig> Worker<T> {
         Ok(())
     }
 
-    pub async fn deploy_app(&self, manifest: AppManifest, auto_restart: bool) -> Result<AppInfo> {
+    fn try_inc_instances(&self, address: Address) -> Result<Option<InstanceInfo>> {
+        self.lock().try_inc_instances(address)
+    }
+
+    pub async fn deploy_app(
+        &self,
+        manifest: AppManifest,
+        auto_restart: bool,
+        reuse_instances: bool,
+    ) -> Result<AppInfo> {
         if manifest.version != 1 {
             bail!("unsupported manifest version {}", manifest.version);
         }
@@ -455,10 +507,11 @@ impl<T: WorkerConfig> Worker<T> {
                 session,
                 manifest,
                 hist_metrics: Default::default(),
-                instances: vec![],
+                instances: Default::default(),
                 on_going_queries: 0,
                 last_query_done: Instant::now(),
                 auto_restart,
+                reuse_instance: reuse_instances,
             };
             worker.apps.insert(address, state);
         }
@@ -478,7 +531,7 @@ impl<T: WorkerConfig> Worker<T> {
             bail!("app not found")
         };
         let n = app.instances.len();
-        for (i, instance) in app.instances.into_iter().enumerate() {
+        for (i, (_id, instance)) in app.instances.into_iter().enumerate() {
             let mut handle = instance.vm_handle;
             if !handle.is_stopped() {
                 info!("stopping instance ({}/{n})...", i + 1);
@@ -549,7 +602,11 @@ fn to_pages(size: u64) -> u64 {
 }
 
 impl<T: WorkerConfig> WorkerState<T> {
-    fn start_app(&mut self, address: Address) -> Result<VmStatusReceiver> {
+    fn start_app(
+        &mut self,
+        address: Address,
+        time_limit: Option<Duration>,
+    ) -> Result<InstanceInfo> {
         let vmid = ShortId(address);
         let app_name = hex::encode(address);
         let app = self
@@ -578,8 +635,21 @@ impl<T: WorkerConfig> WorkerState<T> {
             )
             .envs(app.manifest.env_vars.to_vec())
             .tcp_listen_port_range(self.args.tcp_listen_port_range.clone())
-            .sni_tls_listener(self.sni_tls_listener.clone())
-            .verify_tls_server_cert(self.args.verify_tls_server_cert)
+            .sni_tls_listener({
+                let weak_self = self.weak_self.clone();
+                let create_instance = move || {
+                    let Some(inner) = weak_self.upgrade() else {
+                        return;
+                    };
+                    let Ok(Some(_info)) = inner.lock().unwrap().try_inc_instances(address) else {
+                        return;
+                    };
+                };
+                self.sni_tls_listener
+                    .as_ref()
+                    .map(|l| l.agent(create_instance, app.reuse_instance, Duration::from_secs(5)))
+            })
+            .time_limit(time_limit)
             .build();
         let (vm_handle, join_handle) = self
             .service
@@ -594,7 +664,7 @@ impl<T: WorkerConfig> WorkerState<T> {
             vm_handle,
         };
         let sn = instance.sequence_number;
-        app.instances.push(instance);
+        app.instances.insert(sn, instance);
         // Clean up the instance when it stops.
         let weak_self = self.weak_self.clone();
         self.service.spawn(
@@ -610,20 +680,7 @@ impl<T: WorkerConfig> WorkerState<T> {
                         info!("app was removed before stopping");
                         return;
                     };
-                    let mut found = None;
-                    app.instances = app
-                        .instances
-                        .drain(..)
-                        .filter_map(|instance| {
-                            if instance.sequence_number == sn {
-                                found = Some(instance);
-                                None
-                            } else {
-                                Some(instance)
-                            }
-                        })
-                        .collect();
-                    let Some(instance) = found else {
+                    let Some(instance) = app.instances.remove(&sn) else {
                         warn!("instance was removed before stopping");
                         return;
                     };
@@ -632,7 +689,7 @@ impl<T: WorkerConfig> WorkerState<T> {
             }
             .instrument(tracing::info_span!(parent: None, "wapo", id = %vmid)),
         );
-        Ok(status)
+        Ok(InstanceInfo { sn, status })
     }
 
     fn reserve_slot_if_needed(&mut self, for_address: Address) -> Result<Option<VmHandle>> {
@@ -655,7 +712,7 @@ impl<T: WorkerConfig> WorkerState<T> {
         // Seek if there is any bench mark instance to stop.
         for app in self.apps.values_mut() {
             if app.manifest.resizable {
-                if let Some(instance) = app.instances.pop() {
+                if let Some((_, instance)) = app.instances.pop_last() {
                     let handle = instance.vm_handle;
                     app.hist_metrics += handle.meter().to_metrics();
                     return Ok(Some(handle));
@@ -669,11 +726,11 @@ impl<T: WorkerConfig> WorkerState<T> {
         &mut self,
         address: Address,
         count: usize,
-        demand: bool,
-    ) -> Result<(Vec<VmStatusReceiver>, Vec<VmHandle>)> {
+        on_demand_timeout: Option<Duration>,
+    ) -> Result<(Vec<InstanceInfo>, Vec<VmHandle>)> {
         let mut created = vec![];
         let mut removed = vec![];
-        if demand {
+        if on_demand_timeout.is_some() {
             if let Some(handle) = self.reserve_slot_if_needed(address)? {
                 removed.push(handle);
             }
@@ -690,7 +747,7 @@ impl<T: WorkerConfig> WorkerState<T> {
         match current.cmp(&count) {
             Less => {
                 let on_demand = app.manifest.on_demand;
-                if on_demand && !demand {
+                if on_demand && on_demand_timeout.is_none() {
                     bail!("on-demand app cannot be started directly");
                 }
                 let available_slots = self.available_slots();
@@ -698,24 +755,41 @@ impl<T: WorkerConfig> WorkerState<T> {
                 info!(available_slots, creating, "creating instances");
                 for i in 0..creating {
                     info!("starting instance ({}/{creating})...", i + 1);
-                    created.push(self.start_app(address)?);
+                    created.push(self.start_app(address, on_demand_timeout)?);
                 }
             }
             Equal => (),
             Greater => {
                 let stop_count = current - count;
                 info!(stop_count, "stopping instances");
-                removed = app
-                    .instances
-                    .drain(count..)
-                    .map(|run| run.vm_handle)
-                    .collect();
-                for i in removed.iter() {
-                    app.hist_metrics += i.meter().to_metrics();
+                for i in 0..stop_count {
+                    let (_sn, instance) =
+                        app.instances.pop_last().expect("BUG: instance not found");
+                    info!("stopping instance ({}/{stop_count})...", i + 1);
+                    app.hist_metrics += instance.vm_handle.meter().to_metrics();
+                    removed.push(instance.vm_handle);
                 }
             }
         }
         Ok((created, removed))
+    }
+
+    fn try_inc_instances(&mut self, address: Address) -> Result<Option<InstanceInfo>> {
+        match self.apps.get_mut(&address) {
+            Some(app) => {
+                let num = app
+                    .instances
+                    .len()
+                    .checked_add(1)
+                    .ok_or(anyhow!("too many instances"))?;
+                let time_limit = self.args.on_demand_connection_timeout;
+                let (new, _) = self.resize_app_instances(address, num, Some(time_limit))?;
+                Ok(new.into_iter().next())
+            }
+            None => {
+                bail!("app not found");
+            }
+        }
     }
 
     fn available_slots(&self) -> usize {

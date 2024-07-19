@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Context, Result};
+use core::fmt;
 use std::{
     collections::{BTreeMap, VecDeque},
-    future::Future,
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc, Mutex, MutexGuard, Weak,
@@ -149,6 +149,20 @@ impl<T: Config> WeakAgent<T> {
 
 pub struct Agent<T: Config> {
     state: Arc<Mutex<AgentState<T>>>,
+}
+
+impl<T: Config> Clone for Agent<T> {
+    fn clone(&self) -> Self {
+        Self {
+            state: self.state.clone(),
+        }
+    }
+}
+
+impl<T: Config> fmt::Debug for Agent<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Agent").finish()
+    }
 }
 
 struct AgentState<T: Config> {
@@ -333,5 +347,16 @@ where
     fn unsubscribe(&mut self, domain: &str) -> Result<()> {
         let _sub = self.subscribers.remove(domain).context("no subscribers")?;
         Ok(())
+    }
+}
+
+impl SniTlsListener {
+    pub fn agent(
+        &self,
+        create_instance: impl Fn() + Send + Sync + 'static,
+        reuse: bool,
+        timeout: Duration,
+    ) -> Agent<DefaultConfig> {
+        Agent::new(self.clone(), create_instance, reuse, timeout)
     }
 }
