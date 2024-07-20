@@ -99,6 +99,7 @@ pub trait RuntimeCalls: Send + 'static {
     }
     fn app_metrics(&self) -> (Metrics, MetricsToken);
     fn derive_secret(&self, path: &[u8]) -> [u8; 64];
+    fn query_listened(&self);
 }
 
 impl RuntimeCalls for () {
@@ -123,6 +124,7 @@ impl RuntimeCalls for () {
     fn derive_secret(&self, _path: &[u8]) -> [u8; 64] {
         [0u8; 64]
     }
+    fn query_listened(&self) {}
 }
 
 #[derive(typed_builder::TypedBuilder, Debug)]
@@ -495,7 +497,11 @@ impl env::OcallFuncs for WapoCtx {
             }};
         }
         match ch {
-            Query => create_channel!(self.query_tx),
+            Query => {
+                let ret = create_channel!(self.query_tx);
+                self.runtime_calls.query_listened();
+                ret
+            }
             HttpRequest => create_channel!(self.http_connect_tx),
         }
     }

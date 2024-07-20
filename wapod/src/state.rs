@@ -2,7 +2,7 @@ use anyhow::{anyhow, bail, Context, Result};
 
 use rand::Rng as _;
 use scale::Encode;
-use tokio::sync::oneshot;
+use tokio::sync::{broadcast, oneshot};
 use tracing::{field::display, info, warn, Instrument};
 use wapo_host::{blobs::BlobLoader, Metrics};
 use wapo_host::{MetricsToken, ShortId, SniTlsListener, VmStatus, VmStatusReceiver};
@@ -60,6 +60,7 @@ struct Instance {
 struct InstanceInfo {
     sn: u64,
     status: VmStatusReceiver,
+    event_rx: broadcast::Receiver<Event>,
 }
 
 #[derive(Debug, Clone)]
@@ -315,7 +316,7 @@ impl<T: WorkerConfig> Worker<T> {
             if query_size > app.manifest.max_query_size as usize {
                 bail!("query size exceeds the limit");
             }
-            if app.instances.is_empty() && app.manifest.on_demand {
+            if !app.reuse_instance || (app.instances.is_empty() && app.manifest.on_demand) {
                 start_needed = true;
             }
             app.on_going_query_inc();
@@ -328,11 +329,32 @@ impl<T: WorkerConfig> Worker<T> {
         };
         if start_needed {
             if guard.reuse {
+                info!("resizing instances to 1 for query");
                 self.resize_app_instances(address, 1, true)
                     .await
                     .context("failed to start app on-demand")?;
             } else {
-                let info = self.try_inc_instances(address)?;
+                info!("increasing 1 instance for query");
+                let mut info = self.try_inc_instances(address)?;
+                if let Some(info) = &mut info {
+                    // Wait for the instance to be ready for query.
+                    let result = tokio::time::timeout(Duration::from_secs(1), async {
+                        loop {
+                            let Ok(event) = info.event_rx.recv().await else {
+                                break;
+                            };
+                            match event {
+                                Event::QueryListened => {
+                                    break;
+                                }
+                            }
+                        }
+                    })
+                    .await;
+                    if result.is_err() {
+                        warn!("wait instance to listen query timeout");
+                    }
+                }
                 guard.instance_id = info.map(|x| x.sn);
             }
         }
@@ -613,20 +635,19 @@ impl<T: WorkerConfig> WorkerState<T> {
             .apps
             .get_mut(&address)
             .ok_or(anyhow!("Instance not found"))?;
-        if !app.manifest.resizable && !app.instances.is_empty() {
+        if !app.manifest.resizable && !app.instances.is_empty() && time_limit.is_none() {
             return Err(anyhow!("Instance already started"));
         }
+        let runtime_calls =
+            AppRuntimeCalls::<T>::new(address, self.host_filter.clone(), self.weak_self.clone());
+        let event_rx = runtime_calls.event_tx.subscribe();
         let config = service::InstanceStartConfig::builder()
             .auto_restart(app.auto_restart)
             .max_memory_pages(to_pages(self.args.instance_memory_size) as _)
             .id(address)
             .weight(1)
             .blobs_dir(T::Paths::blobs_dir())
-            .runtime_calls(AppRuntimeCalls::<T>::new(
-                address,
-                self.host_filter.clone(),
-                self.weak_self.clone(),
-            ))
+            .runtime_calls(runtime_calls)
             .args(
                 [app_name]
                     .into_iter()
@@ -637,7 +658,7 @@ impl<T: WorkerConfig> WorkerState<T> {
             .tcp_listen_port_range(self.args.tcp_listen_port_range.clone())
             .sni_tls_listener({
                 let weak_self = self.weak_self.clone();
-                let create_instance = move || {
+                let create_instance_fn = move || {
                     let Some(inner) = weak_self.upgrade() else {
                         return;
                     };
@@ -645,9 +666,10 @@ impl<T: WorkerConfig> WorkerState<T> {
                         return;
                     };
                 };
-                self.sni_tls_listener
-                    .as_ref()
-                    .map(|l| l.agent(create_instance, app.reuse_instance, Duration::from_secs(5)))
+                self.sni_tls_listener.as_ref().map(|l| {
+                    let connect_timeout = Duration::from_secs(5);
+                    l.agent(create_instance_fn, app.reuse_instance, connect_timeout)
+                })
             })
             .time_limit(time_limit)
             .build();
@@ -689,7 +711,11 @@ impl<T: WorkerConfig> WorkerState<T> {
             }
             .instrument(tracing::info_span!(parent: None, "wapo", id = %vmid)),
         );
-        Ok(InstanceInfo { sn, status })
+        Ok(InstanceInfo {
+            sn,
+            status,
+            event_rx,
+        })
     }
 
     fn reserve_slot_if_needed(&mut self, for_address: Address) -> Result<Option<VmHandle>> {
@@ -783,6 +809,7 @@ impl<T: WorkerConfig> WorkerState<T> {
                     .checked_add(1)
                     .ok_or(anyhow!("too many instances"))?;
                 let time_limit = self.args.on_demand_connection_timeout;
+                info!(num, "increasing instances");
                 let (new, _) = self.resize_app_instances(address, num, Some(time_limit))?;
                 Ok(new.into_iter().next())
             }
@@ -818,7 +845,13 @@ impl<T: WorkerConfig> WorkerState<T> {
     }
 }
 
+#[derive(Debug, Clone)]
+enum Event {
+    QueryListened,
+}
+
 struct AppRuntimeCalls<T> {
+    event_tx: broadcast::Sender<Event>,
     address: Address,
     host_filter: Arc<HostFilter>,
     worker: WeakWorker<T>,
@@ -828,6 +861,7 @@ struct AppRuntimeCalls<T> {
 impl<T> Clone for AppRuntimeCalls<T> {
     fn clone(&self) -> Self {
         Self {
+            event_tx: self.event_tx.clone(),
             address: self.address,
             host_filter: self.host_filter.clone(),
             worker: self.worker.clone(),
@@ -839,6 +873,7 @@ impl<T> Clone for AppRuntimeCalls<T> {
 impl<T: WorkerConfig> AppRuntimeCalls<T> {
     fn new(address: Address, host_filter: Arc<HostFilter>, worker: WeakWorker<T>) -> Self {
         Self {
+            event_tx: broadcast::channel(1).0,
             address,
             host_filter,
             worker,
@@ -895,5 +930,9 @@ impl<T: WorkerConfig + 'static> wapo_host::RuntimeCalls for AppRuntimeCalls<T> {
         T::KeyProvider::get_key()
             .derive([self.address, path_hash])
             .dump()
+    }
+
+    fn query_listened(&self) {
+        self.event_tx.send(Event::QueryListened).ok();
     }
 }
