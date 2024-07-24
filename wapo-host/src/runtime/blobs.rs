@@ -1,8 +1,10 @@
 use std::{
     fmt::Display,
+    io::{BufReader, Read as _},
+    num::NonZeroUsize,
     path::{Path, PathBuf},
     str::FromStr,
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 use anyhow::{bail, Context, Error, Result};
@@ -10,27 +12,41 @@ use scale::{Decode, Encode};
 use sha2::Digest;
 use tokio::io::{AsyncRead, AsyncReadExt};
 
-#[derive(Debug, Clone)]
+struct BlobLoaderState {
+    store_dir: PathBuf,
+    cache: Mutex<lru::LruCache<String, Vec<u8>>>,
+}
+
+#[derive(Clone)]
 pub struct BlobLoader {
-    store_dir: Arc<PathBuf>,
+    state: Arc<BlobLoaderState>,
+}
+
+impl std::fmt::Debug for BlobLoader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BlobLoader").finish()
+    }
 }
 
 impl BlobLoader {
     pub fn new(store_dir: impl AsRef<Path>) -> Self {
         Self {
-            store_dir: Arc::new(store_dir.as_ref().to_path_buf()),
+            state: Arc::new(BlobLoaderState {
+                store_dir: store_dir.as_ref().to_path_buf(),
+                cache: Mutex::new(lru::LruCache::new(NonZeroUsize::new(16).unwrap())),
+            }),
         }
     }
 
     pub fn get(&self, hash: &str) -> Result<Option<Vec<u8>>> {
-        get_object(self.store_dir.as_path(), hash)
+        get_object(self.state.store_dir.as_path(), hash)
     }
 
     pub async fn put<'a, R>(&self, hash: &str, data: &'a mut R) -> Result<String>
     where
         R: AsyncRead + Unpin + ?Sized,
     {
-        put_object(self.store_dir.as_path(), hash, data).await
+        put_object(self.state.store_dir.as_path(), hash, data).await
     }
 
     pub fn remove(&self, hash: &str) -> Result<()> {
@@ -40,7 +56,7 @@ impl BlobLoader {
     }
 
     pub fn path(&self, hash: &[u8]) -> PathBuf {
-        self.store_dir.join(hex::encode(hash))
+        self.state.store_dir.join(hex::encode(hash))
     }
 
     pub fn exists(&self, hash: &str) -> bool {
@@ -48,6 +64,41 @@ impl BlobLoader {
             return false;
         };
         self.path(&hash.hash).exists()
+    }
+}
+
+// Raw blob loader
+impl BlobLoader {
+    pub fn get_raw(&self, filename: &str, size_limit: usize) -> Result<Option<Vec<u8>>> {
+        if let Some(data) = self.state.cache.lock().unwrap().get(filename) {
+            return Ok(Some(data.clone()));
+        }
+        let path = self.state.store_dir.join(filename);
+        let file = match std::fs::File::open(&path) {
+            Ok(file) => file,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(err) => return Err(err).context("failed to open object file"),
+        };
+        let metadata = file.metadata()?;
+        if metadata.len() > size_limit as u64 {
+            bail!("file size exceeds limit");
+        }
+        let mut data = Vec::with_capacity(metadata.len() as usize);
+        BufReader::new(file).read_to_end(&mut data)?;
+        self.state
+            .cache
+            .lock()
+            .unwrap()
+            .put(filename.to_string(), data.clone());
+        Ok(Some(data))
+    }
+
+    pub fn put_raw(&self, filename: &str, data: &[u8]) -> Result<()> {
+        let cache = &mut self.state.cache.lock().unwrap();
+        let path = self.state.store_dir.join(filename);
+        std::fs::write(&path, data)?;
+        cache.pop(filename);
+        Ok(())
     }
 }
 

@@ -10,6 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use aes_gcm::{aead::AeadMutInPlace, AeadCore as _, Aes256Gcm, KeyInit as _};
 use anyhow::Context;
 use sni_tls_listener::{wrap_certified_key, Agent, Generate};
 use tokio::{
@@ -571,6 +572,62 @@ impl env::OcallFuncs for WapoCtx {
         }
         Ok(self.runtime_calls.derive_secret(path))
     }
+
+    fn read_boot_data(&mut self) -> Result<Option<Vec<u8>>> {
+        let blob_name = boot_filename(self.id);
+        let Some(encrypted) = self
+            .blob_loader
+            .get_raw(&blob_name, MAX_BOOT_DATA_SIZE)
+            .or(Err(OcallError::IoError))?
+        else {
+            return Ok(None);
+        };
+        let encrypt_key = self.derive_secret(b"enc_bootdata")?;
+        let data = decrypt(encrypted, encrypt_key).or(Err(OcallError::IoError))?;
+        Ok(Some(data))
+    }
+
+    fn write_boot_data(&mut self, data: &[u8]) -> Result<()> {
+        if data.len() > MAX_BOOT_DATA_SIZE {
+            self.meter.record_gas(100);
+            return Err(OcallError::InvalidParameter);
+        }
+        let blob_name = boot_filename(self.id);
+        let encrypt_key = self.derive_secret(b"enc_bootdata")?;
+        let data = encrypt(data.to_vec(), encrypt_key).or(Err(OcallError::IoError))?;
+        self.blob_loader
+            .put_raw(&blob_name, &data)
+            .or(Err(OcallError::IoError))
+    }
+}
+
+const MAX_BOOT_DATA_SIZE: usize = 1024 * 64;
+fn boot_filename(vm_id: VmId) -> String {
+    format!("{}-bootdata", hex_fmt::HexFmt(vm_id))
+}
+
+fn encrypt(mut data: Vec<u8>, key: [u8; 64]) -> Result<Vec<u8>> {
+    let mut cipher = Aes256Gcm::new_from_slice(&key[..32]).expect("invalid key");
+    let nonce = Aes256Gcm::generate_nonce(&mut rand::thread_rng());
+    cipher
+        .encrypt_in_place(&nonce, b"", &mut data)
+        .or(Err(OcallError::IoError))?;
+    data.extend_from_slice(&nonce);
+    Ok(data)
+}
+
+fn decrypt(mut data: Vec<u8>, key: [u8; 64]) -> Result<Vec<u8>> {
+    const NONCE_LEN: usize = 12;
+    let Some(nonce) = data.get(data.len() - NONCE_LEN..) else {
+        return Err(OcallError::IoError);
+    };
+    let nonce: [u8; NONCE_LEN] = nonce.try_into().unwrap();
+    data.resize(data.len() - NONCE_LEN, 0);
+    let mut cipher = Aes256Gcm::new_from_slice(&key[..32]).expect("invalid key");
+    cipher
+        .decrypt_in_place(&nonce.into(), b"", &mut data)
+        .or(Err(OcallError::IoError))?;
+    Ok(data)
 }
 
 fn is_ip(host: &str) -> bool {

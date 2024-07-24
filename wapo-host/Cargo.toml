@@ -51,6 +51,7 @@ scopeguard = "1.2.0"
 lru = "0.12.3"
 pin-project = "1.1.5"
 sni-tls-listener = { version = "0.1.0", path = "../sni-tls-listener", features = ["ring"] }
+aes-gcm = "0.10.3"
 
 [features]
 default = ["rocket-stream"]

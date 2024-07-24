@@ -139,6 +139,16 @@ pub trait OcallFuncs {
     /// Derive a secret data with hash of the worker's private key + app address + path
     #[ocall(id = 255, encode_output)]
     fn derive_secret(path: &[u8]) -> Result<[u8; 64]>;
+
+    /// Read boot data from the worker.
+    #[ocall(id = 260, encode_output)]
+    fn read_boot_data() -> Result<Option<Vec<u8>>>;
+
+    /// Write boot data to the worker.
+    ///
+    /// Each app can store up to 64KB of boot data.
+    #[ocall(id = 261, encode_output)]
+    fn write_boot_data(data: &[u8]) -> Result<()>;
 }
 
 #[repr(u8)]
