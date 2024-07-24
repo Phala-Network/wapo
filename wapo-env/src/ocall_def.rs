@@ -149,6 +149,14 @@ pub trait OcallFuncs {
     /// Each app can store up to 64KB of boot data.
     #[ocall(id = 261, encode_output)]
     fn write_boot_data(data: &[u8]) -> Result<()>;
+
+    /// Try to lock a app scoped resource by id.
+    #[ocall(id = 262)]
+    fn app_try_lock(path: &str) -> Result<()>;
+
+    /// Unlock a app scoped resource by id.
+    #[ocall(id = 263)]
+    fn app_unlock(path: &str) -> Result<()>;
 }
 
 #[repr(u8)]

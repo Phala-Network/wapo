@@ -11,7 +11,7 @@ use wapod_crypto::wapod_types::ticket::AppManifest;
 use wapod_crypto::{ContentType, SpCoreHash};
 use wapod_rpc::prpc::{self as pb};
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use std::marker::PhantomData;
 use std::ops::{Add, RangeInclusive};
@@ -850,11 +850,17 @@ enum Event {
     QueryListened,
 }
 
+#[derive(Default)]
+struct SharedState {
+    locks: HashSet<String>,
+}
+
 struct AppRuntimeCalls<T> {
     event_tx: broadcast::Sender<Event>,
     address: Address,
     host_filter: Arc<HostFilter>,
     worker: WeakWorker<T>,
+    shared: Arc<Mutex<SharedState>>,
     _phantom: PhantomData<fn() -> T>,
 }
 
@@ -865,6 +871,7 @@ impl<T> Clone for AppRuntimeCalls<T> {
             address: self.address,
             host_filter: self.host_filter.clone(),
             worker: self.worker.clone(),
+            shared: self.shared.clone(),
             _phantom: self._phantom,
         }
     }
@@ -877,6 +884,7 @@ impl<T: WorkerConfig> AppRuntimeCalls<T> {
             address,
             host_filter,
             worker,
+            shared: Default::default(),
             _phantom: PhantomData,
         }
     }
@@ -934,5 +942,24 @@ impl<T: WorkerConfig + 'static> wapo_host::RuntimeCalls for AppRuntimeCalls<T> {
 
     fn query_listened(&self) {
         self.event_tx.send(Event::QueryListened).ok();
+    }
+
+    fn try_lock(&self, path: &str) -> bool {
+        if path.as_bytes().len() > 64 {
+            return false;
+        }
+        let mut state = self.shared.lock().unwrap();
+        if state.locks.len() > 64 {
+            return false;
+        }
+        if state.locks.contains(path) {
+            return false;
+        }
+        state.locks.insert(path.to_string());
+        true
+    }
+
+    fn unlock(&self, path: &str) -> bool {
+        self.shared.lock().unwrap().locks.remove(path)
     }
 }

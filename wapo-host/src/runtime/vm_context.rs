@@ -101,6 +101,8 @@ pub trait RuntimeCalls: Send + 'static {
     fn app_metrics(&self) -> (Metrics, MetricsToken);
     fn derive_secret(&self, path: &[u8]) -> [u8; 64];
     fn query_listened(&self);
+    fn try_lock(&self, path: &str) -> bool;
+    fn unlock(&self, path: &str) -> bool;
 }
 
 impl RuntimeCalls for () {
@@ -126,6 +128,12 @@ impl RuntimeCalls for () {
         [0u8; 64]
     }
     fn query_listened(&self) {}
+    fn try_lock(&self, _path: &str) -> bool {
+        true
+    }
+    fn unlock(&self, _path: &str) -> bool {
+        true
+    }
 }
 
 #[derive(typed_builder::TypedBuilder, Debug)]
@@ -598,6 +606,22 @@ impl env::OcallFuncs for WapoCtx {
         self.blob_loader
             .put_raw(&blob_name, &data)
             .or(Err(OcallError::IoError))
+    }
+
+    fn app_try_lock(&mut self, path: &str) -> Result<()> {
+        if self.runtime_calls.try_lock(path) {
+            Ok(())
+        } else {
+            Err(OcallError::ConditionError)
+        }
+    }
+
+    fn app_unlock(&mut self, path: &str) -> Result<()> {
+        if self.runtime_calls.unlock(path) {
+            Ok(())
+        } else {
+            Err(OcallError::ConditionError)
+        }
     }
 }
 

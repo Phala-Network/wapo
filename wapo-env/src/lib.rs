@@ -67,8 +67,8 @@ pub enum OcallError {
     DataCorruption = 16,
     /// The operation is forbidden.
     Forbiden = 17,
-    /// Reserved for future use
-    Reserved18 = 18,
+    /// The condition is not satisfied.
+    ConditionError = 18,
     /// Reserved for future use
     Reserved19 = 19,
     /// Reserved for future use
