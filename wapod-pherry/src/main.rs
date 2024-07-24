@@ -77,6 +77,9 @@ enum Command {
         /// Waiting for the benchmark app to consume amount of gas until report the init score.
         #[arg(long, default_value = "1000000000")]
         gas_until_report: u64,
+        /// Reuse app instance to handle incoming query and TLS connection.
+        #[arg(long)]
+        reuse_instances: bool,
     },
     CreateWorkerList {
         #[command(flatten)]
@@ -147,6 +150,7 @@ async fn main() -> Result<()> {
             operator,
             pccs_url,
             gas_until_report,
+            reuse_instances,
         } => {
             let config = BridgeConfig {
                 node_url: other.node_url,
@@ -161,6 +165,7 @@ async fn main() -> Result<()> {
                 operator: operator.unwrap_or_default(),
                 pccs_url,
                 gas_until_report,
+                reuse_instances,
             };
             run_bridge(config).await?;
         }

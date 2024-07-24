@@ -56,6 +56,7 @@ pub struct BridgeConfig {
     pub operator: String,
     pub pccs_url: String,
     pub gas_until_report: u64,
+    pub reuse_instances: bool,
 }
 
 pub enum Event {
@@ -311,6 +312,7 @@ impl BridgeState {
                 .operation()
                 .app_deploy(DeployArgs {
                     manifest: Some(info.manifest.clone().into()),
+                    reuse_instances: self.config.reuse_instances,
                 })
                 .await;
             match result {

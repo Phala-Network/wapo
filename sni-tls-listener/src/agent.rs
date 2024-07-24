@@ -239,14 +239,6 @@ where
     }
 }
 
-impl<T: Config> AgentState<T> {
-    fn remove_sub(&mut self, domain: &str, id: u64) -> Result<()> {
-        let sub = self.subscribers.get_mut(domain).context("no subscribers")?;
-        sub.subscriptions.remove(&id).context("no subscription")?;
-        Ok(())
-    }
-}
-
 impl<T: Config> AgentState<T>
 where
     T::Listener: Send,
@@ -343,9 +335,20 @@ where
         }
         Ok(())
     }
+}
 
+impl<T: Config> AgentState<T> {
     fn unsubscribe(&mut self, domain: &str) -> Result<()> {
         let _sub = self.subscribers.remove(domain).context("no subscribers")?;
+        Ok(())
+    }
+
+    fn remove_sub(&mut self, domain: &str, id: u64) -> Result<()> {
+        let sub = self.subscribers.get_mut(domain).context("no subscribers")?;
+        sub.subscriptions.remove(&id).context("no subscription")?;
+        if sub.subscriptions.is_empty() {
+            self.unsubscribe(domain)?;
+        }
         Ok(())
     }
 }
