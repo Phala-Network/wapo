@@ -26,6 +26,3 @@ exclude = ["wapod-pherry"]
 
 [profile.release]
 panic = "abort"
-
-[patch.crates-io]
-rustls = { git = "https://github.com/rustls/rustls" }
